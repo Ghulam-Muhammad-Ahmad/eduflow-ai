@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Menu, X, GraduationCap } from "lucide-react";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { user, role, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const navLinks = [
     { label: "Features", href: "#features" },
@@ -12,19 +16,37 @@ const Navbar = () => {
     { label: "Pricing", href: "#pricing" },
   ];
 
+  const getDashboardPath = () => {
+    switch (role) {
+      case "teacher":
+        return "/dashboard/teacher";
+      case "student":
+        return "/dashboard/student";
+      case "admin":
+        return "/dashboard/admin";
+      default:
+        return "/";
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <a href="/" className="flex items-center gap-2 group">
+          <Link to="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-edu-purple flex items-center justify-center shadow-md group-hover:shadow-glow transition-shadow duration-300">
               <GraduationCap className="w-6 h-6 text-primary-foreground" />
             </div>
             <span className="font-bold text-xl tracking-tight">
               Edu<span className="gradient-text">LabLoom</span>
             </span>
-          </a>
+          </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
@@ -41,12 +63,25 @@ const Navbar = () => {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="sm">
-              Log in
-            </Button>
-            <Button variant="nav-cta" size="sm">
-              Get Started Free
-            </Button>
+            {user ? (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to={getDashboardPath()}>Dashboard</Link>
+                </Button>
+                <Button variant="nav-cta" size="sm" onClick={handleSignOut}>
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/auth">Log in</Link>
+                </Button>
+                <Button variant="nav-cta" size="sm" asChild>
+                  <Link to="/auth">Get Started Free</Link>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -78,12 +113,27 @@ const Navbar = () => {
                 </a>
               ))}
               <div className="flex flex-col gap-2 pt-4 mt-2 border-t border-border/50">
-                <Button variant="ghost" className="justify-start">
-                  Log in
-                </Button>
-                <Button variant="nav-cta">
-                  Get Started Free
-                </Button>
+                {user ? (
+                  <>
+                    <Button variant="ghost" className="justify-start" asChild>
+                      <Link to={getDashboardPath()} onClick={() => setIsOpen(false)}>
+                        Dashboard
+                      </Link>
+                    </Button>
+                    <Button variant="nav-cta" onClick={() => { handleSignOut(); setIsOpen(false); }}>
+                      Sign Out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="ghost" className="justify-start" asChild>
+                      <Link to="/auth" onClick={() => setIsOpen(false)}>Log in</Link>
+                    </Button>
+                    <Button variant="nav-cta" asChild>
+                      <Link to="/auth" onClick={() => setIsOpen(false)}>Get Started Free</Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
