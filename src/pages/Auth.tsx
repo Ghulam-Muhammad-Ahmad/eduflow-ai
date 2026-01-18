@@ -8,13 +8,13 @@ import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowLeft } from "lucide-
 import { toast } from "sonner";
 import { z } from "zod";
 
-type AppRole = "teacher" | "student" | "admin";
+type AppRole = "teacher" | "student";
 
 const signUpSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   displayName: z.string().min(2, "Display name must be at least 2 characters").max(50),
-  role: z.enum(["teacher", "student", "admin"]),
+  role: z.enum(["teacher", "student"]),
 });
 
 const signInSchema = z.object({
@@ -45,7 +45,7 @@ const Auth = () => {
     }
   }, [user, role, loading]);
 
-  const redirectBasedOnRole = (userRole: AppRole) => {
+  const redirectBasedOnRole = (userRole: string) => {
     switch (userRole) {
       case "teacher":
         navigate("/dashboard/teacher");
@@ -119,9 +119,8 @@ const Auth = () => {
   };
 
   const roles = [
-    { value: "student", label: "Student", description: "Learn and track progress" },
-    { value: "teacher", label: "Teacher", description: "Create lessons and grade" },
-    { value: "admin", label: "Admin", description: "Manage institution" },
+    { value: "student", label: "Student", icon: "📚", description: "Learn and track progress" },
+    { value: "teacher", label: "Teacher", icon: "🎓", description: "Create lessons and grade" },
   ];
 
   if (loading) {
@@ -246,7 +245,7 @@ const Auth = () => {
             {isSignUp && (
               <div className="space-y-3">
                 <Label>I am a...</Label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   {roles.map((r) => (
                     <button
                       key={r.value}
@@ -254,16 +253,28 @@ const Auth = () => {
                       onClick={() =>
                         setFormData({ ...formData, role: r.value as AppRole })
                       }
-                      className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      className={`group relative p-5 rounded-2xl border-2 text-left transition-all duration-300 ${
                         formData.role === r.value
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/30"
+                          ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg shadow-primary/10"
+                          : "border-border bg-card hover:border-primary/40 hover:shadow-md"
                       }`}
                     >
-                      <div className="font-medium text-sm">{r.label}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-2xl">{r.icon}</span>
+                        <span className={`font-semibold ${formData.role === r.value ? "text-primary" : "text-foreground"}`}>
+                          {r.label}
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
                         {r.description}
                       </div>
+                      {formData.role === r.value && (
+                        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                          <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
