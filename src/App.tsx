@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import TeacherDashboard from "./pages/dashboard/TeacherDashboard";
+import TeacherDocuments from "./pages/dashboard/TeacherDocuments";
 import StudentDashboard from "./pages/dashboard/StudentDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import NotFound from "./pages/NotFound";
@@ -27,10 +28,18 @@ const App = () => (
             
             {/* Teacher Routes */}
             <Route
-              path="/dashboard/teacher/*"
+              path="/dashboard/teacher"
               element={
                 <ProtectedRoute allowedRoles={["teacher"]}>
                   <TeacherDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/teacher/documents"
+              element={
+                <ProtectedRoute allowedRoles={["teacher"]}>
+                  <TeacherDocuments />
                 </ProtectedRoute>
               }
             />
