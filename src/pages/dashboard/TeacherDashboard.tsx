@@ -83,126 +83,128 @@ const TeacherDashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Stats Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {stats.map((stat) => (
             <div
               key={stat.label}
-              className="bg-card rounded-xl border border-border p-5 hover:shadow-md transition-shadow"
+              className="bg-card rounded-lg border border-border p-4 hover:shadow-sm transition-shadow"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                  <stat.icon className="w-5 h-5 text-muted-foreground" />
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center">
+                  <stat.icon className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xl font-bold">{stat.value}</div>
+                  <div className="text-xs text-muted-foreground truncate">{stat.label}</div>
                 </div>
                 <span className={`text-xs font-medium ${stat.badgeColor}`}>
                   {stat.badge}
                 </span>
               </div>
-              <div className="text-2xl font-bold mb-1">{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid lg:grid-cols-3 gap-6">
+        {/* Main Content Grid - 3 columns */}
+        <div className="grid lg:grid-cols-3 gap-3">
+          {/* Quick Actions - First column */}
+          <div className="bg-card rounded-lg border border-border p-4">
+            <h2 className="text-sm font-semibold mb-3">Quick Actions</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {quickActions.map((action, index) => (
+                <button
+                  key={index}
+                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors text-left"
+                >
+                  <action.icon className={`w-4 h-4 ${action.color}`} />
+                  <span className="text-sm font-medium">{action.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Document Management - Takes 2 columns */}
-          <div className="lg:col-span-2 bg-card rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold">Document Management</h2>
-              <Button size="sm" className="gap-2">
-                <Plus className="w-4 h-4" />
-                Upload Document
+          <div className="lg:col-span-2 bg-card rounded-lg border border-border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Document Management</h2>
+              <Button size="sm" className="gap-1.5 h-8 text-xs">
+                <Plus className="w-3.5 h-3.5" />
+                Upload
               </Button>
             </div>
 
             {/* Search and Filter */}
-            <div className="flex gap-3 mb-5">
+            <div className="flex gap-2 mb-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search documents..."
-                  className="pl-10"
+                  className="pl-8 h-8 text-sm"
                 />
               </div>
-              <Button variant="outline" size="icon">
-                <Filter className="w-4 h-4" />
+              <Button variant="outline" size="icon" className="h-8 w-8">
+                <Filter className="w-3.5 h-3.5" />
               </Button>
             </div>
 
             {/* Document List */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               {documents.map((doc, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-lg">
+                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-sm">
                     {doc.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-primary truncate">{doc.name}</p>
+                    <p className="text-sm font-medium text-primary truncate">{doc.name}</p>
                     <p className="text-xs text-muted-foreground">{doc.updated} • {doc.size}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                      <Share2 className="w-4 h-4" />
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                      <Share2 className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                      <MoreVertical className="w-4 h-4" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                      <MoreVertical className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-
-          {/* Quick Actions */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-            <div className="space-y-3">
-              {quickActions.map((action, index) => (
-                <button
-                  key={index}
-                  className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors text-left"
-                >
-                  <action.icon className={`w-5 h-5 ${action.color}`} />
-                  <span className="font-medium">{action.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Bottom Grid */}
-        <div className="grid lg:grid-cols-3 gap-6">
+        {/* Bottom Grid - 3 equal columns */}
+        <div className="grid lg:grid-cols-3 gap-3">
           {/* Recent Assignments */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Recent Assignments</h2>
-              <Button variant="link" className="text-muted-foreground p-0 h-auto">
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Recent Assignments</h2>
+              <Button variant="link" className="text-muted-foreground p-0 h-auto text-xs">
                 View all
               </Button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {assignments.map((assignment, index) => (
-                <div key={index} className="pb-4 border-b border-border last:border-0 last:pb-0">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-primary">{assignment.title}</h3>
-                    <span className={`text-xs px-2 py-1 rounded-full ${assignment.statusColor}`}>
+                <div key={index} className="pb-3 border-b border-border last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between mb-1.5">
+                    <h3 className="text-sm font-medium text-primary">{assignment.title}</h3>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${assignment.statusColor}`}>
                       {assignment.status}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-2">{assignment.due}</p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mb-1.5">{assignment.due}</p>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Users className="w-3 h-3" />
-                      {assignment.students} students
+                      {assignment.students}
                     </span>
                     <span className="flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" />
-                      {assignment.submitted} submitted
+                      {assignment.submitted} done
                     </span>
                   </div>
                 </div>
@@ -211,27 +213,27 @@ const TeacherDashboard = () => {
           </div>
 
           {/* Active Quizzes */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Active Quizzes</h2>
-              <Button variant="link" className="text-muted-foreground p-0 h-auto">
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Active Quizzes</h2>
+              <Button variant="link" className="text-muted-foreground p-0 h-auto text-xs">
                 View all
               </Button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {quizzes.map((quiz, index) => (
-                <div key={index} className="pb-4 border-b border-border last:border-0 last:pb-0">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-primary">{quiz.title}</h3>
-                    <span className={`text-xs px-2 py-1 rounded-full ${quiz.statusColor}`}>
+                <div key={index} className="pb-3 border-b border-border last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between mb-1.5">
+                    <h3 className="text-sm font-medium text-primary">{quiz.title}</h3>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${quiz.statusColor}`}>
                       {quiz.status}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-2">{quiz.due}</p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mb-1.5">{quiz.due}</p>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <HelpCircle className="w-3 h-3" />
-                      {quiz.questions} questions
+                      {quiz.questions}Q
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
@@ -244,18 +246,18 @@ const TeacherDashboard = () => {
           </div>
 
           {/* AI Grading Status */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h2 className="text-lg font-semibold mb-4">AI Grading Status</h2>
-            <div className="space-y-5">
+          <div className="bg-card rounded-lg border border-border p-4">
+            <h2 className="text-sm font-semibold mb-3">AI Grading Status</h2>
+            <div className="space-y-4">
               {gradingStatus.map((item, index) => (
                 <div key={index}>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm text-primary font-medium">{item.title}</span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {item.completed}/{item.total}
                     </span>
                   </div>
-                  <Progress value={item.progress} className="h-2" />
+                  <Progress value={item.progress} className="h-1.5" />
                 </div>
               ))}
             </div>
