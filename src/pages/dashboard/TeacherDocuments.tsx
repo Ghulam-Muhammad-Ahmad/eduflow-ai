@@ -103,7 +103,7 @@ const TeacherDocuments = () => {
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [storageUsed, setStorageUsed] = useState(0);
-  const storageLimit = 20 * 1024 * 1024 * 1024; // 20 GB
+  const storageLimit = 100 * 1024 * 1024; // 100 MB
 
   const fetchData = useCallback(async () => {
     if (!user) return;
