@@ -77,7 +77,7 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Nunito',
+  				'Inter',
   				'ui-sans-serif',
   				'system-ui',
   				'sans-serif',
