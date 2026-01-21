@@ -304,17 +304,6 @@ const TeacherDocuments = () => {
       <div className="flex gap-6 h-[calc(100vh-7rem)]">
         {/* Left Sidebar - Folders */}
         <div className="w-64 flex-shrink-0 flex flex-col">
-          <Button className="w-full gap-2 mb-6" onClick={() => document.getElementById("file-upload")?.click()}>
-            <Upload className="w-4 h-4" />
-            Upload New
-          </Button>
-          <input
-            id="file-upload"
-            type="file"
-            className="hidden"
-            multiple
-            onChange={(e) => e.target.files && onDrop(Array.from(e.target.files))}
-          />
 
           <div className="flex-1 overflow-auto">
             <div className="mb-4">
