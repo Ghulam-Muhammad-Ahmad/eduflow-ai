@@ -81,10 +81,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User";
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="h-screen flex bg-background overflow-hidden">
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static top-0 left-0 h-full w-64 bg-card border-r border-border z-40 transform transition-transform duration-200 lg:translate-x-0 flex flex-col ${
+        className={`fixed lg:static top-0 left-0 h-screen w-64 bg-card border-r border-border z-40 transform transition-transform duration-200 lg:translate-x-0 flex flex-col ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
