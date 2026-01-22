@@ -14,6 +14,173 @@ export type Database = {
   }
   public: {
     Tables: {
+      assignment_attachments: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          document_id: string
+          id: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          document_id: string
+          id?: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_attachments_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_attachments_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignments: {
+        Row: {
+          allow_late_submission: boolean | null
+          classroom_id: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          instructions: string | null
+          points_possible: number | null
+          published_at: string | null
+          status: string
+          teacher_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          allow_late_submission?: boolean | null
+          classroom_id: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          instructions?: string | null
+          points_possible?: number | null
+          published_at?: string | null
+          status?: string
+          teacher_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          allow_late_submission?: boolean | null
+          classroom_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          instructions?: string | null
+          points_possible?: number | null
+          published_at?: string | null
+          status?: string
+          teacher_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignments_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classrooms: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_archived: boolean | null
+          join_code: string
+          name: string
+          settings: Json | null
+          subject: string | null
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_archived?: boolean | null
+          join_code: string
+          name: string
+          settings?: Json | null
+          subject?: string | null
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_archived?: boolean | null
+          join_code?: string
+          name?: string
+          settings?: Json | null
+          subject?: string | null
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      document_classroom_shares: {
+        Row: {
+          classroom_id: string
+          document_id: string
+          id: string
+          shared_at: string
+        }
+        Insert: {
+          classroom_id: string
+          document_id: string
+          id?: string
+          shared_at?: string
+        }
+        Update: {
+          classroom_id?: string
+          document_id?: string
+          id?: string
+          shared_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_classroom_shares_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_classroom_shares_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_tags: {
         Row: {
           created_at: string
@@ -94,6 +261,41 @@ export type Database = {
           },
         ]
       }
+      enrollments: {
+        Row: {
+          classroom_id: string
+          id: string
+          joined_at: string
+          left_at: string | null
+          status: string
+          student_id: string
+        }
+        Insert: {
+          classroom_id: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          status?: string
+          student_id: string
+        }
+        Update: {
+          classroom_id?: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       folders: {
         Row: {
           created_at: string
@@ -156,6 +358,68 @@ export type Database = {
         }
         Relationships: []
       }
+      submissions: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          feedback: string | null
+          file_name: string | null
+          file_path: string | null
+          grade: number | null
+          graded_at: string | null
+          id: string
+          is_late: boolean | null
+          returned_at: string | null
+          status: string
+          student_id: string
+          submitted_at: string
+          text_content: string | null
+          updated_at: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          feedback?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          grade?: number | null
+          graded_at?: string | null
+          id?: string
+          is_late?: boolean | null
+          returned_at?: string | null
+          status?: string
+          student_id: string
+          submitted_at?: string
+          text_content?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          feedback?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          grade?: number | null
+          graded_at?: string | null
+          id?: string
+          is_late?: boolean | null
+          returned_at?: string | null
+          status?: string
+          student_id?: string
+          submitted_at?: string
+          text_content?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tags: {
         Row: {
           color: string
@@ -206,6 +470,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_join_code: { Args: never; Returns: string }
+      get_classroom_by_join_code: {
+        Args: { code: string }
+        Returns: {
+          description: string
+          id: string
+          name: string
+          subject: string
+          teacher_name: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
