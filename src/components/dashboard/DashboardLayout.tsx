@@ -29,12 +29,12 @@ const roleConfig = {
     title: "Teacher Dashboard",
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/teacher" },
+      { icon: Users, label: "Classrooms", path: "/dashboard/teacher/classrooms" },
       { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
       { icon: HelpCircle, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
       { icon: Brain, label: "AI Grading", path: "/dashboard/teacher/grading" },
       { icon: Calendar, label: "Lesson Planner", path: "/dashboard/teacher/lessons" },
-      { icon: Users, label: "Students", path: "/dashboard/teacher/students" },
       { icon: BarChart3, label: "Analytics", path: "/dashboard/teacher/analytics" },
     ],
   },
@@ -42,6 +42,7 @@ const roleConfig = {
     title: "Student Dashboard",
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/student" },
+      { icon: Users, label: "My Classes", path: "/dashboard/student/classrooms" },
       { icon: Brain, label: "Study Hub", path: "/dashboard/student/study" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
       { icon: BarChart3, label: "Progress", path: "/dashboard/student/progress" },
