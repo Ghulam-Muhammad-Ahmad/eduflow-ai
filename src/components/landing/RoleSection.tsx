@@ -35,7 +35,7 @@ const RoleSection = () => {
             <span className="text-sm font-semibold text-primary uppercase tracking-wider mb-4 block">
               For Teachers
             </span>
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-foreground">
               Reclaim Your Time,{" "}
               <span className="gradient-text">Amplify Your Impact</span>
             </h2>
@@ -50,7 +50,7 @@ const RoleSection = () => {
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                     <benefit.icon className="w-5 h-5 text-primary" />
                   </div>
-                  <span className="font-medium">{benefit.text}</span>
+                  <span className="font-medium text-foreground">{benefit.text}</span>
                 </div>
               ))}
             </div>
@@ -62,12 +62,12 @@ const RoleSection = () => {
           </div>
 
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-edu-purple/20 rounded-3xl blur-3xl" />
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-slime-lime/10 rounded-3xl blur-3xl" />
             <div className="relative glass-card rounded-3xl p-8">
               <div className="bg-secondary/50 rounded-2xl p-6 mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm font-medium text-muted-foreground">AI Lesson Plan Generator</span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-accent/20 text-accent font-medium">Generating...</span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-slime-lime/20 text-brand-lime-dark font-medium">Generating...</span>
                 </div>
                 <div className="space-y-2">
                   <div className="h-3 bg-primary/20 rounded-full w-full animate-pulse" />
@@ -76,12 +76,12 @@ const RoleSection = () => {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-edu-teal-light/50 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-edu-teal mb-1">87%</div>
+                <div className="bg-slime-lime/10 rounded-xl p-4 text-center">
+                  <div className="text-2xl font-bold text-brand-lime-dark mb-1">87%</div>
                   <div className="text-xs text-muted-foreground">Time Saved</div>
                 </div>
-                <div className="bg-edu-amber-light/50 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-edu-amber mb-1">4.8★</div>
+                <div className="bg-primary/10 rounded-xl p-4 text-center">
+                  <div className="text-2xl font-bold text-primary mb-1">4.8★</div>
                   <div className="text-xs text-muted-foreground">Teacher Rating</div>
                 </div>
               </div>
@@ -92,30 +92,30 @@ const RoleSection = () => {
         {/* Students Section */}
         <div id="students" className="grid lg:grid-cols-2 gap-16 items-center">
           <div className="order-2 lg:order-1 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-edu-teal/20 to-accent/20 rounded-3xl blur-3xl" />
+            <div className="absolute inset-0 bg-gradient-to-br from-slime-lime/20 to-primary/10 rounded-3xl blur-3xl" />
             <div className="relative glass-card rounded-3xl p-8">
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-edu-purple flex items-center justify-center text-primary-foreground font-bold">
+                <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center text-white font-bold">
                   S
                 </div>
                 <div>
-                  <div className="font-semibold">Sarah's Progress</div>
+                  <div className="font-semibold text-foreground">Sarah's Progress</div>
                   <div className="text-sm text-muted-foreground">Advanced Mathematics</div>
                 </div>
               </div>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Algebra</span>
-                    <span className="text-accent font-medium">92%</span>
+                    <span className="text-foreground">Algebra</span>
+                    <span className="text-brand-lime-dark font-medium">92%</span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full" style={{ width: "92%" }} />
+                    <div className="h-full bg-slime-lime rounded-full" style={{ width: "92%" }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Calculus</span>
+                    <span className="text-foreground">Calculus</span>
                     <span className="text-primary font-medium">78%</span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -124,28 +124,28 @@ const RoleSection = () => {
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Statistics</span>
-                    <span className="text-edu-amber font-medium">65%</span>
+                    <span className="text-foreground">Statistics</span>
+                    <span className="text-primary font-medium">65%</span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-edu-amber rounded-full" style={{ width: "65%" }} />
+                    <div className="h-full bg-gradient-progress rounded-full" style={{ width: "65%" }} />
                   </div>
                 </div>
               </div>
               <div className="mt-6 p-4 rounded-xl bg-primary/5 border border-primary/10">
-                <div className="text-sm font-medium mb-1">🎯 AI Recommendation</div>
+                <div className="text-sm font-medium mb-1 text-foreground">🎯 AI Recommendation</div>
                 <div className="text-sm text-muted-foreground">Focus on Statistics practice problems this week</div>
               </div>
             </div>
           </div>
 
           <div className="order-1 lg:order-2">
-            <span className="text-sm font-semibold text-accent uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-semibold text-slime-lime uppercase tracking-wider mb-4 block">
               For Students
             </span>
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-foreground">
               Learn at Your Pace,{" "}
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-edu-teal to-accent">Achieve More</span>
+              <span className="gradient-text-premium">Achieve More</span>
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
               Personalized learning paths, instant feedback, and AI-powered study tools 
@@ -155,15 +155,15 @@ const RoleSection = () => {
             <div className="space-y-4 mb-8">
               {studentBenefits.map((benefit) => (
                 <div key={benefit.text} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                    <benefit.icon className="w-5 h-5 text-accent" />
+                  <div className="w-10 h-10 rounded-xl bg-slime-lime/10 flex items-center justify-center">
+                    <benefit.icon className="w-5 h-5 text-brand-lime-dark" />
                   </div>
-                  <span className="font-medium">{benefit.text}</span>
+                  <span className="font-medium text-foreground">{benefit.text}</span>
                 </div>
               ))}
             </div>
 
-            <Button variant="accent" size="lg">
+            <Button variant="premium" size="lg">
               Start Learning Today
               <ArrowRight className="w-5 h-5" />
             </Button>

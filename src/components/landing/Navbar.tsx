@@ -40,10 +40,10 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-edu-purple flex items-center justify-center shadow-md group-hover:shadow-glow transition-shadow duration-300">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-medium group-hover:shadow-glow-purple transition-shadow duration-300">
+              <GraduationCap className="w-6 h-6 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight">
+            <span className="font-bold text-xl tracking-tight text-foreground">
               Edu<span className="gradient-text">LabLoom</span>
             </span>
           </Link>
@@ -54,7 +54,7 @@ const Navbar = () => {
               <a
                 key={link.label}
                 href={link.href}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors duration-200"
               >
                 {link.label}
               </a>
@@ -68,7 +68,7 @@ const Navbar = () => {
                 <Button variant="ghost" size="sm" asChild>
                   <Link to={getDashboardPath()}>Dashboard</Link>
                 </Button>
-                <Button variant="nav-cta" size="sm" onClick={handleSignOut}>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
                   Sign Out
                 </Button>
               </>
@@ -77,7 +77,7 @@ const Navbar = () => {
                 <Button variant="ghost" size="sm" asChild>
                   <Link to="/auth">Log in</Link>
                 </Button>
-                <Button variant="nav-cta" size="sm" asChild>
+                <Button variant="default" size="sm" asChild>
                   <Link to="/auth">Get Started Free</Link>
                 </Button>
               </>
@@ -86,7 +86,7 @@ const Navbar = () => {
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden p-2"
+            className="md:hidden p-2 text-foreground hover:bg-secondary rounded-lg transition-colors"
             onClick={() => setIsOpen(!isOpen)}
             aria-label="Toggle menu"
           >
@@ -106,7 +106,7 @@ const Navbar = () => {
                 <a
                   key={link.label}
                   href={link.href}
-                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-secondary rounded-lg transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}
@@ -120,7 +120,7 @@ const Navbar = () => {
                         Dashboard
                       </Link>
                     </Button>
-                    <Button variant="nav-cta" onClick={() => { handleSignOut(); setIsOpen(false); }}>
+                    <Button variant="outline" onClick={() => { handleSignOut(); setIsOpen(false); }}>
                       Sign Out
                     </Button>
                   </>
@@ -129,7 +129,7 @@ const Navbar = () => {
                     <Button variant="ghost" className="justify-start" asChild>
                       <Link to="/auth" onClick={() => setIsOpen(false)}>Log in</Link>
                     </Button>
-                    <Button variant="nav-cta" asChild>
+                    <Button variant="default" asChild>
                       <Link to="/auth" onClick={() => setIsOpen(false)}>Get Started Free</Link>
                     </Button>
                   </>

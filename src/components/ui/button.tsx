@@ -5,20 +5,40 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98]",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg",
+        // Primary - Medium Slate Blue
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-medium hover:shadow-large",
+        
+        // Premium CTA - Slime Lime (use sparingly)
+        premium: "bg-slime-lime text-ink-black font-semibold hover:shadow-glow animate-premium-pulse hover:animate-none hover:brightness-110",
+        
+        // Destructive
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        
+        // Secondary - Transparent with dust grey border
+        outline: "border border-dust-grey bg-transparent hover:bg-dust-grey/20 text-foreground",
+        secondary: "border border-dust-grey bg-transparent hover:bg-dust-grey/20 text-foreground",
+        
+        // Ghost - No background, primary text
+        ghost: "text-primary hover:bg-primary/10 hover:text-primary",
+        
+        // Link
         link: "text-primary underline-offset-4 hover:underline",
-        hero: "bg-gradient-to-r from-primary to-edu-purple text-primary-foreground shadow-lg hover:shadow-glow hover:scale-[1.02] active:scale-[0.98]",
-        "hero-outline": "border-2 border-primary/20 bg-background/50 backdrop-blur-sm text-foreground hover:border-primary/40 hover:bg-primary/5",
-        accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-md",
-        "nav-cta": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+        
+        // Hero CTA - Gradient background
+        hero: "bg-gradient-primary text-white shadow-large hover:shadow-glow-purple hover:scale-[1.02] active:scale-[0.98]",
+        
+        // Hero Outline
+        "hero-outline": "border-2 border-primary/30 bg-background/50 backdrop-blur-sm text-foreground hover:border-primary/50 hover:bg-primary/5",
+        
+        // Accent - For secondary premium actions
+        accent: "bg-accent text-accent-foreground hover:brightness-110 shadow-medium",
+        
+        // Nav CTA
+        "nav-cta": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-subtle",
       },
       size: {
         default: "h-10 px-4 py-2",

@@ -73,8 +73,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   if (!config) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading dashboard...</p>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
@@ -92,10 +92,15 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Logo */}
         <div className="p-6 border-b border-border">
           <Link to="/" className="flex flex-col group">
-            <span className="font-bold text-xl tracking-tight">
-              EduLabLoom
-            </span>
-            <span className="text-xs text-primary font-medium">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold text-lg tracking-tight text-foreground">
+                EduLabLoom
+              </span>
+            </div>
+            <span className="text-xs text-primary font-medium mt-1">
               Learning Management
             </span>
           </Link>
@@ -111,10 +116,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   key={item.path}
                   to={item.path}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                     isActive
-                      ? "bg-secondary text-primary font-medium"
-                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      ? "bg-primary/10 text-primary font-medium border border-primary/20"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }`}
                 >
                   <item.icon className={`w-5 h-5 ${isActive ? "text-primary" : ""}`} />
@@ -128,21 +133,21 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* User Section */}
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 px-2 py-3 mb-2">
-            <Avatar className="h-10 w-10">
+            <Avatar className="h-10 w-10 border-2 border-primary/20">
               <AvatarImage src="" />
-              <AvatarFallback className="bg-secondary text-foreground font-semibold">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                 {displayName[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{displayName}</p>
+              <p className="font-medium text-sm truncate text-foreground">{displayName}</p>
               <p className="text-xs text-muted-foreground capitalize">{role}</p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+            className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             onClick={handleSignOut}
           >
             <LogOut className="w-4 h-4" />
@@ -154,7 +159,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-ink-black/50 backdrop-blur-sm z-30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -166,17 +171,22 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-secondary rounded-lg lg:hidden"
+              className="p-2 hover:bg-secondary rounded-lg lg:hidden transition-colors"
             >
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <h1 className="text-xl font-semibold">{config.title}</h1>
+            <h1 className="text-xl font-semibold text-foreground">{config.title}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
               <Bell className="w-5 h-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-muted-foreground hover:text-primary"
+              onClick={() => navigate("/dashboard/settings")}
+            >
               <Settings className="w-5 h-5" />
             </Button>
           </div>

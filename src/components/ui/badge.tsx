@@ -8,10 +8,29 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
+        // Default - Primary/Info style
+        default: "border-transparent bg-primary/10 text-primary",
+        
+        // Success - Slime lime based
+        success: "border-transparent bg-slime-lime/10 text-brand-lime-dark",
+        
+        // Neutral - Dust grey based
+        neutral: "border-transparent bg-dust-grey/20 text-foreground",
+        
+        // Secondary
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        
+        // Destructive
+        destructive: "border-transparent bg-destructive/10 text-destructive",
+        
+        // Outline
+        outline: "text-foreground border-dust-grey",
+        
+        // Premium - For special badges
+        premium: "border-transparent bg-gradient-premium text-ink-black font-bold",
+        
+        // Live/Active status
+        live: "border-transparent bg-slime-lime/20 text-brand-lime-dark animate-pulse",
       },
     },
     defaultVariants: {

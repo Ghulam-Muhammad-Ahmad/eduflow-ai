@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import TeacherDashboard from "./pages/dashboard/TeacherDashboard";
 import TeacherDocuments from "./pages/dashboard/TeacherDocuments";
 import TeacherClassrooms from "./pages/dashboard/TeacherClassrooms";
@@ -15,6 +16,7 @@ import StudentDashboard from "./pages/dashboard/StudentDashboard";
 import StudentClassrooms from "./pages/dashboard/StudentClassrooms";
 import StudentAssignments from "./pages/dashboard/StudentAssignments";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import Settings from "./pages/dashboard/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +31,17 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            
+            {/* Settings Route - Accessible by all authenticated users */}
+            <Route
+              path="/dashboard/settings"
+              element={
+                <ProtectedRoute allowedRoles={["teacher", "student", "admin"]}>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
             
             {/* Teacher Routes */}
             <Route

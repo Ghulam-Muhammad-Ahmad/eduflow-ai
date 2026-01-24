@@ -1,9 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +22,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Card,
   CardContent,
@@ -32,6 +51,8 @@ import {
   Archive,
   Settings,
   Share2,
+  UserMinus,
+  Percent,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -41,20 +62,50 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 
+interface ClassroomSettings {
+  allowLateSubmissions: boolean;
+  latePenaltyPercent: number;
+  defaultPointsPossible: number;
+  gradingScale: string;
+}
+
+const defaultSettings: ClassroomSettings = {
+  allowLateSubmissions: true,
+  latePenaltyPercent: 10,
+  defaultPointsPossible: 100,
+  gradingScale: "percentage",
+};
+
 const TeacherClassrooms = () => {
-  const { classrooms, isLoading, createClassroom, archiveClassroom } = useClassrooms();
+  const { classrooms, isLoading, createClassroom, archiveClassroom, removeStudent, updateClassroomSettings } = useClassrooms();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [removeStudentDialogOpen, setRemoveStudentDialogOpen] = useState(false);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [studentToRemove, setStudentToRemove] = useState<{ enrollmentId: string; name: string } | null>(null);
 
   // Form state
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
 
+  // Settings form state
+  const [settings, setSettings] = useState<ClassroomSettings>(defaultSettings);
+
   const { data: roster, isLoading: rosterLoading } = useClassroomRoster(selectedClassroomId);
+
+  const selectedClassroom = classrooms?.find((c) => c.id === selectedClassroomId);
+
+  // Load settings when opening settings dialog
+  useEffect(() => {
+    if (settingsDialogOpen && selectedClassroom) {
+      const existingSettings = selectedClassroom.settings as ClassroomSettings | null;
+      setSettings(existingSettings ? { ...defaultSettings, ...existingSettings } : defaultSettings);
+    }
+  }, [settingsDialogOpen, selectedClassroom]);
 
   const handleCreate = async () => {
     if (!name.trim()) return;
@@ -86,7 +137,38 @@ const TeacherClassrooms = () => {
     setRosterDialogOpen(true);
   };
 
-  const selectedClassroom = classrooms?.find((c) => c.id === selectedClassroomId);
+  const openSettings = (classroomId: string) => {
+    setSelectedClassroomId(classroomId);
+    setSettingsDialogOpen(true);
+  };
+
+  const handleRemoveStudent = (enrollmentId: string, studentName: string) => {
+    setStudentToRemove({ enrollmentId, name: studentName });
+    setRemoveStudentDialogOpen(true);
+  };
+
+  const confirmRemoveStudent = async () => {
+    if (!studentToRemove || !selectedClassroomId) return;
+    
+    await removeStudent.mutateAsync({
+      enrollmentId: studentToRemove.enrollmentId,
+      classroomId: selectedClassroomId,
+    });
+    
+    setRemoveStudentDialogOpen(false);
+    setStudentToRemove(null);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!selectedClassroomId) return;
+    
+    await updateClassroomSettings.mutateAsync({
+      id: selectedClassroomId,
+      settings,
+    });
+    
+    setSettingsDialogOpen(false);
+  };
 
   return (
     <DashboardLayout>
@@ -227,7 +309,7 @@ const TeacherClassrooms = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openSettings(classroom.id)}>
                           <Settings className="w-4 h-4 mr-2" />
                           Settings
                         </DropdownMenuItem>
@@ -301,7 +383,7 @@ const TeacherClassrooms = () => {
                 {selectedClassroom?.name} - Roster
               </DialogTitle>
               <DialogDescription>
-                Students enrolled in this classroom
+                Students enrolled in this classroom ({roster?.length || 0} students)
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
@@ -330,32 +412,187 @@ const TeacherClassrooms = () => {
 
               {!rosterLoading && roster && roster.length > 0 && (
                 <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {roster.map((enrollment) => (
-                    <div
-                      key={enrollment.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30"
-                    >
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={(enrollment.profiles as any)?.avatar_url} />
-                        <AvatarFallback>
-                          {((enrollment.profiles as any)?.display_name?.[0] || "S").toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {(enrollment.profiles as any)?.display_name || "Student"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Joined {new Date(enrollment.joined_at).toLocaleDateString()}
-                        </p>
+                  {roster.map((enrollment) => {
+                    const studentName = (enrollment.profiles as any)?.display_name || "Student";
+                    return (
+                      <div
+                        key={enrollment.id}
+                        className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 group"
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={(enrollment.profiles as any)?.avatar_url} />
+                          <AvatarFallback>
+                            {(studentName[0] || "S").toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">
+                            {studentName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Joined {new Date(enrollment.joined_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemoveStudent(enrollment.id, studentName)}
+                        >
+                          <UserMinus className="w-4 h-4" />
+                        </Button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Settings Dialog */}
+        <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                <Settings className="w-5 h-5 inline-block mr-2" />
+                Classroom Settings
+              </DialogTitle>
+              <DialogDescription>
+                Configure grading and submission settings for {selectedClassroom?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              {/* Late Submissions */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="allowLate" className="text-base">Allow Late Submissions</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Students can submit after the due date
+                    </p>
+                  </div>
+                  <Switch
+                    id="allowLate"
+                    checked={settings.allowLateSubmissions}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, allowLateSubmissions: checked })
+                    }
+                  />
+                </div>
+
+                {settings.allowLateSubmissions && (
+                  <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+                    <Label htmlFor="latePenalty">Late Penalty (%)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="latePenalty"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={settings.latePenaltyPercent}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            latePenaltyPercent: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-24"
+                      />
+                      <Percent className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">deducted per day</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Default Points */}
+              <div className="space-y-2">
+                <Label htmlFor="defaultPoints">Default Points Possible</Label>
+                <p className="text-sm text-muted-foreground">
+                  Default point value for new assignments
+                </p>
+                <Input
+                  id="defaultPoints"
+                  type="number"
+                  min="1"
+                  value={settings.defaultPointsPossible}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      defaultPointsPossible: parseInt(e.target.value) || 100,
+                    })
+                  }
+                  className="w-32"
+                />
+              </div>
+
+              {/* Grading Scale */}
+              <div className="space-y-2">
+                <Label htmlFor="gradingScale">Grading Scale</Label>
+                <p className="text-sm text-muted-foreground">
+                  How grades are displayed to students
+                </p>
+                <Select
+                  value={settings.gradingScale}
+                  onValueChange={(value) =>
+                    setSettings({ ...settings, gradingScale: value })
+                  }
+                >
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage (0-100%)</SelectItem>
+                    <SelectItem value="points">Points Only</SelectItem>
+                    <SelectItem value="letter">Letter Grade (A-F)</SelectItem>
+                    <SelectItem value="passfail">Pass/Fail</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setSettingsDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveSettings}
+                disabled={updateClassroomSettings.isPending}
+              >
+                {updateClassroomSettings.isPending ? "Saving..." : "Save Settings"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Remove Student Confirmation Dialog */}
+        <AlertDialog open={removeStudentDialogOpen} onOpenChange={setRemoveStudentDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Student</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove <span className="font-semibold">{studentToRemove?.name}</span> from this classroom? 
+                They will lose access to all classroom materials and assignments. 
+                They can rejoin using the classroom code.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setStudentToRemove(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmRemoveStudent}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={removeStudent.isPending}
+              >
+                {removeStudent.isPending ? "Removing..." : "Remove Student"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

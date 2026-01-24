@@ -1,128 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
-@import url("https://fonts.googleapis.com/css2?family=Nunito&display=swap");
-
-@import url("https://fonts.googleapis.com/css2?family=Inter&display=swap");
-
 @layer base {
   :root {
-    /* EduLabLoom Design System - Light Mode */
-    --background: 220 20% 98%;
-    --foreground: 224 71% 4%;
+    /* Premium Educational SaaS Design System */
+    
+    /* Core Brand Colors (HSL values) */
+    --ink-black: 220 26% 14%; /* #111827 */
+    --medium-slate-blue: 258 90% 66%; /* #8B5CF6 */
+    --slime-lime: 82 84% 55%; /* #A3E635 */
+    --dust-grey: 240 5% 84%; /* #D4D4D8 */
+    --platinum: 240 6% 96%; /* #F4F4F5 */
+    
+    /* Semantic Colors - Light Mode */
+    --background: 240 6% 96%; /* platinum */
+    --foreground: 220 26% 14%; /* ink-black */
 
     --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
+    --card-foreground: 220 26% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
+    --popover-foreground: 220 26% 14%;
 
-    /* Primary - Deep Indigo */
-    --primary: 24 76% 61%;
+    /* Primary - Medium Slate Blue */
+    --primary: 258 90% 66%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary - Soft Slate */
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 224 71% 4%;
+    /* Secondary - Dust Grey based */
+    --secondary: 240 5% 92%;
+    --secondary-foreground: 220 26% 14%;
+
+    /* Accent - Slime Lime */
+    --accent: 82 84% 55%;
+    --accent-foreground: 220 26% 14%;
 
     /* Muted */
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 240 5% 92%;
+    --muted-foreground: 240 5% 46%;
 
-    /* Accent - Teal for Growth */
-    --accent: 0 0% 100%;
-    --accent-foreground: 24 76% 61%;
-
-    /* Destructive */
+    /* Destructive / Error */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
+    --error-red: 0 84% 60%; /* #EF4444 */
+
+    /* Success */
+    --success: 84 81% 44%; /* #84CC16 - darker lime for text */
+    --success-foreground: 220 26% 14%;
 
     /* Borders & Inputs */
-    --border: 213 26.8293% 83.9216%;
-    --input: 220 13% 91%;
-    --ring: 239 84% 67%;
+    --border: 240 5% 84%;
+    --input: 240 5% 84%;
+    --ring: 258 90% 66%;
 
-    --radius: 0.375rem;
+    --radius: 0.5rem;
 
-    /* Custom EduLabLoom Colors */
-    --edu-indigo: 239 84% 67%;
-    --edu-indigo-dark: 239 84% 55%;
-    --edu-teal: 172 66% 50%;
-    --edu-teal-light: 172 66% 95%;
-    --edu-amber: 38 92% 50%;
-    --edu-amber-light: 38 92% 95%;
-    --edu-purple: 270 70% 60%;
-    --edu-purple-light: 270 70% 95%;
-    --edu-rose: 350 89% 60%;
-    --edu-rose-light: 350 89% 95%;
+    /* Brand Colors for direct use */
+    --brand-purple: 258 90% 66%;
+    --brand-purple-dark: 258 90% 56%;
+    --brand-lime: 82 84% 55%;
+    --brand-lime-dark: 84 81% 44%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%) 0%, hsl(270 70% 60%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(239 84% 67% / 0.1) 0%, hsl(172 66% 50% / 0.1) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 20% 98%) 100%);
-    --gradient-glow: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(239 84% 67% / 0.15), transparent 40%);
+    --gradient-primary: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+    --gradient-premium: linear-gradient(135deg, #8B5CF6 0%, #A3E635 100%);
+    --gradient-hero: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(163, 230, 53, 0.1) 100%);
+    --gradient-dark: linear-gradient(180deg, #111827 0%, #1F2937 100%);
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(224 71% 4% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(224 71% 4% / 0.1), 0 2px 4px -2px hsl(224 71% 4% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(224 71% 4% / 0.1), 0 4px 6px -4px hsl(224 71% 4% / 0.1);
-    --shadow-xl: 0 20px 25px -5px hsl(224 71% 4% / 0.1), 0 8px 10px -6px hsl(224 71% 4% / 0.1);
-    --shadow-glow: 0 0 40px hsl(239 84% 67% / 0.3);
+    --shadow-subtle: 0 1px 3px rgba(17, 24, 39, 0.1);
+    --shadow-medium: 0 4px 6px rgba(17, 24, 39, 0.1);
+    --shadow-large: 0 10px 25px rgba(139, 92, 246, 0.15);
+    --shadow-glow: 0 0 20px rgba(163, 230, 53, 0.3);
+    --shadow-glow-purple: 0 0 30px rgba(139, 92, 246, 0.25);
 
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 224 71% 4%;
-    --sidebar-primary: 239 84% 67%;
+    --sidebar-foreground: 220 26% 14%;
+    --sidebar-primary: 258 90% 66%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 96%;
-    --sidebar-accent-foreground: 224 71% 4%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-accent: 240 5% 92%;
+    --sidebar-accent-foreground: 220 26% 14%;
+    --sidebar-border: 240 5% 90%;
+    --sidebar-ring: 258 90% 66%;
+
     --font-sans: Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   }
 
   .dark {
-    --background: 224 71% 4%;
-    --foreground: 210 40% 98%;
+    /* Dark Mode - Ink Black based */
+    --background: 220 26% 14%; /* ink-black */
+    --foreground: 240 6% 96%; /* platinum */
 
-    --card: 224 71% 8%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 26% 17%; /* #1F2937 - slightly lighter than ink-black */
+    --card-foreground: 240 6% 96%;
 
-    --popover: 224 71% 8%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 26% 17%;
+    --popover-foreground: 240 6% 96%;
 
-    --primary: 239 84% 67%;
+    --primary: 258 90% 66%; /* medium-slate-blue - same in both modes */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 26% 20%;
+    --secondary-foreground: 240 6% 96%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --accent: 82 84% 55%; /* slime-lime - same in both modes */
+    --accent-foreground: 220 26% 14%;
 
-    --accent: 172 66% 50%;
-    --accent-foreground: 0 0% 100%;
+    --muted: 220 26% 20%;
+    --muted-foreground: 240 5% 65%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 240 6% 96%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 239 84% 67%;
+    --border: 220 26% 22%;
+    --input: 220 26% 22%;
+    --ring: 258 90% 66%;
 
-    --sidebar-background: 224 71% 6%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 239 84% 67%;
+    --sidebar-background: 220 26% 12%;
+    --sidebar-foreground: 240 6% 96%;
+    --sidebar-primary: 258 90% 66%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-ring: 239 84% 67%;
-    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
-    --radius: 0.375rem;
+    --sidebar-accent: 220 26% 20%;
+    --sidebar-accent-foreground: 240 6% 96%;
+    --sidebar-border: 220 26% 20%;
+    --sidebar-ring: 258 90% 66%;
   }
 }
 
@@ -139,57 +144,133 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
   }
+
+  /* Focus visible rings for accessibility */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
 }
 
 @layer components {
+  /* Gradient Text */
   .gradient-text {
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-primary);
   }
 
-  .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50;
-    box-shadow: var(--shadow-lg);
+  .gradient-text-premium {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-premium);
   }
 
+  /* Glass Card Effect */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+    box-shadow: var(--shadow-medium);
+  }
+
+  /* Premium Glass with Frosted Effect */
+  .glass-premium {
+    @apply bg-white/10 backdrop-blur-xl border border-white/20;
+    box-shadow: var(--shadow-large);
+  }
+
+  /* Glow Effects */
   .glow-effect {
     box-shadow: var(--shadow-glow);
   }
 
+  .glow-purple {
+    box-shadow: var(--shadow-glow-purple);
+  }
+
+  /* Premium CTA Pulse Animation */
+  .premium-pulse {
+    animation: premium-pulse 2s ease-in-out infinite;
+  }
+
+  /* Feature Icon Wrappers */
   .feature-icon-wrapper {
-    @apply w-14 h-14 rounded-2xl flex items-center justify-center;
-  }
-
-  .feature-icon-indigo {
-    @apply feature-icon-wrapper bg-primary/10 text-primary;
-  }
-
-  .feature-icon-teal {
-    @apply feature-icon-wrapper;
-    background-color: hsl(var(--edu-teal-light));
-    color: hsl(var(--edu-teal));
-  }
-
-  .feature-icon-amber {
-    @apply feature-icon-wrapper;
-    background-color: hsl(var(--edu-amber-light));
-    color: hsl(var(--edu-amber));
+    @apply w-14 h-14 rounded-2xl flex items-center justify-center transition-transform duration-200;
   }
 
   .feature-icon-purple {
-    @apply feature-icon-wrapper;
-    background-color: hsl(var(--edu-purple-light));
-    color: hsl(var(--edu-purple));
+    @apply feature-icon-wrapper bg-primary/10 text-primary;
   }
 
-  .feature-icon-rose {
+  .feature-icon-lime {
     @apply feature-icon-wrapper;
-    background-color: hsl(var(--edu-rose-light));
-    color: hsl(var(--edu-rose));
+    background-color: rgba(163, 230, 53, 0.1);
+    color: #84CC16;
+  }
+
+  .feature-icon-neutral {
+    @apply feature-icon-wrapper bg-muted text-muted-foreground;
+  }
+
+  /* Badge Styles */
+  .badge-info {
+    @apply bg-primary/10 text-primary border-primary/20;
+  }
+
+  .badge-success {
+    background-color: rgba(163, 230, 53, 0.1);
+    color: #84CC16;
+    border-color: rgba(163, 230, 53, 0.2);
+  }
+
+  .badge-neutral {
+    @apply bg-muted/50 text-foreground border-border;
+  }
+
+  /* Progress Gradient */
+  .progress-gradient {
+    background: linear-gradient(90deg, #8B5CF6 0%, #A3E635 100%);
+  }
+
+  /* Noise Texture Overlay */
+  .noise-overlay {
+    position: relative;
+  }
+
+  .noise-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.02;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Card Hover Effect */
+  .card-hover {
+    @apply transition-all duration-300;
+  }
+
+  .card-hover:hover {
+    @apply border-primary/30;
+    box-shadow: var(--shadow-large);
+    transform: translateY(-2px);
+  }
+
+  /* Button Press Effect */
+  .btn-press:active {
+    transform: scale(0.98);
+  }
+
+  /* Premium Section Background */
+  .bg-premium-dark {
+    background: linear-gradient(180deg, #111827 0%, #1F2937 100%);
+  }
+
+  .bg-premium-hero {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(163, 230, 53, 0.05) 100%);
   }
 }
 
 @layer utilities {
+  /* Animations */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -215,8 +296,23 @@
   .animate-fade-in {
     animation: fade-in 0.8s ease-out forwards;
   }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite;
+  }
+
+  /* Transition Utilities */
+  .transition-premium {
+    transition: all 200ms ease-in-out;
+  }
+
+  /* Hover Scale */
+  .hover-scale:hover {
+    transform: scale(1.02);
+  }
 }
 
+/* Keyframes */
 @keyframes float {
   0%, 100% {
     transform: translateY(0px);
@@ -264,5 +360,23 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes premium-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(163, 230, 53, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(163, 230, 53, 0.5);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(163, 230, 53, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(163, 230, 53, 0.5);
   }
 }

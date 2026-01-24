@@ -2,6 +2,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   FileText,
   ClipboardCheck,
@@ -27,28 +28,28 @@ const TeacherDashboard = () => {
       label: "Total Documents",
       value: "248",
       badge: "+12%",
-      badgeColor: "text-primary",
+      badgeVariant: "success" as const,
     },
     {
       icon: ClipboardCheck,
       label: "Pending Assignments",
       value: "34",
       badge: "Active",
-      badgeColor: "text-muted-foreground",
+      badgeVariant: "default" as const,
     },
     {
       icon: Brain,
       label: "Papers Graded",
       value: "127",
       badge: "AI",
-      badgeColor: "text-muted-foreground",
+      badgeVariant: "default" as const,
     },
     {
       icon: Users,
       label: "Students Enrolled",
       value: "342",
       badge: "Total",
-      badgeColor: "text-muted-foreground",
+      badgeVariant: "neutral" as const,
     },
   ];
 
@@ -59,22 +60,22 @@ const TeacherDashboard = () => {
   ];
 
   const quickActions = [
-    { icon: ClipboardCheck, label: "Create Assignment", color: "text-foreground" },
-    { icon: HelpCircle, label: "Create Quiz", color: "text-foreground" },
-    { icon: Calendar, label: "Plan Lesson", color: "text-foreground" },
-    { icon: Brain, label: "AI Grade Papers", color: "text-foreground" },
+    { icon: ClipboardCheck, label: "Create Assignment", color: "text-primary" },
+    { icon: HelpCircle, label: "Create Quiz", color: "text-primary" },
+    { icon: Calendar, label: "Plan Lesson", color: "text-primary" },
+    { icon: Brain, label: "AI Grade Papers", color: "text-brand-lime-dark" },
   ];
 
   const assignments = [
-    { title: "Cell Structure Essay", due: "Due: March 15, 2025", students: 42, submitted: 28, status: "Pending", statusColor: "text-amber-600 bg-amber-50" },
-    { title: "Chemical Reactions Lab Report", due: "Due: March 20, 2025", students: 38, submitted: 15, status: "Active", statusColor: "text-primary bg-primary/10" },
-    { title: "Physics Problem Set #3", due: "Due: March 25, 2025", students: 45, submitted: 8, status: "Active", statusColor: "text-primary bg-primary/10" },
+    { title: "Cell Structure Essay", due: "Due: March 15, 2025", students: 42, submitted: 28, status: "Pending", statusVariant: "neutral" as const },
+    { title: "Chemical Reactions Lab Report", due: "Due: March 20, 2025", students: 38, submitted: 15, status: "Active", statusVariant: "default" as const },
+    { title: "Physics Problem Set #3", due: "Due: March 25, 2025", students: 45, submitted: 8, status: "Active", statusVariant: "default" as const },
   ];
 
   const quizzes = [
-    { title: "Periodic Table Quiz", due: "Due: March 12, 2025", questions: 15, duration: "30 min", status: "Live", statusColor: "text-accent bg-accent/10" },
-    { title: "DNA & Genetics Quiz", due: "Due: March 18, 2025", questions: 20, duration: "45 min", status: "Scheduled", statusColor: "text-muted-foreground bg-secondary" },
-    { title: "Newton's Laws Assessment", due: "Due: March 22, 2025", questions: 12, duration: "25 min", status: "Draft", statusColor: "text-amber-600 bg-amber-50" },
+    { title: "Periodic Table Quiz", due: "Due: March 12, 2025", questions: 15, duration: "30 min", status: "Live", statusVariant: "live" as const },
+    { title: "DNA & Genetics Quiz", due: "Due: March 18, 2025", questions: 20, duration: "45 min", status: "Scheduled", statusVariant: "neutral" as const },
+    { title: "Newton's Laws Assessment", due: "Due: March 22, 2025", questions: 12, duration: "25 min", status: "Draft", statusVariant: "neutral" as const },
   ];
 
   const gradingStatus = [
@@ -110,37 +111,37 @@ const TeacherDashboard = () => {
           {stats.map((stat) => (
             <div
               key={stat.label}
-              className="bg-card rounded-lg border border-border p-4 hover:shadow-sm transition-shadow"
+              className="bg-card rounded-xl border border-border p-4 hover:shadow-medium hover:border-primary/20 transition-all duration-200"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center">
-                  <stat.icon className="w-4 h-4 text-muted-foreground" />
+                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <stat.icon className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xl font-bold">{stat.value}</div>
+                  <div className="text-xl font-bold text-foreground">{stat.value}</div>
                   <div className="text-xs text-muted-foreground truncate">{stat.label}</div>
                 </div>
-                <span className={`text-xs font-medium ${stat.badgeColor}`}>
+                <Badge variant={stat.badgeVariant}>
                   {stat.badge}
-                </span>
+                </Badge>
               </div>
             </div>
           ))}
         </div>
 
         {/* Quick Actions - Full width, single row */}
-        <div className="bg-card rounded-lg border border-border p-4">
+        <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">Quick Actions</h2>
+            <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {quickActions.map((action, index) => (
               <button
                 key={index}
-                className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors"
+                className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200"
               >
                 <action.icon className={`w-4 h-4 ${action.color}`} />
-                <span className="text-sm font-medium">{action.label}</span>
+                <span className="text-sm font-medium text-foreground">{action.label}</span>
               </button>
             ))}
           </div>
@@ -149,24 +150,24 @@ const TeacherDashboard = () => {
         {/* Charts Row */}
         <div className="grid lg:grid-cols-2 gap-3">
           {/* Weekly Activity Chart */}
-          <div className="bg-card rounded-lg border border-border p-4">
+          <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold">Weekly Activity</h2>
+              <h2 className="text-sm font-semibold text-foreground">Weekly Activity</h2>
               <div className="flex items-center gap-3 text-xs">
                 <span className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-primary" />
-                  Submissions
+                  <span className="text-muted-foreground">Submissions</span>
                 </span>
                 <span className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-accent" />
-                  Graded
+                  <div className="w-2 h-2 rounded-full bg-slime-lime" />
+                  <span className="text-muted-foreground">Graded</span>
                 </span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={weeklyActivityData}>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} width={30} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={30} />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
@@ -175,25 +176,25 @@ const TeacherDashboard = () => {
                     fontSize: '12px'
                   }} 
                 />
-                <Bar dataKey="submissions" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="graded" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="submissions" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="graded" fill="#A3E635" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           {/* Student Engagement Chart */}
-          <div className="bg-card rounded-lg border border-border p-4">
+          <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold">Student Engagement</h2>
-              <span className="flex items-center gap-1 text-xs text-primary">
+              <h2 className="text-sm font-semibold text-foreground">Student Engagement</h2>
+              <span className="flex items-center gap-1 text-xs text-brand-lime-dark">
                 <TrendingUp className="w-3 h-3" />
                 +12% this month
               </span>
             </div>
             <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={studentEngagementData}>
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} width={30} />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={30} />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
@@ -204,14 +205,14 @@ const TeacherDashboard = () => {
                 />
                 <defs>
                   <linearGradient id="engagementGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <Area 
                   type="monotone" 
                   dataKey="engagement" 
-                  stroke="hsl(var(--primary))" 
+                  stroke="#8B5CF6" 
                   strokeWidth={2}
                   fill="url(#engagementGradient)" 
                 />
@@ -223,9 +224,9 @@ const TeacherDashboard = () => {
         {/* Main Content Grid - 2 columns */}
         <div className="grid lg:grid-cols-3 gap-3">
           {/* Document Management - Takes 2 columns */}
-          <div className="lg:col-span-2 bg-card rounded-lg border border-border p-4">
+          <div className="lg:col-span-2 bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold">Document Management</h2>
+              <h2 className="text-sm font-semibold text-foreground">Document Management</h2>
               <Button size="sm" className="gap-1.5 h-8 text-xs">
                 <Plus className="w-3.5 h-3.5" />
                 Upload
@@ -251,20 +252,20 @@ const TeacherDashboard = () => {
               {documents.map((doc, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/20 transition-all duration-200"
                 >
                   <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-sm">
                     {doc.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{doc.name}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{doc.name}</p>
                     <p className="text-xs text-muted-foreground">{doc.updated} • {doc.size}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                       <Share2 className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                       <MoreVertical className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -274,18 +275,18 @@ const TeacherDashboard = () => {
           </div>
 
           {/* AI Grading Status */}
-          <div className="bg-card rounded-lg border border-border p-4">
-            <h2 className="text-sm font-semibold mb-3">AI Grading Status</h2>
+          <div className="bg-card rounded-xl border border-border p-4">
+            <h2 className="text-sm font-semibold mb-3 text-foreground">AI Grading Status</h2>
             <div className="space-y-4">
               {gradingStatus.map((item, index) => (
                 <div key={index}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-primary font-medium">{item.title}</span>
+                    <span className="text-sm text-foreground font-medium">{item.title}</span>
                     <span className="text-xs text-muted-foreground">
                       {item.completed}/{item.total}
                     </span>
                   </div>
-                  <Progress value={item.progress} className="h-1.5" />
+                  <Progress value={item.progress} variant="gradient" className="h-2" />
                 </div>
               ))}
             </div>
@@ -295,10 +296,10 @@ const TeacherDashboard = () => {
         {/* Bottom Grid - 2 columns */}
         <div className="grid lg:grid-cols-2 gap-3">
           {/* Recent Assignments */}
-          <div className="bg-card rounded-lg border border-border p-4">
+          <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold">Recent Assignments</h2>
-              <Button variant="link" className="text-muted-foreground p-0 h-auto text-xs">
+              <h2 className="text-sm font-semibold text-foreground">Recent Assignments</h2>
+              <Button variant="ghost" className="text-muted-foreground p-0 h-auto text-xs hover:text-primary">
                 View all
               </Button>
             </div>
@@ -306,10 +307,10 @@ const TeacherDashboard = () => {
               {assignments.map((assignment, index) => (
                 <div key={index} className="pb-3 border-b border-border last:border-0 last:pb-0">
                   <div className="flex items-start justify-between mb-1.5">
-                    <h3 className="text-sm font-medium text-primary">{assignment.title}</h3>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${assignment.statusColor}`}>
+                    <h3 className="text-sm font-medium text-foreground">{assignment.title}</h3>
+                    <Badge variant={assignment.statusVariant}>
                       {assignment.status}
-                    </span>
+                    </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mb-1.5">{assignment.due}</p>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -328,10 +329,10 @@ const TeacherDashboard = () => {
           </div>
 
           {/* Active Quizzes */}
-          <div className="bg-card rounded-lg border border-border p-4">
+          <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold">Active Quizzes</h2>
-              <Button variant="link" className="text-muted-foreground p-0 h-auto text-xs">
+              <h2 className="text-sm font-semibold text-foreground">Active Quizzes</h2>
+              <Button variant="ghost" className="text-muted-foreground p-0 h-auto text-xs hover:text-primary">
                 View all
               </Button>
             </div>
@@ -339,10 +340,10 @@ const TeacherDashboard = () => {
               {quizzes.map((quiz, index) => (
                 <div key={index} className="pb-3 border-b border-border last:border-0 last:pb-0">
                   <div className="flex items-start justify-between mb-1.5">
-                    <h3 className="text-sm font-medium text-primary">{quiz.title}</h3>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${quiz.statusColor}`}>
+                    <h3 className="text-sm font-medium text-foreground">{quiz.title}</h3>
+                    <Badge variant={quiz.statusVariant}>
                       {quiz.status}
-                    </span>
+                    </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mb-1.5">{quiz.due}</p>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">

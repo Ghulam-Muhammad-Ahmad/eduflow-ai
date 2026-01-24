@@ -148,6 +148,76 @@ export const useClassrooms = () => {
     },
   });
 
+  // Remove student from classroom
+  const removeStudent = useMutation({
+    mutationFn: async ({ enrollmentId, classroomId }: { enrollmentId: string; classroomId: string }) => {
+      const { error } = await supabase
+        .from("enrollments")
+        .update({ 
+          status: "removed",
+          left_at: new Date().toISOString()
+        })
+        .eq("id", enrollmentId);
+
+      if (error) throw error;
+      return { enrollmentId, classroomId };
+    },
+    onSuccess: ({ classroomId }) => {
+      queryClient.invalidateQueries({ queryKey: ["classroom-roster", classroomId] });
+      toast({
+        title: "Student removed",
+        description: "The student has been removed from the classroom.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error removing student",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update classroom settings
+  const updateClassroomSettings = useMutation({
+    mutationFn: async ({
+      id,
+      settings,
+    }: {
+      id: string;
+      settings: {
+        allowLateSubmissions?: boolean;
+        latePenaltyPercent?: number;
+        defaultPointsPossible?: number;
+        gradingScale?: string;
+      };
+    }) => {
+      const { data: classroom, error } = await supabase
+        .from("classrooms")
+        .update({ settings })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return classroom;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+      toast({
+        title: "Settings updated",
+        description: "Classroom settings have been saved.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error updating settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     classrooms,
     isLoading,
@@ -155,6 +225,8 @@ export const useClassrooms = () => {
     createClassroom,
     updateClassroom,
     archiveClassroom,
+    removeStudent,
+    updateClassroomSettings,
   };
 };
 
@@ -250,6 +322,46 @@ export const useJoinClassroom = () => {
     onError: (error) => {
       toast({
         title: "Failed to join classroom",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+};
+
+// Hook for leaving a classroom (student)
+export const useLeaveClassroom = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (classroomId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("enrollments")
+        .update({
+          status: "left",
+          left_at: new Date().toISOString(),
+        })
+        .eq("classroom_id", classroomId)
+        .eq("student_id", user.id);
+
+      if (error) throw error;
+      return classroomId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["student-assignments"] });
+      toast({
+        title: "Left classroom",
+        description: "You have been unenrolled from the classroom.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to leave classroom",
         description: error.message,
         variant: "destructive",
       });

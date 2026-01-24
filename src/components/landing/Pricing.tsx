@@ -15,7 +15,7 @@ const plans = [
       "Email support",
     ],
     cta: "Get Started Free",
-    variant: "hero-outline" as const,
+    variant: "outline" as const,
     popular: false,
   },
   {
@@ -33,7 +33,7 @@ const plans = [
       "Plagiarism detection",
     ],
     cta: "Start Free Trial",
-    variant: "hero" as const,
+    variant: "premium" as const,
     popular: true,
   },
   {
@@ -52,7 +52,7 @@ const plans = [
       "Onboarding & training",
     ],
     cta: "Contact Sales",
-    variant: "hero-outline" as const,
+    variant: "outline" as const,
     popular: false,
   },
 ];
@@ -66,7 +66,7 @@ const Pricing = () => {
           <span className="text-sm font-semibold text-primary uppercase tracking-wider mb-4 block">
             Simple Pricing
           </span>
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6 text-foreground">
             Plans That Grow{" "}
             <span className="gradient-text">With You</span>
           </h2>
@@ -80,15 +80,15 @@ const Pricing = () => {
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`relative bg-card rounded-3xl p-8 border ${
+              className={`relative bg-card rounded-3xl p-8 border transition-all duration-300 ${
                 plan.popular
-                  ? "border-primary shadow-glow"
-                  : "border-border/50"
+                  ? "border-primary shadow-glow-purple scale-105"
+                  : "border-border hover:border-primary/30 hover:shadow-large"
               }`}
             >
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-primary to-edu-purple text-primary-foreground text-sm font-medium">
+                  <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-primary text-white text-sm font-medium shadow-medium">
                     <Sparkles className="w-4 h-4" />
                     Most Popular
                   </div>
@@ -96,13 +96,13 @@ const Pricing = () => {
               )}
 
               <div className="mb-6">
-                <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
+                <h3 className="text-xl font-bold mb-1 text-foreground">{plan.name}</h3>
                 <p className="text-sm text-muted-foreground">{plan.description}</p>
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-bold">{plan.price}</span>
+                  <span className="text-4xl font-bold text-foreground">{plan.price}</span>
                   <span className="text-muted-foreground">/{plan.priceDetail}</span>
                 </div>
               </div>
@@ -110,10 +110,12 @@ const Pricing = () => {
               <ul className="space-y-3 mb-8">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Check className="w-3 h-3 text-accent" />
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                      plan.popular ? "bg-slime-lime/20" : "bg-primary/10"
+                    }`}>
+                      <Check className={`w-3 h-3 ${plan.popular ? "text-brand-lime-dark" : "text-primary"}`} />
                     </div>
-                    <span className="text-sm">{feature}</span>
+                    <span className="text-sm text-foreground">{feature}</span>
                   </li>
                 ))}
               </ul>

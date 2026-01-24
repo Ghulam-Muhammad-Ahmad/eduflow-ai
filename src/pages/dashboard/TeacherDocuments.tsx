@@ -290,11 +290,7 @@ const TeacherDocuments = () => {
   });
 
   const defaultFolders = [
-    { name: "Course Materials", icon: Folder },
-    { name: "Student Assignments", icon: Folder },
-    { name: "Lesson Plans", icon: Folder },
-    { name: "Department Memos", icon: Folder },
-    { name: "Research Papers", icon: Folder },
+    { name: "Defualt Folder", icon: Folder },
   ];
 
   const storagePercentage = (storageUsed / storageLimit) * 100;
