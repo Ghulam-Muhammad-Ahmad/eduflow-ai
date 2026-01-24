@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import TeacherDashboard from "./pages/dashboard/TeacherDashboard";
 import TeacherDocuments from "./pages/dashboard/TeacherDocuments";
 import TeacherClassrooms from "./pages/dashboard/TeacherClassrooms";
+import TeacherAssignments from "./pages/dashboard/TeacherAssignments";
 import StudentDashboard from "./pages/dashboard/StudentDashboard";
 import StudentClassrooms from "./pages/dashboard/StudentClassrooms";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
@@ -50,6 +51,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["teacher"]}>
                   <TeacherClassrooms />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/teacher/assignments"
+              element={
+                <ProtectedRoute allowedRoles={["teacher"]}>
+                  <TeacherAssignments />
                 </ProtectedRoute>
               }
             />
