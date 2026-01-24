@@ -218,6 +218,19 @@ export const useStudentAssignments = (classroomId?: string) => {
     queryFn: async () => {
       if (!user) return [];
 
+      // First get enrolled classroom IDs
+      const { data: enrollments, error: enrollError } = await supabase
+        .from("enrollments")
+        .select("classroom_id")
+        .eq("student_id", user.id)
+        .eq("status", "active");
+
+      if (enrollError) throw enrollError;
+      
+      const enrolledClassroomIds = enrollments?.map((e) => e.classroom_id) || [];
+      
+      if (enrolledClassroomIds.length === 0) return [];
+
       // Get assignments from enrolled classrooms
       let query = supabase
         .from("assignments")
@@ -227,30 +240,37 @@ export const useStudentAssignments = (classroomId?: string) => {
             id,
             name,
             subject
-          ),
-          submissions!left (
-            id,
-            status,
-            grade,
-            submitted_at
           )
         `)
-        .eq("status", "published");
+        .eq("status", "published")
+        .in("classroom_id", enrolledClassroomIds)
+        .order("due_date", { ascending: true, nullsFirst: false });
 
       if (classroomId) {
         query = query.eq("classroom_id", classroomId);
       }
 
-      const { data, error } = await query;
+      const { data: assignmentsData, error } = await query;
 
       if (error) throw error;
 
-      // Filter to only show assignments for this student's submissions
-      return data?.map((assignment) => ({
+      // Get submissions for these assignments
+      const assignmentIds = assignmentsData?.map((a) => a.id) || [];
+      
+      if (assignmentIds.length === 0) return [];
+
+      const { data: submissions } = await supabase
+        .from("submissions")
+        .select("*")
+        .eq("student_id", user.id)
+        .in("assignment_id", assignmentIds);
+
+      // Merge submissions with assignments
+      return assignmentsData?.map((assignment) => ({
         ...assignment,
-        mySubmission: (assignment.submissions as any[])?.find(
-          (s) => s !== null
-        ),
+        mySubmission: submissions?.find(
+          (s) => s.assignment_id === assignment.id
+        ) || null,
       }));
     },
     enabled: !!user,
