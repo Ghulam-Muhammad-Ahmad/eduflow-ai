@@ -13,6 +13,7 @@ import TeacherClassrooms from "./pages/dashboard/TeacherClassrooms";
 import TeacherAssignments from "./pages/dashboard/TeacherAssignments";
 import StudentDashboard from "./pages/dashboard/StudentDashboard";
 import StudentClassrooms from "./pages/dashboard/StudentClassrooms";
+import StudentAssignments from "./pages/dashboard/StudentAssignments";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -77,6 +78,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["student"]}>
                   <StudentClassrooms />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/student/assignments"
+              element={
+                <ProtectedRoute allowedRoles={["student"]}>
+                  <StudentAssignments />
                 </ProtectedRoute>
               }
             />
