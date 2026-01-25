@@ -49,7 +49,13 @@ const getOpenAIClient = () => {
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
-  return new OpenAI({ apiKey });
+  // WARNING: Using OpenAI in the browser exposes your API key to users.
+  // For production, use a backend API endpoint or Supabase Edge Function instead.
+  // See: https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety
+  return new OpenAI({ 
+    apiKey,
+    dangerouslyAllowBrowser: true // Only for development - move to backend in production
+  });
 };
 
 // Estimate token count (rough approximation)

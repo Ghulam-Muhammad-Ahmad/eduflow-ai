@@ -1,24 +1,163 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { useClassroomRoster, useClassrooms } from "@/hooks/useClassrooms";
+import { useClassrooms } from "@/hooks/useClassrooms";
+import { useStudentAssignments } from "@/hooks/useAssignments";
+import { useQuizzes } from "@/hooks/useQuizzes";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, BookOpen, ClipboardList, FileText, Search, Users } from "lucide-react";
+import { ArrowLeft, BookOpen, ClipboardList, FileText, Search, Download, HelpCircle } from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+
+interface DocumentType {
+  id: string;
+  name: string;
+  file_path: string;
+  file_size: number;
+  file_type: string;
+  created_at: string;
+}
 
 const StudentClassroomDetail = () => {
   const { classroomId } = useParams<{ classroomId: string }>();
   const navigate = useNavigate();
   const { classrooms } = useClassrooms();
-  const { data: roster, isLoading: rosterLoading } = useClassroomRoster(classroomId || null);
+  const { user } = useAuth();
+  const { data: assignments } = useStudentAssignments(classroomId);
+  const { fetchClassroomQuizzes } = useQuizzes();
+  const [documents, setDocuments] = useState<DocumentType[]>([]);
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(true);
+  const [quizzesLoading, setQuizzesLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   const classroom = classrooms?.find((item) => item.id === classroomId);
 
-  if (!classroom && !rosterLoading) {
+  // Fetch documents
+  useEffect(() => {
+    if (!classroomId || !user) {
+      setDocumentsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchDocuments = async () => {
+      setDocumentsLoading(true);
+
+      try {
+        // Fetch shared documents for this classroom
+        const { data: shares, error: sharesError } = await supabase
+          .from("document_classroom_shares")
+          .select("document_id")
+          .eq("classroom_id", classroomId);
+
+        if (sharesError) throw sharesError;
+
+        if (cancelled) return;
+
+        if (!shares || shares.length === 0) {
+          setDocuments([]);
+          setDocumentsLoading(false);
+          return;
+        }
+
+        const documentIds = [...new Set(shares.map((s) => s.document_id))];
+
+        // Fetch document details
+        const { data: docs, error: docsError } = await supabase
+          .from("documents")
+          .select("*")
+          .in("id", documentIds)
+          .order("created_at", { ascending: false });
+
+        if (docsError) throw docsError;
+        
+        if (!cancelled) {
+          setDocuments(docs || []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching documents:", error);
+          toast.error("Failed to load documents");
+        }
+      } finally {
+        if (!cancelled) {
+          setDocumentsLoading(false);
+        }
+      }
+    };
+
+    fetchDocuments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [classroomId, user]);
+
+  // Fetch quizzes
+  useEffect(() => {
+    if (!classroomId) {
+      setQuizzesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchQuizzes = async () => {
+      setQuizzesLoading(true);
+      try {
+        const data = await fetchClassroomQuizzes(classroomId);
+        if (!cancelled) {
+          // Filter for active/scheduled quizzes only
+          const activeQuizzes = data.filter((q) => q.status === "active" || q.status === "scheduled");
+          setQuizzes(activeQuizzes);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching quizzes:", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setQuizzesLoading(false);
+        }
+      }
+    };
+
+    fetchQuizzes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [classroomId]); // Removed fetchClassroomQuizzes from dependencies to prevent loops
+
+  const downloadDocument = async (doc: DocumentType) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .download(doc.file_path);
+
+      if (error) throw error;
+
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.name;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Document downloaded");
+    } catch (error) {
+      console.error("Error downloading:", error);
+      toast.error("Failed to download document");
+    }
+  };
+
+  if (!classroom && !documentsLoading && !quizzesLoading) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-16">
@@ -36,12 +175,17 @@ const StudentClassroomDetail = () => {
     );
   }
 
-  const filteredRoster = roster?.filter((enrollment) => {
-    const studentName = (enrollment.profiles as any)?.display_name || "Student";
-    const studentEmail = (enrollment.profiles as any)?.email || "";
-    const query = searchQuery.toLowerCase();
-    return studentName.toLowerCase().includes(query) || studentEmail.toLowerCase().includes(query);
-  });
+  const filteredDocuments = documents.filter((doc) =>
+    doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredAssignments = assignments?.filter((a) =>
+    a.title.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  const filteredQuizzes = quizzes.filter((q) =>
+    q.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <DashboardLayout>
@@ -68,12 +212,12 @@ const StudentClassroomDetail = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Classmates
+                <FileText className="w-4 h-4" />
+                Materials
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{roster?.length || 0}</div>
+              <div className="text-3xl font-bold">{documents.length}</div>
             </CardContent>
           </Card>
           <Card>
@@ -84,20 +228,18 @@ const StudentClassroomDetail = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground mt-1">Coming soon</p>
+              <div className="text-3xl font-bold">{assignments?.length || 0}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Materials
+                <HelpCircle className="w-4 h-4" />
+                Quizzes
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground mt-1">Coming soon</p>
+              <div className="text-3xl font-bold">{quizzes.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -114,33 +256,35 @@ const StudentClassroomDetail = () => {
           </Card>
         )}
 
-        {/* Classmates */}
+        {/* Search */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search materials, assignments, or quizzes..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Materials Section */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Classmates</CardTitle>
-                <CardDescription>
-                  {filteredRoster?.length || 0} student{filteredRoster?.length !== 1 ? "s" : ""} enrolled
-                </CardDescription>
-              </div>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search classmates..."
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
+            <CardTitle>Course Materials</CardTitle>
+            <CardDescription>
+              {filteredDocuments.length} document{filteredDocuments.length !== 1 ? "s" : ""} available
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {rosterLoading && (
+            {documentsLoading ? (
               <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
+                {[1, 2].map((i) => (
                   <div key={i} className="flex items-center gap-3 p-4 rounded-lg border animate-pulse">
-                    <div className="w-12 h-12 bg-secondary rounded-full" />
+                    <div className="w-12 h-12 bg-secondary rounded-lg" />
                     <div className="flex-1">
                       <div className="h-4 bg-secondary rounded w-32 mb-2" />
                       <div className="h-3 bg-secondary rounded w-24" />
@@ -148,56 +292,133 @@ const StudentClassroomDetail = () => {
                   </div>
                 ))}
               </div>
-            )}
-
-            {!rosterLoading && (!filteredRoster || filteredRoster.length === 0) && !searchQuery && (
+            ) : filteredDocuments.length === 0 ? (
               <div className="text-center py-12">
-                <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No classmates yet</h3>
+                <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No materials available</h3>
                 <p className="text-muted-foreground">
-                  Your teacher will invite more students to this class soon.
+                  {searchQuery ? "No materials match your search" : "Your teacher hasn't shared any materials yet"}
                 </p>
               </div>
-            )}
-
-            {!rosterLoading && (!filteredRoster || filteredRoster.length === 0) && searchQuery && (
-              <div className="text-center py-12">
-                <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No classmates found</h3>
-                <p className="text-muted-foreground">
-                  No classmates match your search query "{searchQuery}"
-                </p>
-              </div>
-            )}
-
-            {!rosterLoading && filteredRoster && filteredRoster.length > 0 && (
+            ) : (
               <div className="space-y-2">
-                {filteredRoster.map((enrollment) => {
-                  const studentName = (enrollment.profiles as any)?.display_name || "Student";
-                  const studentEmail = (enrollment.profiles as any)?.email || "Email unavailable";
-                  const avatarUrl = (enrollment.profiles as any)?.avatar_url;
-
-                  return (
-                    <div
-                      key={enrollment.id}
-                      className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors"
-                    >
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={avatarUrl} />
-                        <AvatarFallback className="text-lg">
-                          {(studentName[0] || "S").toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{studentName}</p>
-                        <p className="text-sm text-muted-foreground truncate">{studentEmail}</p>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        Student
-                      </Badge>
+                {filteredDocuments.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
+                    onClick={() => downloadDocument(doc)}
+                  >
+                    <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-muted-foreground" />
                     </div>
-                  );
-                })}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{doc.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(doc.created_at), "MMM d, yyyy")}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadDocument(doc);
+                      }}
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Assignments Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignments</CardTitle>
+            <CardDescription>
+              {filteredAssignments.length} assignment{filteredAssignments.length !== 1 ? "s" : ""} available
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {filteredAssignments.length === 0 ? (
+              <div className="text-center py-12">
+                <ClipboardList className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No assignments available</h3>
+                <p className="text-muted-foreground">
+                  {searchQuery ? "No assignments match your search" : "Your teacher hasn't published any assignments yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredAssignments.map((assignment: any) => (
+                  <div
+                    key={assignment.id}
+                    className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/dashboard/student/assignments`)}
+                  >
+                    <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
+                      <ClipboardList className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{assignment.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {assignment.due_date
+                          ? `Due: ${format(new Date(assignment.due_date), "MMM d, yyyy")}`
+                          : "No due date"}
+                        {assignment.mySubmission && (
+                          <Badge variant="secondary" className="ml-2">Submitted</Badge>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quizzes Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quizzes</CardTitle>
+            <CardDescription>
+              {filteredQuizzes.length} quiz{filteredQuizzes.length !== 1 ? "zes" : ""} available
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {filteredQuizzes.length === 0 ? (
+              <div className="text-center py-12">
+                <HelpCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No quizzes available</h3>
+                <p className="text-muted-foreground">
+                  {searchQuery ? "No quizzes match your search" : "Your teacher hasn't published any quizzes yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredQuizzes.map((quiz) => (
+                  <div
+                    key={quiz.id}
+                    className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/dashboard/student/quizzes`)}
+                  >
+                    <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
+                      <HelpCircle className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{quiz.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {quiz.available_until
+                          ? `Available until: ${format(new Date(quiz.available_until), "MMM d, yyyy")}`
+                          : "No end date"}
+                        <Badge variant="outline" className="ml-2">{quiz.status}</Badge>
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

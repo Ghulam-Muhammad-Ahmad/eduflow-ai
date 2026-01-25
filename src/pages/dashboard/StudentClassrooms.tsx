@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useLeaveClassroom } from "@/hooks/useClassrooms";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import JoinClassroomDialog from "@/components/student/JoinClassroomDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,11 +42,62 @@ import {
 
 const StudentClassrooms = () => {
   const { classrooms, isLoading } = useClassrooms();
+  const { user } = useAuth();
   const leaveClassroom = useLeaveClassroom();
   const navigate = useNavigate();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [classroomToLeave, setClassroomToLeave] = useState<{ id: string; name: string } | null>(null);
+  const [classroomStats, setClassroomStats] = useState<Record<string, { materials: number; due: number }>>({});
+
+  // Fetch stats for all classrooms
+  useEffect(() => {
+    if (!user || !classrooms || classrooms.length === 0) return;
+
+    const fetchStats = async () => {
+      const stats: Record<string, { materials: number; due: number }> = {};
+
+      for (const classroom of classrooms) {
+        // Fetch materials count
+        const { data: shares } = await supabase
+          .from("document_classroom_shares")
+          .select("document_id")
+          .eq("classroom_id", classroom.id);
+
+        const documentIds = shares?.map((s) => s.document_id) || [];
+        const { count: materialsCount } = documentIds.length > 0
+          ? await supabase
+              .from("documents")
+              .select("*", { count: "exact", head: true })
+              .in("id", documentIds)
+          : { count: 0 };
+
+        // Fetch assignments due soon (within 7 days)
+        const { data: assignments } = await supabase
+          .from("assignments")
+          .select("*")
+          .eq("classroom_id", classroom.id)
+          .eq("status", "published");
+
+        const now = new Date();
+        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const dueCount = assignments?.filter((a) => {
+          if (!a.due_date) return false;
+          const dueDate = new Date(a.due_date);
+          return dueDate >= now && dueDate <= sevenDaysFromNow;
+        }).length || 0;
+
+        stats[classroom.id] = {
+          materials: materialsCount || 0,
+          due: dueCount,
+        };
+      }
+
+      setClassroomStats(stats);
+    };
+
+    fetchStats();
+  }, [user, classrooms]);
 
   const handleLeaveClassroom = (classroomId: string, classroomName: string) => {
     setClassroomToLeave({ id: classroomId, name: classroomName });
@@ -174,14 +227,14 @@ const StudentClassrooms = () => {
                     <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
                       <FileText className="w-4 h-4 text-muted-foreground" />
                       <div>
-                        <p className="text-lg font-semibold">--</p>
+                        <p className="text-lg font-semibold">{classroomStats[classroom.id]?.materials ?? 0}</p>
                         <p className="text-xs text-muted-foreground">Materials</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
                       <ClipboardCheck className="w-4 h-4 text-muted-foreground" />
                       <div>
-                        <p className="text-lg font-semibold">--</p>
+                        <p className="text-lg font-semibold">{classroomStats[classroom.id]?.due ?? 0}</p>
                         <p className="text-xs text-muted-foreground">Due</p>
                       </div>
                     </div>

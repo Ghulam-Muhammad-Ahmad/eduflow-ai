@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
+import { useAssignments } from "@/hooks/useAssignments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ const TeacherClassroomDetail = () => {
   const navigate = useNavigate();
   const { classrooms, removeStudent } = useClassrooms();
   const { data: roster, isLoading: rosterLoading } = useClassroomRoster(classroomId || null);
+  const { assignments } = useAssignments(classroomId);
   const { toast } = useToast();
 
   const [copiedCode, setCopiedCode] = useState(false);
@@ -213,8 +215,7 @@ const TeacherClassroomDetail = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground mt-1">Coming soon</p>
+              <div className="text-3xl font-bold">{assignments?.length || 0}</div>
             </CardContent>
           </Card>
         </div>
