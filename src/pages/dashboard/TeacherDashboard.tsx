@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +22,14 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
 
 const TeacherDashboard = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { fetchTeacherQuizzes } = useQuizzes();
+  const [recentQuizzes, setRecentQuizzes] = useState<Quiz[]>([]);
   const stats = [
     {
       icon: FileText,
@@ -59,11 +67,24 @@ const TeacherDashboard = () => {
     { name: "Physics Lecture Slides.pptx", updated: "Updated 3 days ago", size: "5.2 MB", icon: "📊" },
   ];
 
+  useEffect(() => {
+    if (user?.id) {
+      loadQuizzes();
+    }
+  }, [user]);
+
+  const loadQuizzes = async () => {
+    if (!user?.id) return;
+    const quizzes = await fetchTeacherQuizzes(user.id);
+    // Get the 3 most recent quizzes
+    setRecentQuizzes(quizzes.slice(0, 3));
+  };
+
   const quickActions = [
-    { icon: ClipboardCheck, label: "Create Assignment", color: "text-primary" },
-    { icon: HelpCircle, label: "Create Quiz", color: "text-primary" },
-    { icon: Calendar, label: "Plan Lesson", color: "text-primary" },
-    { icon: Brain, label: "AI Grade Papers", color: "text-brand-lime-dark" },
+    { icon: ClipboardCheck, label: "Create Assignment", color: "text-primary", path: "/dashboard/teacher/assignments" },
+    { icon: HelpCircle, label: "Create Quiz", color: "text-primary", path: "/dashboard/teacher/quizzes/create" },
+    { icon: Calendar, label: "Plan Lesson", color: "text-primary", path: "/dashboard/teacher/lessons" },
+    { icon: Brain, label: "AI Grade Papers", color: "text-brand-lime-dark", path: "/dashboard/teacher/grading" },
   ];
 
   const assignments = [
@@ -72,11 +93,22 @@ const TeacherDashboard = () => {
     { title: "Physics Problem Set #3", due: "Due: March 25, 2025", students: 45, submitted: 8, status: "Active", statusVariant: "default" as const },
   ];
 
-  const quizzes = [
-    { title: "Periodic Table Quiz", due: "Due: March 12, 2025", questions: 15, duration: "30 min", status: "Live", statusVariant: "live" as const },
-    { title: "DNA & Genetics Quiz", due: "Due: March 18, 2025", questions: 20, duration: "45 min", status: "Scheduled", statusVariant: "neutral" as const },
-    { title: "Newton's Laws Assessment", due: "Due: March 22, 2025", questions: 12, duration: "25 min", status: "Draft", statusVariant: "neutral" as const },
-  ];
+  const getStatusVariant = (status: Quiz['status']) => {
+    const variants: Record<Quiz['status'], 'live' | 'neutral' | 'default' | 'secondary'> = {
+      active: 'live',
+      scheduled: 'neutral',
+      draft: 'secondary',
+      closed: 'neutral',
+    };
+    return variants[status];
+  };
+
+  const formatQuizDate = (quiz: Quiz) => {
+    if (quiz.available_until) {
+      return `Due: ${new Date(quiz.available_until).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+    return 'No due date';
+  };
 
   const gradingStatus = [
     { title: "Chemistry Exam", progress: 80, completed: 24, total: 30 },
@@ -138,7 +170,8 @@ const TeacherDashboard = () => {
             {quickActions.map((action, index) => (
               <button
                 key={index}
-                className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200"
+                onClick={() => navigate(action.path)}
+                className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 cursor-pointer"
               >
                 <action.icon className={`w-4 h-4 ${action.color}`} />
                 <span className="text-sm font-medium text-foreground">{action.label}</span>
@@ -331,33 +364,57 @@ const TeacherDashboard = () => {
           {/* Active Quizzes */}
           <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">Active Quizzes</h2>
-              <Button variant="ghost" className="text-muted-foreground p-0 h-auto text-xs hover:text-primary">
+              <h2 className="text-sm font-semibold text-foreground">Recent Quizzes</h2>
+              <Button 
+                variant="ghost" 
+                className="text-muted-foreground p-0 h-auto text-xs hover:text-primary"
+                onClick={() => navigate("/dashboard/teacher/quizzes")}
+              >
                 View all
               </Button>
             </div>
             <div className="space-y-3">
-              {quizzes.map((quiz, index) => (
-                <div key={index} className="pb-3 border-b border-border last:border-0 last:pb-0">
-                  <div className="flex items-start justify-between mb-1.5">
-                    <h3 className="text-sm font-medium text-foreground">{quiz.title}</h3>
-                    <Badge variant={quiz.statusVariant}>
-                      {quiz.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-1.5">{quiz.due}</p>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <HelpCircle className="w-3 h-3" />
-                      {quiz.questions}Q
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {quiz.duration}
-                    </span>
-                  </div>
+              {recentQuizzes.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-sm text-muted-foreground mb-3">No quizzes yet</p>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => navigate("/dashboard/teacher/quizzes/create")}
+                  >
+                    <HelpCircle className="w-4 h-4 mr-2" />
+                    Create Your First Quiz
+                  </Button>
                 </div>
-              ))}
+              ) : (
+                recentQuizzes.map((quiz) => (
+                  <div 
+                    key={quiz.id} 
+                    className="pb-3 border-b border-border last:border-0 last:pb-0 cursor-pointer hover:bg-accent/50 -mx-2 px-2 py-2 rounded transition-colors"
+                    onClick={() => navigate(`/dashboard/teacher/quizzes/${quiz.id}/results`)}
+                  >
+                    <div className="flex items-start justify-between mb-1.5">
+                      <h3 className="text-sm font-medium text-foreground">{quiz.title}</h3>
+                      <Badge variant={getStatusVariant(quiz.status)}>
+                        {quiz.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-1.5">{formatQuizDate(quiz)}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        {quiz.classroom?.name || 'No classroom'}
+                      </span>
+                      {quiz.time_limit_minutes && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {quiz.time_limit_minutes} min
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

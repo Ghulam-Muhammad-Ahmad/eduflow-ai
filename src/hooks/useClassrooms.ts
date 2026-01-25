@@ -237,24 +237,33 @@ export const useClassroomRoster = (classroomId: string | null) => {
     queryFn: async () => {
       if (!classroomId) return [];
 
-      const { data, error } = await supabase
+      // Fetch enrollments
+      const { data: enrollments, error: enrollError } = await supabase
         .from("enrollments")
-        .select(`
-          id,
-          student_id,
-          joined_at,
-          status,
-          profiles!enrollments_student_id_fkey (
-            display_name,
-            avatar_url
-          )
-        `)
+        .select("id, student_id, joined_at, status")
         .eq("classroom_id", classroomId)
         .eq("status", "active")
         .order("joined_at", { ascending: false });
 
-      if (error) throw error;
-      return data;
+      if (enrollError) throw enrollError;
+      if (!enrollments || enrollments.length === 0) return [];
+
+      // Fetch profiles for all student IDs
+      const studentIds = enrollments.map((e) => e.student_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, avatar_url, email")
+        .in("user_id", studentIds);
+
+      if (profilesError) throw profilesError;
+
+      // Merge enrollments with profiles
+      const roster = enrollments.map((enrollment) => ({
+        ...enrollment,
+        profiles: profiles?.find((p) => p.user_id === enrollment.student_id) || null,
+      }));
+
+      return roster;
     },
     enabled: !!classroomId,
   });

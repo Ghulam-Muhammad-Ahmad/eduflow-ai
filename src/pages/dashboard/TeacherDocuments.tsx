@@ -1,10 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import { useClassrooms } from "@/hooks/useClassrooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,6 +27,7 @@ import {
   Trash2,
   Download,
   X,
+  Share2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -34,6 +38,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -91,6 +96,7 @@ const formatDate = (dateString: string) => {
 
 const TeacherDocuments = () => {
   const { user } = useAuth();
+  const { classrooms } = useClassrooms();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [tags, setTags] = useState<TagType[]>([]);
@@ -102,6 +108,9 @@ const TeacherDocuments = () => {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [documentToShare, setDocumentToShare] = useState<DocumentType | null>(null);
+  const [selectedClassrooms, setSelectedClassrooms] = useState<string[]>([]);
   const [storageUsed, setStorageUsed] = useState(0);
   const storageLimit = 100 * 1024 * 1024; // 100 MB
 
@@ -277,6 +286,65 @@ const TeacherDocuments = () => {
       console.error("Error downloading:", error);
       toast.error("Failed to download document");
     }
+  };
+
+  const openShareDialog = async (doc: DocumentType) => {
+    setDocumentToShare(doc);
+    
+    // Fetch existing shares for this document
+    const { data: existingShares } = await supabase
+      .from("document_classroom_shares")
+      .select("classroom_id")
+      .eq("document_id", doc.id);
+    
+    setSelectedClassrooms(existingShares?.map((s) => s.classroom_id) || []);
+    setShareDialogOpen(true);
+  };
+
+  const handleShareDocument = async () => {
+    if (!documentToShare) return;
+
+    try {
+      // First, remove all existing shares
+      await supabase
+        .from("document_classroom_shares")
+        .delete()
+        .eq("document_id", documentToShare.id);
+
+      // Then add new shares
+      if (selectedClassrooms.length > 0) {
+        const shares = selectedClassrooms.map((classroomId) => ({
+          document_id: documentToShare.id,
+          classroom_id: classroomId,
+        }));
+
+        const { error } = await supabase
+          .from("document_classroom_shares")
+          .insert(shares);
+
+        if (error) throw error;
+      }
+
+      toast.success(
+        selectedClassrooms.length > 0
+          ? `Shared with ${selectedClassrooms.length} classroom(s)`
+          : "Document unshared from all classrooms"
+      );
+      setShareDialogOpen(false);
+      setDocumentToShare(null);
+      setSelectedClassrooms([]);
+    } catch (error) {
+      console.error("Error sharing document:", error);
+      toast.error("Failed to share document");
+    }
+  };
+
+  const toggleClassroomSelection = (classroomId: string) => {
+    setSelectedClassrooms((prev) =>
+      prev.includes(classroomId)
+        ? prev.filter((id) => id !== classroomId)
+        : [...prev, classroomId]
+    );
   };
 
   // Filter documents
@@ -501,6 +569,10 @@ const TeacherDocuments = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openShareDialog(doc)}>
+                              <Share2 className="w-4 h-4 mr-2" />
+                              Share with Classes
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => downloadDocument(doc)}>
                               <Download className="w-4 h-4 mr-2" />
                               Download
@@ -563,6 +635,10 @@ const TeacherDocuments = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openShareDialog(doc)}>
+                            <Share2 className="w-4 h-4 mr-2" />
+                            Share with Classes
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => downloadDocument(doc)}>
                             <Download className="w-4 h-4 mr-2" />
                             Download
@@ -603,6 +679,71 @@ const TeacherDocuments = () => {
             </Button>
             <Button onClick={createFolder} disabled={!newFolderName.trim()}>
               Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share Document Dialog */}
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              <Share2 className="w-5 h-5 inline-block mr-2" />
+              Share with Classrooms
+            </DialogTitle>
+            <DialogDescription>
+              Select classrooms to share "{documentToShare?.name}" with
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {(!classrooms || classrooms.length === 0) ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No classrooms available</p>
+                <p className="text-sm">Create a classroom first to share documents</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {classrooms.map((classroom) => (
+                  <div
+                    key={classroom.id}
+                    className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
+                    onClick={() => toggleClassroomSelection(classroom.id)}
+                  >
+                    <Checkbox
+                      checked={selectedClassrooms.includes(classroom.id)}
+                      onCheckedChange={() => toggleClassroomSelection(classroom.id)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <Label className="font-medium cursor-pointer">
+                        {classroom.name}
+                      </Label>
+                      {classroom.subject && (
+                        <p className="text-sm text-muted-foreground">
+                          {classroom.subject}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShareDialogOpen(false);
+                setDocumentToShare(null);
+                setSelectedClassrooms([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleShareDocument}>
+              {selectedClassrooms.length > 0
+                ? `Share with ${selectedClassrooms.length} class${selectedClassrooms.length > 1 ? "es" : ""}`
+                : "Remove all shares"}
             </Button>
           </DialogFooter>
         </DialogContent>

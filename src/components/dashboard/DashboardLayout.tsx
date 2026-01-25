@@ -17,7 +17,7 @@ import {
   X,
   Bell,
   HelpCircle,
-  BarChart3,
+  Sparkles,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -33,9 +33,9 @@ const roleConfig = {
       { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
       { icon: HelpCircle, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
+      { icon: Sparkles, label: "AI Studio", path: "/dashboard/teacher/ai-studio" },
       { icon: Brain, label: "AI Grading", path: "/dashboard/teacher/grading" },
       { icon: Calendar, label: "Lesson Planner", path: "/dashboard/teacher/lessons" },
-      { icon: BarChart3, label: "Analytics", path: "/dashboard/teacher/analytics" },
     ],
   },
   student: {
@@ -43,23 +43,23 @@ const roleConfig = {
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/student" },
       { icon: Users, label: "My Classes", path: "/dashboard/student/classrooms" },
-      { icon: Brain, label: "Study Hub", path: "/dashboard/student/study" },
+      { icon: FileText, label: "Documents", path: "/dashboard/student/documents" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
-      { icon: BarChart3, label: "Progress", path: "/dashboard/student/progress" },
+      { icon: HelpCircle, label: "Quizzes", path: "/dashboard/student/quizzes" },
+      { icon: Brain, label: "Study Hub", path: "/dashboard/student/study" },
     ],
   },
   admin: {
     title: "Admin Dashboard",
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/admin" },
-      { icon: Users, label: "Users", path: "/dashboard/admin/users" },
-      { icon: Settings, label: "Settings", path: "/dashboard/admin/settings" },
+      { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],
   },
 };
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
-  const { user, role, signOut } = useAuth();
+  const { user, role, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -79,7 +79,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     );
   }
 
-  const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User";
+  const displayName = profile?.display_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User";
+  const avatarUrl = profile?.avatar_url || "";
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
@@ -134,7 +135,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 px-2 py-3 mb-2">
             <Avatar className="h-10 w-10 border-2 border-primary/20">
-              <AvatarImage src="" />
+              <AvatarImage src={avatarUrl} />
               <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                 {displayName[0]?.toUpperCase()}
               </AvatarFallback>

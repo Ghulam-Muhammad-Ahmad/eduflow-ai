@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useLeaveClassroom } from "@/hooks/useClassrooms";
 import JoinClassroomDialog from "@/components/student/JoinClassroomDialog";
@@ -40,6 +41,7 @@ import {
 const StudentClassrooms = () => {
   const { classrooms, isLoading } = useClassrooms();
   const leaveClassroom = useLeaveClassroom();
+  const navigate = useNavigate();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [classroomToLeave, setClassroomToLeave] = useState<{ id: string; name: string } | null>(null);
@@ -186,7 +188,11 @@ const StudentClassrooms = () => {
                   </div>
 
                   {/* View Button */}
-                  <Button variant="outline" className="w-full gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => navigate(`/dashboard/student/classrooms/${classroom.id}`)}
+                  >
                     <BookOpen className="w-4 h-4" />
                     View Class
                   </Button>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ import {
   Share2,
   UserMinus,
   Percent,
+  ArrowRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -77,6 +79,7 @@ const defaultSettings: ClassroomSettings = {
 };
 
 const TeacherClassrooms = () => {
+  const navigate = useNavigate();
   const { classrooms, isLoading, createClassroom, archiveClassroom, removeStudent, updateClassroomSettings } = useClassrooms();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -313,6 +316,10 @@ const TeacherClassrooms = () => {
                           <Settings className="w-4 h-4 mr-2" />
                           Settings
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openRoster(classroom.id)}>
+                          <Users className="w-4 h-4 mr-2" />
+                          View Roster
+                        </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Share2 className="w-4 h-4 mr-2" />
                           Share Documents
@@ -361,14 +368,16 @@ const TeacherClassrooms = () => {
                   </div>
 
                   {/* Actions */}
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2"
-                    onClick={() => openRoster(classroom.id)}
-                  >
-                    <Users className="w-4 h-4" />
-                    View Roster
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1 gap-2"
+                      onClick={() => navigate(`/dashboard/teacher/classrooms/${classroom.id}`)}
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      Open Classroom
+                      <ArrowRight className="w-4 h-4 ml-auto" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import {
   User,
-  Mail,
   Lock,
   Eye,
   EyeOff,
@@ -20,7 +19,6 @@ import {
   Palette,
   Save,
   AlertCircle,
-  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -39,19 +37,18 @@ const passwordSchema = z.object({
   path: ["confirmPassword"],
 });
 
-const emailSchema = z.object({
-  newEmail: z.string().email("Please enter a valid email address"),
-});
-
 type SettingsTab = "profile" | "security" | "notifications" | "appearance";
 
 const Settings = () => {
-  const { user, role, updateProfile, updatePassword, updateEmail } = useAuth();
+  const { user, role, profile, updateProfile, updatePassword, updateAvatar } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   // Profile form state
   const [profileData, setProfileData] = useState({
@@ -67,22 +64,72 @@ const Settings = () => {
   });
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
 
-  // Email form state
-  const [emailData, setEmailData] = useState({
-    newEmail: "",
-  });
-  const [emailErrors, setEmailErrors] = useState<Record<string, string>>({});
-
   // Load user data
   useEffect(() => {
     if (user) {
       setProfileData({
-        displayName: user.user_metadata?.display_name || "",
+        displayName: profile?.display_name || user.user_metadata?.display_name || "",
       });
     }
-  }, [user]);
+  }, [user, profile]);
 
-  const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User";
+  useEffect(() => {
+    setAvatarUrl(profile?.avatar_url || null);
+  }, [profile]);
+
+  const displayName = profile?.display_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User";
+
+  const handleAvatarSelect = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a PNG, JPG, or WEBP image.");
+      return;
+    }
+
+    const maxSizeMb = 2;
+    if (file.size > maxSizeMb * 1024 * 1024) {
+      toast.error(`Image must be smaller than ${maxSizeMb}MB.`);
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const safeName = file.name.replace(/\s+/g, "-");
+      const filePath = `${user.id}/${Date.now()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true, contentType: file.type });
+
+      if (uploadError) {
+        toast.error(uploadError.message);
+        return;
+      }
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      const publicUrl = data.publicUrl;
+
+      const { error: profileError } = await updateAvatar(publicUrl);
+      if (profileError) {
+        toast.error(profileError.message);
+        return;
+      }
+
+      setAvatarUrl(publicUrl);
+      toast.success("Profile photo updated!");
+    } catch (error) {
+      toast.error((error as Error)?.message || "Failed to upload photo.");
+    } finally {
+      setAvatarUploading(false);
+      event.target.value = "";
+    }
+  };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,37 +209,6 @@ const Settings = () => {
     }
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailErrors({});
-    setIsSubmitting(true);
-
-    try {
-      const validated = emailSchema.parse(emailData);
-      const { error } = await updateEmail(validated.newEmail);
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.success("Verification email sent! Please check your new email inbox.");
-      setEmailData({ newEmail: "" });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldErrors: Record<string, string> = {};
-        error.errors.forEach((err) => {
-          if (err.path[0]) {
-            fieldErrors[err.path[0] as string] = err.message;
-          }
-        });
-        setEmailErrors(fieldErrors);
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const tabs = [
     { id: "profile" as const, label: "Profile", icon: User },
     { id: "security" as const, label: "Security", icon: Shield },
@@ -255,12 +271,17 @@ const Settings = () => {
                     <div className="flex items-center gap-6 mb-6">
                       <div className="relative">
                         <Avatar className="h-20 w-20 border-4 border-primary/20">
-                          <AvatarImage src="" />
+                          <AvatarImage src={avatarUrl || ""} />
                           <AvatarFallback className="bg-primary/10 text-primary text-2xl font-semibold">
                             {displayName[0]?.toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <button className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-white hover:bg-primary/90 transition-colors">
+                        <button
+                          type="button"
+                          onClick={handleAvatarSelect}
+                          disabled={avatarUploading}
+                          className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
+                        >
                           <Camera className="w-4 h-4" />
                         </button>
                       </div>
@@ -270,6 +291,27 @@ const Settings = () => {
                         <Badge variant="secondary" className="mt-2 capitalize">
                           {role}
                         </Badge>
+                        <div className="mt-3">
+                          <input
+                            ref={avatarInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={handleAvatarChange}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAvatarSelect}
+                            disabled={avatarUploading}
+                          >
+                            {avatarUploading ? "Uploading..." : "Change photo"}
+                          </Button>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            PNG, JPG, or WEBP. Max 2MB.
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -298,22 +340,6 @@ const Settings = () => {
                             {profileErrors.displayName}
                           </p>
                         )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Email Address</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                          <Input
-                            type="email"
-                            className="pl-10 bg-secondary/50"
-                            value={user?.email || ""}
-                            disabled
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          To change your email, go to the Security tab
-                        </p>
                       </div>
 
                       <div className="flex justify-end pt-4">
@@ -444,61 +470,6 @@ const Settings = () => {
                   </CardContent>
                 </Card>
 
-                {/* Change Email Card */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Mail className="w-5 h-5" />
-                      Change Email Address
-                    </CardTitle>
-                    <CardDescription>
-                      Update your email address. A verification email will be sent to your new address.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="mb-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
-                      <div className="flex items-start gap-3">
-                        <CheckCircle2 className="w-5 h-5 text-primary mt-0.5" />
-                        <div>
-                          <p className="font-medium text-foreground">Current Email</p>
-                          <p className="text-sm text-muted-foreground">{user?.email}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <form onSubmit={handleEmailSubmit} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="newEmail">New Email Address</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                          <Input
-                            id="newEmail"
-                            type="email"
-                            placeholder="Enter new email address"
-                            className="pl-10"
-                            value={emailData.newEmail}
-                            onChange={(e) =>
-                              setEmailData({ ...emailData, newEmail: e.target.value })
-                            }
-                          />
-                        </div>
-                        {emailErrors.newEmail && (
-                          <p className="text-sm text-destructive flex items-center gap-1">
-                            <AlertCircle className="w-4 h-4" />
-                            {emailErrors.newEmail}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex justify-end pt-4">
-                        <Button type="submit" disabled={isSubmitting}>
-                          <Mail className="w-4 h-4 mr-2" />
-                          {isSubmitting ? "Sending..." : "Send Verification"}
-                        </Button>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
               </>
             )}
 

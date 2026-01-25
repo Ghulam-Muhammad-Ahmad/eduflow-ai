@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignments } from "@/hooks/useAssignments";
 import { useClassrooms } from "@/hooks/useClassrooms";
@@ -59,6 +60,7 @@ import {
 import { format } from "date-fns";
 
 const TeacherAssignments = () => {
+  const navigate = useNavigate();
   const { assignments, isLoading, createAssignment, publishAssignment, deleteAssignment } = useAssignments();
   const { classrooms } = useClassrooms();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -385,7 +387,11 @@ const TeacherAssignments = () => {
                   </div>
 
                   {assignment.status === "published" && (
-                    <Button variant="outline" className="w-full gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="w-full gap-2"
+                      onClick={() => navigate(`/dashboard/teacher/assignments/${assignment.id}/submissions`)}
+                    >
                       <Users className="w-4 h-4" />
                       View Submissions
                     </Button>

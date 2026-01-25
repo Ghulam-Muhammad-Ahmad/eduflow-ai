@@ -1,0 +1,369 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Lock, Unlock, Clock, Users } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
+import { useClassrooms } from "@/hooks/useClassrooms";
+import { format } from "date-fns";
+
+const TeacherQuizzes = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { fetchTeacherQuizzes, deleteQuiz, publishQuiz, closeQuiz, loading } = useQuizzes();
+  const { classrooms = [], isLoading: classroomsLoading } = useClassrooms();
+
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [filteredQuizzes, setFilteredQuizzes] = useState<Quiz[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [classroomFilter, setClassroomFilter] = useState<string>("all");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadQuizzes();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    filterQuizzes();
+  }, [quizzes, searchTerm, statusFilter, classroomFilter]);
+
+  const loadQuizzes = async () => {
+    if (!user?.id) return;
+    const data = await fetchTeacherQuizzes(user.id);
+    setQuizzes(data);
+  };
+
+  const filterQuizzes = () => {
+    let filtered = [...quizzes];
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (quiz) =>
+          quiz.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          quiz.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((quiz) => quiz.status === statusFilter);
+    }
+
+    // Classroom filter
+    if (classroomFilter !== "all") {
+      filtered = filtered.filter((quiz) => quiz.classroom_id === classroomFilter);
+    }
+
+    setFilteredQuizzes(filtered);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedQuiz) return;
+    const success = await deleteQuiz(selectedQuiz.id);
+    if (success) {
+      setQuizzes(quizzes.filter((q) => q.id !== selectedQuiz.id));
+      setDeleteDialogOpen(false);
+      setSelectedQuiz(null);
+    }
+  };
+
+  const handlePublish = async (quiz: Quiz) => {
+    const success = await publishQuiz(quiz.id);
+    if (success) {
+      loadQuizzes();
+    }
+  };
+
+  const handleClose = async (quiz: Quiz) => {
+    const success = await closeQuiz(quiz.id);
+    if (success) {
+      loadQuizzes();
+    }
+  };
+
+  const getStatusBadge = (status: Quiz['status']) => {
+    const variants: Record<Quiz['status'], { variant: any; label: string }> = {
+      draft: { variant: "secondary", label: "Draft" },
+      scheduled: { variant: "default", label: "Scheduled" },
+      active: { variant: "live", label: "Active" },
+      closed: { variant: "neutral", label: "Closed" },
+    };
+    const config = variants[status];
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Not set";
+    return format(new Date(dateString), "MMM d, yyyy h:mm a");
+  };
+
+  return (
+    <DashboardLayout role="teacher">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Quizzes</h1>
+            <p className="text-muted-foreground mt-1">
+              Create and manage quizzes for your classrooms
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate("/dashboard/teacher/quizzes/create")}
+            size="lg"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Create Quiz
+          </Button>
+        </div>
+
+        {/* Filters */}
+        <Card className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search quizzes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={classroomFilter} onValueChange={setClassroomFilter}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Classroom" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classrooms</SelectItem>
+                {classrooms && classrooms.length > 0 ? (
+                  classrooms.map((classroom) => (
+                    <SelectItem key={classroom.id} value={classroom.id}>
+                      {classroom.name}
+                    </SelectItem>
+                  ))
+                ) : null}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+
+        {/* Quizzes Table */}
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Classroom</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Available</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Questions</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    Loading quizzes...
+                  </TableCell>
+                </TableRow>
+              ) : filteredQuizzes.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-muted-foreground">No quizzes found</p>
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate("/dashboard/teacher/quizzes/create")}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Your First Quiz
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredQuizzes.map((quiz) => (
+                  <TableRow key={quiz.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-foreground">{quiz.title}</p>
+                        {quiz.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-1">
+                            {quiz.description}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="text-sm font-medium">{quiz.classroom?.name}</p>
+                        {quiz.classroom?.subject && (
+                          <p className="text-xs text-muted-foreground">
+                            {quiz.classroom.subject}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(quiz.status)}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {quiz.available_from && (
+                          <p>From: {formatDate(quiz.available_from)}</p>
+                        )}
+                        {quiz.available_until && (
+                          <p>Until: {formatDate(quiz.available_until)}</p>
+                        )}
+                        {!quiz.available_from && !quiz.available_until && (
+                          <p className="text-muted-foreground">Always available</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Clock className="h-3 w-3" />
+                        {quiz.time_limit_minutes ? `${quiz.time_limit_minutes} min` : "No limit"}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Users className="h-3 w-3" />
+                        View Results
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              navigate(`/dashboard/teacher/quizzes/${quiz.id}/results`)
+                            }
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Results
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              navigate(`/dashboard/teacher/quizzes/${quiz.id}/edit`)
+                            }
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {quiz.status === "draft" && (
+                            <DropdownMenuItem onClick={() => handlePublish(quiz)}>
+                              <Unlock className="h-4 w-4 mr-2" />
+                              Publish
+                            </DropdownMenuItem>
+                          )}
+                          {quiz.status === "active" && (
+                            <DropdownMenuItem onClick={() => handleClose(quiz)}>
+                              <Lock className="h-4 w-4 mr-2" />
+                              Close
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedQuiz(quiz);
+                              setDeleteDialogOpen(true);
+                            }}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </Card>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Quiz</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{selectedQuiz?.title}"? This action cannot
+              be undone and will delete all student attempts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </DashboardLayout>
+  );
+};
+
+export default TeacherQuizzes;
