@@ -1,9 +1,10 @@
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Menu, X, GraduationCap } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,13 +41,15 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-medium group-hover:shadow-glow-purple transition-shadow duration-300">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-xl tracking-tight text-foreground">
-              Edu<span className="gradient-text">LabLoom</span>
-            </span>
+          <Link href="/" className="flex items-center group">
+            <Image 
+              src="/logolandscape.svg" 
+              alt="EduLabLoom" 
+              width={160} 
+              height={32}
+              className="h-8 w-auto group-hover:scale-105 transition-transform duration-300"
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}

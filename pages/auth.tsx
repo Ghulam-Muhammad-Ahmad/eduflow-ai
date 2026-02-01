@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,8 +187,14 @@ export default function Auth() {
         <div className="relative hidden w-[42%] lg:block bg-gradient-to-br from-primary via-primary/90 to-accent">
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
           {/* Logo */}
-          <div className="absolute left-8 top-8 flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm border border-white/30">
-            <span className="text-2xl font-bold text-white">E</span>
+          <div className="absolute left-8 top-8 flex h-16 w-16 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 p-2">
+            <Image 
+              src="/mainlogo.svg" 
+              alt="EduLabLoom Logo" 
+              width={48} 
+              height={48}
+              className="w-full h-full"
+            />
           </div>
         </div>
 

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Users, BookOpen, Sparkles, ClipboardList } from "lucide-react";
+import { Users, BookOpen, Sparkles, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
 type AppRole = "teacher" | "student";
@@ -51,11 +52,17 @@ export default function ChooseRole() {
       <div className="flex w-full max-w-4xl overflow-hidden rounded-3xl border border-border bg-card shadow-large">
         {/* Left panel - branding */}
         <div className="hidden w-[40%] bg-gradient-to-br from-primary/90 via-primary to-primary/80 p-8 lg:flex lg:flex-col lg:justify-center">
-          <div className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
-            <GraduationCap className="h-12 w-12 text-white" />
+          <div className="rounded-xl bg-white/10 p-4 backdrop-blur-sm w-fit">
+            <Image 
+              src="/mainlogo.svg" 
+              alt="EduLabLoom Logo" 
+              width={48} 
+              height={48}
+              className="h-12 w-12"
+            />
           </div>
           <h2 className="mt-6 text-xl font-semibold text-white">
-            Welcome to EduFlow
+            Welcome to EduLabLoom
           </h2>
           <p className="mt-2 text-sm text-white/90">
             Choose how you&apos;ll use the platform. This choice cannot be changed later.

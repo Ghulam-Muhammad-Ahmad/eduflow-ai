@@ -75,7 +75,7 @@ const generateWithGemini = async (
 ): Promise<{ content: string; tokens: number }> => {
   const genAI = getGeminiClient();
   const model = genAI.getGenerativeModel({
-    model: "gemini-pro",
+    model: "gemini-2.0-flash",
     systemInstruction: systemInstruction || "You are a helpful educational assistant.",
   });
 

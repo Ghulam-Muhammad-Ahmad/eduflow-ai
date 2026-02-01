@@ -1,11 +1,12 @@
 import { useState } from "react";
 import Link from "next/link";
+import Head from "next/head";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  GraduationCap,
   LayoutDashboard,
   FileText,
   ClipboardCheck,
@@ -33,9 +34,9 @@ const roleConfig = {
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/teacher" },
       { icon: Users, label: "Classrooms", path: "/dashboard/teacher/classrooms" },
       { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
+      { icon: Sparkles, label: "AI Studio", path: "/dashboard/teacher/ai-studio" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
       { icon: HelpCircle, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
-      { icon: Sparkles, label: "AI Studio", path: "/dashboard/teacher/ai-studio" },
       { icon: Brain, label: "AI Grading", path: "/dashboard/teacher/grading" },
       { icon: Calendar, label: "Lesson Planner", path: "/dashboard/teacher/lessons" },
     ],
@@ -73,6 +74,41 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     router.push("/");
   };
 
+  // Get current page title based on route
+  const getPageTitle = () => {
+    if (!config) return "";
+    
+    // Find the matching nav item for current route
+    const currentNavItem = config.navItems.find(
+      (item) => router.pathname === item.path || router.asPath === item.path
+    );
+    
+    if (currentNavItem) {
+      return currentNavItem.label;
+    }
+    
+    // Check for nested routes
+    const nestedNavItem = config.navItems.find(
+      (item) => 
+        item.path !== '/dashboard/teacher' && 
+        item.path !== '/dashboard/student' && 
+        item.path !== '/dashboard/admin' &&
+        (router.pathname.startsWith(item.path + '/') || router.asPath.startsWith(item.path + '/'))
+    );
+    
+    if (nestedNavItem) {
+      return nestedNavItem.label;
+    }
+    
+    // Check for settings page
+    if (router.pathname === '/dashboard/settings' || router.asPath === '/dashboard/settings') {
+      return "Settings";
+    }
+    
+    // Default to role-based title
+    return config.title;
+  };
+
   if (!config) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -85,7 +121,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const avatarUrl = profile?.avatar_url || "";
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
+    <>
+      <Head>
+        <title>{getPageTitle()} | EduLabLoom</title>
+      </Head>
+      <div className="h-screen flex bg-background overflow-hidden">
       {/* Sidebar */}
       <aside
         className={`fixed lg:static top-0 left-0 h-screen w-64 bg-card border-r border-border z-40 transform transition-transform duration-200 lg:translate-x-0 flex flex-col ${
@@ -96,8 +136,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <div className="p-6 border-b border-border">
           <Link href="/" className="flex flex-col group">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-                <GraduationCap className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 flex items-center justify-center">
+                <Image 
+                  src="/mainlogo.svg" 
+                  alt="EduLabLoom Logo" 
+                  width={32} 
+                  height={32}
+                  className="w-8 h-8"
+                />
               </div>
               <span className="font-bold text-lg tracking-tight text-foreground">
                 EduLabLoom
@@ -186,7 +232,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             >
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <h1 className="text-xl font-semibold text-foreground">{config.title}</h1>
+            <h1 className="text-xl font-semibold text-foreground">{getPageTitle()}</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
@@ -209,6 +255,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </main>
       </div>
     </div>
+    </>
   );
 };
 

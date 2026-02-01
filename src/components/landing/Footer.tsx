@@ -1,4 +1,5 @@
-import { GraduationCap, Twitter, Linkedin, Youtube, Mail } from "lucide-react";
+import Image from "next/image";
+import { Twitter, Linkedin, Youtube, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Footer = () => {
@@ -54,8 +55,14 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="border-t border-platinum/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 flex items-center justify-center">
+              <Image 
+                src="/mainlogo.svg" 
+                alt="EduLabLoom Logo" 
+                width={32} 
+                height={32}
+                className="w-8 h-8"
+              />
             </div>
             <span className="font-semibold text-platinum">EduLabLoom</span>
           </div>
