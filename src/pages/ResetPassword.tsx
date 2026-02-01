@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ const resetPasswordSchema = z.object({
 });
 
 const ResetPassword = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { updatePassword } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -75,7 +75,7 @@ const ResetPassword = () => {
       // Sign out and redirect to login after 3 seconds
       setTimeout(() => {
         supabase.auth.signOut();
-        navigate("/auth");
+        router.push("/auth");
       }, 3000);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -166,7 +166,7 @@ const ResetPassword = () => {
                 size="lg"
                 onClick={() => {
                   supabase.auth.signOut();
-                  navigate("/auth");
+                  router.push("/auth");
                 }}
               >
                 Sign In Now

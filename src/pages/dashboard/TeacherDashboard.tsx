@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
 
 const TeacherDashboard = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const { fetchTeacherQuizzes } = useQuizzes();
   const [recentQuizzes, setRecentQuizzes] = useState<Quiz[]>([]);
@@ -170,7 +170,7 @@ const TeacherDashboard = () => {
             {quickActions.map((action, index) => (
               <button
                 key={index}
-                onClick={() => navigate(action.path)}
+                onClick={() => router.push(action.path)}
                 className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 cursor-pointer"
               >
                 <action.icon className={`w-4 h-4 ${action.color}`} />
@@ -368,7 +368,7 @@ const TeacherDashboard = () => {
               <Button 
                 variant="ghost" 
                 className="text-muted-foreground p-0 h-auto text-xs hover:text-primary"
-                onClick={() => navigate("/dashboard/teacher/quizzes")}
+                onClick={() => router.push("/dashboard/teacher/quizzes")}
               >
                 View all
               </Button>
@@ -380,7 +380,7 @@ const TeacherDashboard = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => navigate("/dashboard/teacher/quizzes/create")}
+                    onClick={() => router.push("/dashboard/teacher/quizzes/create")}
                   >
                     <HelpCircle className="w-4 h-4 mr-2" />
                     Create Your First Quiz
@@ -391,7 +391,7 @@ const TeacherDashboard = () => {
                   <div 
                     key={quiz.id} 
                     className="pb-3 border-b border-border last:border-0 last:pb-0 cursor-pointer hover:bg-accent/50 -mx-2 px-2 py-2 rounded transition-colors"
-                    onClick={() => navigate(`/dashboard/teacher/quizzes/${quiz.id}/results`)}
+                    onClick={() => router.push(`/dashboard/teacher/quizzes/${quiz.id}/results`)}
                   >
                     <div className="flex items-start justify-between mb-1.5">
                       <h3 className="text-sm font-medium text-foreground">{quiz.title}</h3>

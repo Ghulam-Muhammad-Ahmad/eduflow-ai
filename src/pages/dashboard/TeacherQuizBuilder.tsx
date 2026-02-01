@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,8 +38,8 @@ import { useAIStudio } from "@/hooks/useAIStudio";
 import { v4 as uuidv4 } from "uuid";
 
 const TeacherQuizBuilder = () => {
-  const navigate = useNavigate();
-  const { quizId } = useParams();
+  const router = useRouter();
+  const { quizId } = router.query;
   const { user } = useAuth();
   const {
     fetchQuizWithQuestions,
@@ -299,7 +299,7 @@ const TeacherQuizBuilder = () => {
     setSaving(false);
 
     if (success) {
-      navigate("/dashboard/teacher/quizzes");
+      router.push("/dashboard/teacher/quizzes");
     }
   };
 
@@ -319,7 +319,7 @@ const TeacherQuizBuilder = () => {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => navigate("/dashboard/teacher/quizzes")}
+              onClick={() => router.push("/dashboard/teacher/quizzes")}
             >
               <X className="h-4 w-4 mr-2" />
               Cancel

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Menu, X, GraduationCap } from "lucide-react";
@@ -7,7 +8,7 @@ import { Menu, X, GraduationCap } from "lucide-react";
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { user, role, signOut } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const navLinks = [
     { label: "Features", href: "#features" },
@@ -31,7 +32,7 @@ const Navbar = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/");
+    router.push("/");
   };
 
   return (
@@ -39,7 +40,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-medium group-hover:shadow-glow-purple transition-shadow duration-300">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
@@ -66,7 +67,7 @@ const Navbar = () => {
             {user ? (
               <>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link to={getDashboardPath()}>Dashboard</Link>
+                  <Link href={getDashboardPath()}>Dashboard</Link>
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   Sign Out
@@ -75,10 +76,10 @@ const Navbar = () => {
             ) : (
               <>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link to="/auth">Log in</Link>
+                  <Link href="/auth">Log in</Link>
                 </Button>
                 <Button variant="default" size="sm" asChild>
-                  <Link to="/auth">Get Started Free</Link>
+                  <Link href="/auth">Get Started Free</Link>
                 </Button>
               </>
             )}
@@ -116,7 +117,7 @@ const Navbar = () => {
                 {user ? (
                   <>
                     <Button variant="ghost" className="justify-start" asChild>
-                      <Link to={getDashboardPath()} onClick={() => setIsOpen(false)}>
+                      <Link href={getDashboardPath()} onClick={() => setIsOpen(false)}>
                         Dashboard
                       </Link>
                     </Button>
@@ -127,10 +128,10 @@ const Navbar = () => {
                 ) : (
                   <>
                     <Button variant="ghost" className="justify-start" asChild>
-                      <Link to="/auth" onClick={() => setIsOpen(false)}>Log in</Link>
+                      <Link href="/auth" onClick={() => setIsOpen(false)}>Log in</Link>
                     </Button>
                     <Button variant="default" asChild>
-                      <Link to="/auth" onClick={() => setIsOpen(false)}>Get Started Free</Link>
+                      <Link href="/auth" onClick={() => setIsOpen(false)}>Get Started Free</Link>
                     </Button>
                   </>
                 )}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,8 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 const StudentQuizResults = () => {
-  const navigate = useNavigate();
-  const { quizId, attemptId } = useParams();
+  const router = useRouter();
+  const { quizId, attemptId } = router.query;
   const { fetchQuizWithQuestions } = useQuizzes();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -103,7 +103,7 @@ const StudentQuizResults = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate("/dashboard/student/quizzes")}
+              onClick={() => router.push("/dashboard/student/quizzes")}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -329,13 +329,13 @@ const StudentQuizResults = () => {
         <div className="flex justify-between items-center py-6">
           <Button
             variant="outline"
-            onClick={() => navigate("/dashboard/student/quizzes")}
+            onClick={() => router.push("/dashboard/student/quizzes")}
           >
             Back to Quizzes
           </Button>
 
           {quiz.max_attempts && attempt.attempt_number < quiz.max_attempts && (
-            <Button onClick={() => navigate(`/dashboard/student/quizzes/${quizId}/take`)}>
+            <Button onClick={() => router.push(`/dashboard/student/quizzes/${quizId}/take`)}>
               Retake Quiz
             </Button>
           )}

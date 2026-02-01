@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useLeaveClassroom } from "@/hooks/useClassrooms";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,7 +44,7 @@ const StudentClassrooms = () => {
   const { classrooms, isLoading } = useClassrooms();
   const { user } = useAuth();
   const leaveClassroom = useLeaveClassroom();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [classroomToLeave, setClassroomToLeave] = useState<{ id: string; name: string } | null>(null);
@@ -244,7 +244,7 @@ const StudentClassrooms = () => {
                   <Button
                     variant="outline"
                     className="w-full gap-2"
-                    onClick={() => navigate(`/dashboard/student/classrooms/${classroom.id}`)}
+                    onClick={() => router.push(`/dashboard/student/classrooms/${classroom.id}`)}
                   >
                     <BookOpen className="w-4 h-4" />
                     View Class

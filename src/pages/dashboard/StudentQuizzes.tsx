@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,7 +25,7 @@ import { useClassrooms } from "@/hooks/useClassrooms";
 import { format, isPast, isFuture } from "date-fns";
 
 const StudentQuizzes = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const {
     fetchStudentQuizzes,
@@ -119,7 +119,7 @@ const StudentQuizzes = () => {
 
     // Check if there's an in-progress attempt
     if (attemptInfo.inProgress) {
-      navigate(`/dashboard/student/quizzes/${quiz.id}/take/${attemptInfo.inProgress.id}`);
+      router.push(`/dashboard/student/quizzes/${quiz.id}/take/${attemptInfo.inProgress.id}`);
       return;
     }
 
@@ -132,7 +132,7 @@ const StudentQuizzes = () => {
       }
     }
 
-    navigate(`/dashboard/student/quizzes/${quiz.id}/take`);
+    router.push(`/dashboard/student/quizzes/${quiz.id}/take`);
   };
 
   const availableQuizzes = filteredQuizzes.filter((quiz) => {
@@ -224,7 +224,7 @@ const StudentQuizzes = () => {
                 <Button
                   variant="outline"
                   onClick={() =>
-                    navigate(
+                    router.push(
                       `/dashboard/student/quizzes/${quiz.id}/results/${attemptInfo.lastAttempt?.id}`
                     )
                   }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
 import { useAssignments } from "@/hooks/useAssignments";
@@ -38,8 +38,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const TeacherClassroomDetail = () => {
-  const { classroomId } = useParams<{ classroomId: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const { classroomId } = router.query as { classroomId: string };
   const { classrooms, removeStudent } = useClassrooms();
   const { data: roster, isLoading: rosterLoading } = useClassroomRoster(classroomId || null);
   const { assignments } = useAssignments(classroomId);
@@ -62,7 +62,7 @@ const TeacherClassroomDetail = () => {
           <p className="text-muted-foreground mb-6">
             This classroom doesn't exist or you don't have access to it.
           </p>
-          <Button onClick={() => navigate("/dashboard/teacher/classrooms")}>
+          <Button onClick={() => router.push("/dashboard/teacher/classrooms")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Classrooms
           </Button>
@@ -130,7 +130,7 @@ const TeacherClassroomDetail = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/dashboard/teacher/classrooms")}
+            onClick={() => router.push("/dashboard/teacher/classrooms")}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

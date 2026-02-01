@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignments } from "@/hooks/useAssignments";
 import { useClassrooms } from "@/hooks/useClassrooms";
@@ -60,7 +60,7 @@ import {
 import { format } from "date-fns";
 
 const TeacherAssignments = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { assignments, isLoading, createAssignment, publishAssignment, deleteAssignment } = useAssignments();
   const { classrooms } = useClassrooms();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -390,7 +390,7 @@ const TeacherAssignments = () => {
                     <Button 
                       variant="outline" 
                       className="w-full gap-2"
-                      onClick={() => navigate(`/dashboard/teacher/assignments/${assignment.id}/submissions`)}
+                      onClick={() => router.push(`/dashboard/teacher/assignments/${assignment.id}/submissions`)}
                     >
                       <Users className="w-4 h-4" />
                       View Submissions

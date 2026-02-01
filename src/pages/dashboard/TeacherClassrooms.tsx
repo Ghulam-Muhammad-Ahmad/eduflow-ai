@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,7 @@ const defaultSettings: ClassroomSettings = {
 };
 
 const TeacherClassrooms = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { classrooms, isLoading, createClassroom, archiveClassroom, removeStudent, updateClassroomSettings } = useClassrooms();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -371,7 +371,7 @@ const TeacherClassrooms = () => {
                   <div className="flex gap-2">
                     <Button
                       className="flex-1 gap-2"
-                      onClick={() => navigate(`/dashboard/teacher/classrooms/${classroom.id}`)}
+                      onClick={() => router.push(`/dashboard/teacher/classrooms/${classroom.id}`)}
                     >
                       <BookOpen className="w-4 h-4" />
                       Open Classroom

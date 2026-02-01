@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 type AppRole = "teacher" | "student" | "admin";
@@ -19,7 +18,9 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, displayName: string, role: AppRole) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  setRoleForOAuthUser: (role: AppRole) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   updateProfile: (displayName: string) => Promise<{ error: Error | null }>;
@@ -77,18 +78,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const ensureOAuthUserProfile = async (userId: string, metadata: { full_name?: string; name?: string; avatar_url?: string; picture?: string } = {}) => {
+    const displayName = metadata.full_name || metadata.name || "User";
+    const avatarUrl = metadata.avatar_url || metadata.picture || null;
+
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      { user_id: userId, display_name: displayName, avatar_url: avatarUrl, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+    if (profileError) console.error("Error upserting OAuth profile:", profileError);
+    else setProfile({ display_name: displayName, avatar_url: avatarUrl });
+  };
+
+  const setRoleForOAuthUser = async (selectedRole: AppRole) => {
+    if (!user) return { error: new Error("Not signed in") };
+    try {
+      const { error } = await supabase.from("user_roles").insert({
+        user_id: user.id,
+        role: selectedRole,
+      });
+      if (error) throw error;
+      setRole(selectedRole);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Defer role fetching with setTimeout to prevent deadlock
         if (session?.user) {
-          setTimeout(() => {
-            fetchUserRole(session.user.id).then(setRole);
-            fetchUserProfile(session.user.id).then(setProfile);
+          setTimeout(async () => {
+            let fetchedRole = await fetchUserRole(session.user.id);
+            const fetchedProfile = await fetchUserProfile(session.user.id);
+            if (!fetchedRole && session.user.app_metadata?.provider) {
+              await ensureOAuthUserProfile(session.user.id, session.user.user_metadata || {});
+            }
+            setRole(fetchedRole);
+            setProfile(fetchedProfile ?? (fetchedRole ? { display_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null, avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null } : null));
           }, 0);
         } else {
           setRole(null);
@@ -99,14 +130,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        fetchUserRole(session.user.id).then(setRole);
-        fetchUserProfile(session.user.id).then(setProfile);
+        let fetchedRole = await fetchUserRole(session.user.id);
+        const fetchedProfile = await fetchUserProfile(session.user.id);
+        if (!fetchedRole && session.user.app_metadata?.provider) {
+          await ensureOAuthUserProfile(session.user.id, session.user.user_metadata || {});
+        }
+        setRole(fetchedRole);
+        setProfile(fetchedProfile ?? (fetchedRole ? { display_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null, avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null } : null));
       }
 
       setLoading(false);
@@ -190,6 +225,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const getRedirectUrl = () => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/auth/callback`;
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: getRedirectUrl() },
+      });
+      if (error) throw error;
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -302,7 +355,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, profile, loading, signUp, signIn, signOut, resetPassword, updatePassword, updateProfile, updateEmail, updateAvatar, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, role, profile, loading, signUp, signIn, signInWithGoogle, signOut, setRoleForOAuthUser, resetPassword, updatePassword, updateProfile, updateEmail, updateAvatar, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

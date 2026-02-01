@@ -28,8 +28,16 @@ const profileSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters").max(50),
 });
 
-const passwordSchema = z.object({
+const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string().min(1, "Please confirm your password"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+const setPasswordSchema = z.object({
   newPassword: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string().min(1, "Please confirm your password"),
 }).refine((data) => data.newPassword === data.confirmPassword, {
@@ -41,6 +49,7 @@ type SettingsTab = "profile" | "security" | "notifications" | "appearance";
 
 const Settings = () => {
   const { user, role, profile, updateProfile, updatePassword, updateAvatar } = useAuth();
+  const isOAuthUser = Boolean(user?.app_metadata?.provider);
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -167,33 +176,37 @@ const Settings = () => {
     setIsSubmitting(true);
 
     try {
-      const validated = passwordSchema.parse(passwordData);
-      
-      // First verify current password by trying to sign in
-      const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email: user?.email || "",
-        password: validated.currentPassword,
-      });
-
-      if (verifyError) {
-        setPasswordErrors({ currentPassword: "Current password is incorrect" });
-        setIsSubmitting(false);
-        return;
+      if (isOAuthUser) {
+        const validated = setPasswordSchema.parse({
+          newPassword: passwordData.newPassword,
+          confirmPassword: passwordData.confirmPassword,
+        });
+        const { error } = await updatePassword(validated.newPassword);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        toast.success("Password set successfully! You can now sign in with email and password.");
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      } else {
+        const validated = changePasswordSchema.parse(passwordData);
+        const { error: verifyError } = await supabase.auth.signInWithPassword({
+          email: user?.email || "",
+          password: validated.currentPassword,
+        });
+        if (verifyError) {
+          setPasswordErrors({ currentPassword: "Current password is incorrect" });
+          setIsSubmitting(false);
+          return;
+        }
+        const { error } = await updatePassword(validated.newPassword);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        toast.success("Password updated successfully!");
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       }
-
-      const { error } = await updatePassword(validated.newPassword);
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.success("Password updated successfully!");
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         const fieldErrors: Record<string, string> = {};
@@ -288,9 +301,14 @@ const Settings = () => {
                       <div>
                         <h3 className="font-semibold text-lg text-foreground">{displayName}</h3>
                         <p className="text-muted-foreground text-sm">{user?.email}</p>
-                        <Badge variant="secondary" className="mt-2 capitalize">
-                          {role}
-                        </Badge>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Badge variant="secondary" className="capitalize">
+                            {role}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            (cannot be changed)
+                          </span>
+                        </div>
                         <div className="mt-3">
                           <input
                             ref={avatarInputRef}
@@ -357,57 +375,61 @@ const Settings = () => {
             {/* Security Tab */}
             {activeTab === "security" && (
               <>
-                {/* Change Password Card */}
+                {/* Password Card - different flow for OAuth vs email users */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Lock className="w-5 h-5" />
-                      Change Password
+                      {isOAuthUser ? "Set a password" : "Change Password"}
                     </CardTitle>
                     <CardDescription>
-                      Update your password to keep your account secure
+                      {isOAuthUser
+                        ? "Add a password to sign in with email as well. You can use either Google or email to sign in after this."
+                        : "Update your password to keep your account secure"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="currentPassword">Current Password</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                          <Input
-                            id="currentPassword"
-                            type={showCurrentPassword ? "text" : "password"}
-                            placeholder="Enter current password"
-                            className="pl-10 pr-10"
-                            value={passwordData.currentPassword}
-                            onChange={(e) =>
-                              setPasswordData({ ...passwordData, currentPassword: e.target.value })
-                            }
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                          </button>
+                      {!isOAuthUser && (
+                        <div className="space-y-2">
+                          <Label htmlFor="currentPassword">Current Password</Label>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                            <Input
+                              id="currentPassword"
+                              type={showCurrentPassword ? "text" : "password"}
+                              placeholder="Enter current password"
+                              className="pl-10 pr-10"
+                              value={passwordData.currentPassword}
+                              onChange={(e) =>
+                                setPasswordData({ ...passwordData, currentPassword: e.target.value })
+                              }
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          {passwordErrors.currentPassword && (
+                            <p className="text-sm text-destructive flex items-center gap-1">
+                              <AlertCircle className="w-4 h-4" />
+                              {passwordErrors.currentPassword}
+                            </p>
+                          )}
                         </div>
-                        {passwordErrors.currentPassword && (
-                          <p className="text-sm text-destructive flex items-center gap-1">
-                            <AlertCircle className="w-4 h-4" />
-                            {passwordErrors.currentPassword}
-                          </p>
-                        )}
-                      </div>
+                      )}
 
                       <div className="space-y-2">
-                        <Label htmlFor="newPassword">New Password</Label>
+                        <Label htmlFor="newPassword">{isOAuthUser ? "Password" : "New Password"}</Label>
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                           <Input
                             id="newPassword"
                             type={showNewPassword ? "text" : "password"}
-                            placeholder="Enter new password"
+                            placeholder={isOAuthUser ? "Choose a password" : "Enter new password"}
                             className="pl-10 pr-10"
                             value={passwordData.newPassword}
                             onChange={(e) =>
@@ -431,13 +453,13 @@ const Settings = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                        <Label htmlFor="confirmPassword">{isOAuthUser ? "Confirm Password" : "Confirm New Password"}</Label>
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                           <Input
                             id="confirmPassword"
                             type={showConfirmPassword ? "text" : "password"}
-                            placeholder="Confirm new password"
+                            placeholder={isOAuthUser ? "Confirm your password" : "Confirm new password"}
                             className="pl-10 pr-10"
                             value={passwordData.confirmPassword}
                             onChange={(e) =>
@@ -463,7 +485,13 @@ const Settings = () => {
                       <div className="flex justify-end pt-4">
                         <Button type="submit" disabled={isSubmitting}>
                           <Shield className="w-4 h-4 mr-2" />
-                          {isSubmitting ? "Updating..." : "Update Password"}
+                          {isSubmitting
+                            ? isOAuthUser
+                              ? "Setting..."
+                              : "Updating..."
+                            : isOAuthUser
+                              ? "Set Password"
+                              : "Update Password"}
                         </Button>
                       </div>
                     </form>

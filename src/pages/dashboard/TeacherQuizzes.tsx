@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,7 +44,7 @@ import { useClassrooms } from "@/hooks/useClassrooms";
 import { format } from "date-fns";
 
 const TeacherQuizzes = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const { fetchTeacherQuizzes, deleteQuiz, publishQuiz, closeQuiz, loading } = useQuizzes();
   const { classrooms = [], isLoading: classroomsLoading } = useClassrooms();
@@ -150,7 +150,7 @@ const TeacherQuizzes = () => {
             </p>
           </div>
           <Button
-            onClick={() => navigate("/dashboard/teacher/quizzes/create")}
+            onClick={() => router.push("/dashboard/teacher/quizzes/create")}
             size="lg"
           >
             <Plus className="h-5 w-5 mr-2" />
@@ -228,7 +228,7 @@ const TeacherQuizzes = () => {
                       <p className="text-muted-foreground">No quizzes found</p>
                       <Button
                         variant="outline"
-                        onClick={() => navigate("/dashboard/teacher/quizzes/create")}
+                        onClick={() => router.push("/dashboard/teacher/quizzes/create")}
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Create Your First Quiz
@@ -295,7 +295,7 @@ const TeacherQuizzes = () => {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={() =>
-                              navigate(`/dashboard/teacher/quizzes/${quiz.id}/results`)
+                              router.push(`/dashboard/teacher/quizzes/${quiz.id}/results`)
                             }
                           >
                             <Eye className="h-4 w-4 mr-2" />
@@ -303,7 +303,7 @@ const TeacherQuizzes = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() =>
-                              navigate(`/dashboard/teacher/quizzes/${quiz.id}/edit`)
+                              router.push(`/dashboard/teacher/quizzes/${quiz.id}/edit`)
                             }
                           >
                             <Edit className="h-4 w-4 mr-2" />

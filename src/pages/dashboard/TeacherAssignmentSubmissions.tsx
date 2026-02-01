@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignmentSubmissions } from "@/hooks/useAssignments";
 import { Button } from "@/components/ui/button";
@@ -50,8 +50,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAIGrading } from "@/hooks/useAIGrading";
 
 const TeacherAssignmentSubmissions = () => {
-  const { assignmentId } = useParams<{ assignmentId: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const { assignmentId } = router.query as { assignmentId: string };
   const queryClient = useQueryClient();
   const { data: submissions, isLoading } = useAssignmentSubmissions(assignmentId || null);
   
@@ -215,7 +215,7 @@ const TeacherAssignmentSubmissions = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/dashboard/teacher/assignments")}
+            onClick={() => router.push("/dashboard/teacher/assignments")}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

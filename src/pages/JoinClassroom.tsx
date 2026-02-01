@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useJoinClassroom } from "@/hooks/useClassrooms";
@@ -25,8 +25,8 @@ type InviteClassroom = {
 };
 
 const JoinClassroom = () => {
-  const { code } = useParams<{ code: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const { code } = router.query;
   const { user, role } = useAuth();
   const { toast } = useToast();
   const joinClassroom = useJoinClassroom();
@@ -54,7 +54,7 @@ const JoinClassroom = () => {
         title: "Sign in required",
         description: "Please sign in to join this classroom.",
       });
-      navigate("/auth");
+      router.push("/auth");
       return;
     }
     if (role !== "student") {
@@ -67,7 +67,7 @@ const JoinClassroom = () => {
     }
 
     await joinClassroom.mutateAsync(normalizedCode);
-    navigate("/dashboard/student/classrooms");
+    router.push("/dashboard/student/classrooms");
   };
 
   return (

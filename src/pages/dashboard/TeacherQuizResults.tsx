@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,8 +33,8 @@ import { useQuizzes, Quiz, QuizAttempt, QuizQuestion } from "@/hooks/useQuizzes"
 import { format } from "date-fns";
 
 const TeacherQuizResults = () => {
-  const navigate = useNavigate();
-  const { quizId } = useParams();
+  const router = useRouter();
+  const { quizId } = router.query;
   const { fetchQuizWithQuestions, fetchQuizAttempts, gradeShortAnswers, loading } = useQuizzes();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -165,7 +165,7 @@ const TeacherQuizResults = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate("/dashboard/teacher/quizzes")}
+              onClick={() => router.push("/dashboard/teacher/quizzes")}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>

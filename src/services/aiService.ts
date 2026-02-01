@@ -216,50 +216,48 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
     };
   }
 
-  // Determine provider
-  const provider = forceProvider || TASK_COMPLEXITY[taskType];
-  const selectedModel = model || (provider === 'openai' ? 'gpt-4' : 'gemini-pro');
-
   try {
-    let result: { content: string; tokens: number };
-    let inputTokens = 0;
-    let outputTokens = 0;
+    // Call Next.js API route
+    const response = await fetch('/api/ai/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        taskType,
+        prompt,
+        systemInstruction,
+        model,
+        userId,
+        forceProvider,
+      }),
+    });
 
-    if (provider === 'gemini') {
-      result = await generateWithGemini(prompt, systemInstruction);
-      // Rough split for Gemini (no exact token count)
-      inputTokens = Math.floor(result.tokens * 0.6);
-      outputTokens = Math.floor(result.tokens * 0.4);
-    } else {
-      result = await generateWithOpenAI(prompt, systemInstruction, selectedModel);
-      // OpenAI provides exact token counts, but we estimate here
-      inputTokens = Math.floor(result.tokens * 0.6);
-      outputTokens = Math.floor(result.tokens * 0.4);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to generate content');
     }
 
-    const cost = calculateCost(provider, selectedModel, inputTokens, outputTokens);
+    const result = await response.json();
 
     // Record successful interaction
     await recordInteraction(
       userId,
       taskType,
-      provider,
-      selectedModel,
+      result.provider,
+      result.model,
       result.tokens,
-      cost,
+      result.cost,
       true
     );
 
-    return {
-      content: result.content,
-      provider,
-      model: selectedModel,
-      tokens: result.tokens,
-      cost,
-      success: true,
-    };
+    return result;
   } catch (error: any) {
     const errorMessage = error.message || 'Unknown error';
+    
+    // Determine provider for error recording
+    const provider = forceProvider || TASK_COMPLEXITY[taskType];
+    const selectedModel = model || (provider === 'openai' ? 'gpt-4' : 'gemini-pro');
     
     // Record failed interaction
     await recordInteraction(
@@ -274,7 +272,7 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
     );
 
     // Try fallback provider if primary fails
-    if (!forceProvider && provider === 'gemini') {
+    if (!forceProvider && TASK_COMPLEXITY[taskType] === 'gemini') {
       console.log('Gemini failed, trying OpenAI fallback...');
       return generateAI({
         ...options,

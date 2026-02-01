@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +22,8 @@ import { useQuizzes, Quiz, QuizQuestion, QuizAttempt } from "@/hooks/useQuizzes"
 import { Progress } from "@/components/ui/progress";
 
 const StudentQuizTake = () => {
-  const navigate = useNavigate();
-  const { quizId, attemptId } = useParams();
+  const router = useRouter();
+  const { quizId, attemptId } = router.query;
   const { user } = useAuth();
   const {
     fetchQuizWithQuestions,
@@ -118,7 +118,7 @@ const StudentQuizTake = () => {
       // Check if attempt is still in progress
       if (existingAttempt.status !== 'in_progress') {
         // If already submitted, redirect to results
-        navigate(`/dashboard/student/quizzes/${quizId}/results/${attemptId}`);
+        router.push(`/dashboard/student/quizzes/${quizId}/results/${attemptId}`);
         return;
       }
 
@@ -155,7 +155,7 @@ const StudentQuizTake = () => {
       setAttempt(newAttempt);
       startTimeRef.current = Date.now();
     } else {
-      navigate("/dashboard/student/quizzes");
+      router.push("/dashboard/student/quizzes");
     }
   };
 
@@ -235,7 +235,7 @@ const StudentQuizTake = () => {
     setSubmitting(false);
 
     if (success) {
-      navigate(`/dashboard/student/quizzes/${quizId}/results/${attempt.id}`);
+      router.push(`/dashboard/student/quizzes/${quizId}/results/${attempt.id}`);
     }
   };
 
@@ -258,7 +258,7 @@ const StudentQuizTake = () => {
   if (attempt.status !== 'in_progress') {
     // Redirect to results if already submitted
     if (quizId && attempt.id) {
-      navigate(`/dashboard/student/quizzes/${quizId}/results/${attempt.id}`);
+      router.push(`/dashboard/student/quizzes/${quizId}/results/${attempt.id}`);
     }
     return null;
   }

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,6 +19,7 @@ import {
   Bell,
   HelpCircle,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -43,7 +45,8 @@ const roleConfig = {
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/student" },
       { icon: Users, label: "My Classes", path: "/dashboard/student/classrooms" },
-      { icon: FileText, label: "Documents", path: "/dashboard/student/documents" },
+      { icon: FileText, label: "My Documents", path: "/dashboard/student/documents" },
+      { icon: BookOpen, label: "Course Materials", path: "/dashboard/student/course-materials" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
       { icon: HelpCircle, label: "Quizzes", path: "/dashboard/student/quizzes" },
       { icon: Brain, label: "Study Hub", path: "/dashboard/student/study" },
@@ -60,15 +63,14 @@ const roleConfig = {
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const { user, role, profile, signOut } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const config = role ? roleConfig[role] : null;
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/");
+    router.push("/");
   };
 
   if (!config) {
@@ -92,7 +94,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       >
         {/* Logo */}
         <div className="p-6 border-b border-border">
-          <Link to="/" className="flex flex-col group">
+          <Link href="/" className="flex flex-col group">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-white" />
@@ -111,19 +113,27 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <nav className="flex-1 p-4 overflow-y-auto">
           <div className="space-y-1">
             {config.navItems.map((item) => {
-              const isActive = location.pathname === item.path;
+              // Check for exact match or if current path starts with nav item path (for nested routes)
+              const isActive = 
+                router.pathname === item.path || 
+                router.asPath === item.path ||
+                (item.path !== '/dashboard/teacher' && 
+                 item.path !== '/dashboard/student' && 
+                 item.path !== '/dashboard/admin' &&
+                 (router.pathname.startsWith(item.path + '/') || router.asPath.startsWith(item.path + '/')));
+              
               return (
                 <Link
                   key={item.path}
-                  to={item.path}
+                  href={item.path}
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                     isActive
-                      ? "bg-primary/10 text-primary font-medium border border-primary/20"
+                      ? "bg-medium-slate-blue/10 text-medium-slate-blue font-medium border border-medium-slate-blue/20 shadow-sm"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }`}
                 >
-                  <item.icon className={`w-5 h-5 ${isActive ? "text-primary" : ""}`} />
+                  <item.icon className={`w-5 h-5 ${isActive ? "text-medium-slate-blue" : ""}`} />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -186,7 +196,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               variant="ghost" 
               size="icon" 
               className="text-muted-foreground hover:text-primary"
-              onClick={() => navigate("/dashboard/settings")}
+              onClick={() => router.push("/dashboard/settings")}
             >
               <Settings className="w-5 h-5" />
             </Button>

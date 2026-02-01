@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import { useStudentAssignments } from "@/hooks/useAssignments";
@@ -24,8 +24,8 @@ interface DocumentType {
 }
 
 const StudentClassroomDetail = () => {
-  const { classroomId } = useParams<{ classroomId: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const { classroomId } = router.query as { classroomId: string };
   const { classrooms } = useClassrooms();
   const { user } = useAuth();
   const { data: assignments } = useStudentAssignments(classroomId);
@@ -166,7 +166,7 @@ const StudentClassroomDetail = () => {
           <p className="text-muted-foreground mb-6">
             This classroom doesn't exist or you don't have access to it.
           </p>
-          <Button onClick={() => navigate("/dashboard/student/classrooms")}>
+          <Button onClick={() => router.push("/dashboard/student/classrooms")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to My Classes
           </Button>
@@ -195,7 +195,7 @@ const StudentClassroomDetail = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/dashboard/student/classrooms")}
+            onClick={() => router.push("/dashboard/student/classrooms")}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -357,7 +357,7 @@ const StudentClassroomDetail = () => {
                   <div
                     key={assignment.id}
                     className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/dashboard/student/assignments`)}
+                    onClick={() => router.push(`/dashboard/student/assignments`)}
                   >
                     <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
                       <ClipboardList className="w-6 h-6 text-muted-foreground" />
@@ -403,7 +403,7 @@ const StudentClassroomDetail = () => {
                   <div
                     key={quiz.id}
                     className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/dashboard/student/quizzes`)}
+                    onClick={() => router.push(`/dashboard/student/quizzes`)}
                   >
                     <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
                       <HelpCircle className="w-6 h-6 text-muted-foreground" />

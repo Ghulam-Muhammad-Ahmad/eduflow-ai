@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,7 +36,7 @@ import { useAIUsage } from "@/hooks/useAIUsage";
 import { format } from "date-fns";
 
 const TeacherAIGrading = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const { usage, isNearLimit } = useAIUsage();
   const { gradeSubmissionWithAI, gradeBatchSubmissions, fetchAIFeedback, acceptAIFeedback, loading } = useAIGrading();

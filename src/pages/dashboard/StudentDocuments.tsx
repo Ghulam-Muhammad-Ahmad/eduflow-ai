@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
+import { useDropzone } from "react-dropzone";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { useClassrooms } from "@/hooks/useClassrooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -17,7 +18,10 @@ import {
   FileSpreadsheet,
   File,
   Download,
-  BookOpen,
+  Upload,
+  Trash2,
+  Folder,
+  FolderPlus,
 } from "lucide-react";
 import {
   Card,
@@ -27,12 +31,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface DocumentType {
   id: string;
@@ -40,12 +55,15 @@ interface DocumentType {
   file_path: string;
   file_size: number;
   file_type: string;
+  folder_id: string | null;
   created_at: string;
-  classroom?: {
-    id: string;
-    name: string;
-    subject: string | null;
-  };
+  user_id?: string;
+}
+
+interface FolderType {
+  id: string;
+  name: string;
+  parent_id: string | null;
 }
 
 const getFileIcon = (fileType: string) => {
@@ -76,82 +94,149 @@ const formatDate = (dateString: string) => {
 
 const StudentDocuments = () => {
   const { user } = useAuth();
-  const { classrooms } = useClassrooms();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
+  const [folders, setFolders] = useState<FolderType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<DocumentType | null>(null);
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [storageUsed, setStorageUsed] = useState(0);
+  const storageLimit = 50 * 1024 * 1024; // 50 MB for students
 
-  const fetchSharedDocuments = useCallback(async () => {
-    if (!user || !classrooms) return;
-    setLoading(true);
-
+  const fetchDocuments = useCallback(async () => {
+    if (!user) return [];
     try {
-      // Get all classroom IDs the student is enrolled in
-      const classroomIds = classrooms.map((c) => c.id);
-
-      if (classroomIds.length === 0) {
-        setDocuments([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch shared documents
-      const { data: shares, error: sharesError } = await supabase
-        .from("document_classroom_shares")
-        .select(`
-          document_id,
-          classroom_id,
-          classrooms (
-            id,
-            name,
-            subject
-          )
-        `)
-        .in("classroom_id", classroomIds);
-
-      if (sharesError) throw sharesError;
-
-      if (!shares || shares.length === 0) {
-        setDocuments([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get unique document IDs
-      const documentIds = [...new Set(shares.map((s) => s.document_id))];
-
-      // Fetch document details
-      const { data: docs, error: docsError } = await supabase
+      const { data, error } = await supabase
         .from("documents")
         .select("*")
-        .in("id", documentIds)
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-
-      if (docsError) throw docsError;
-
-      // Merge documents with classroom info
-      const documentsWithClassrooms = docs?.map((doc) => {
-        const share = shares.find((s) => s.document_id === doc.id);
-        return {
-          ...doc,
-          classroom: share?.classrooms as any,
-        };
-      }) || [];
-
-      setDocuments(documentsWithClassrooms);
+      if (error) throw error;
+      
+      // Calculate storage used
+      const totalSize = data?.reduce((acc, doc) => acc + (doc.file_size || 0), 0) || 0;
+      setStorageUsed(totalSize);
+      
+      return data || [];
     } catch (error) {
       console.error("Error fetching documents:", error);
-      toast.error("Failed to load documents");
-    } finally {
-      setLoading(false);
+      toast.error("Failed to load your documents");
+      return [];
     }
-  }, [user, classrooms]);
+  }, [user]);
+
+  const fetchFolders = useCallback(async () => {
+    if (!user) return [];
+    try {
+      const { data, error } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error fetching folders:", error);
+      return [];
+    }
+  }, [user]);
+
+  const fetchAllData = useCallback(async () => {
+    setLoading(true);
+    const [docsData, foldersData] = await Promise.all([
+      fetchDocuments(),
+      fetchFolders(),
+    ]);
+    setDocuments(docsData);
+    setFolders(foldersData);
+    setLoading(false);
+  }, [fetchDocuments, fetchFolders]);
 
   useEffect(() => {
-    fetchSharedDocuments();
-  }, [fetchSharedDocuments]);
+    fetchAllData();
+  }, [fetchAllData]);
+
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      if (!user) return;
+      setUploading(true);
+
+      try {
+        for (const file of acceptedFiles) {
+          const fileExt = file.name.split(".").pop();
+          const fileName = `${user.id}/${Date.now()}_${file.name}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("documents")
+            .upload(fileName, file);
+
+          if (uploadError) throw uploadError;
+
+          const { error: insertError } = await supabase.from("documents").insert({
+            user_id: user.id,
+            folder_id: selectedFolder,
+            name: file.name,
+            file_path: fileName,
+            file_size: file.size,
+            file_type: file.type || `application/${fileExt}`,
+          });
+
+          if (insertError) throw insertError;
+        }
+
+        toast.success(`${acceptedFiles.length} file(s) uploaded successfully`);
+        fetchAllData();
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload file(s)");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [user, selectedFolder, fetchAllData]
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      "image/*": [".png", ".jpg", ".jpeg", ".svg"],
+      "application/pdf": [".pdf"],
+      "application/msword": [".doc"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/vnd.ms-excel": [".xls"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/vnd.ms-powerpoint": [".ppt"],
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+    },
+    maxSize: 10 * 1024 * 1024,
+  });
+
+  const createFolder = async () => {
+    if (!user || !newFolderName.trim()) return;
+
+    try {
+      const { error } = await supabase.from("folders").insert({
+        user_id: user.id,
+        name: newFolderName.trim(),
+        parent_id: null,
+      });
+
+      if (error) throw error;
+
+      toast.success("Folder created");
+      setNewFolderDialogOpen(false);
+      setNewFolderName("");
+      fetchAllData();
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      toast.error("Failed to create folder");
+    }
+  };
 
   const downloadDocument = async (doc: DocumentType) => {
     try {
@@ -174,207 +259,367 @@ const StudentDocuments = () => {
     }
   };
 
-  // Filter documents
+  const handleDeleteConfirm = async () => {
+    if (!documentToDelete) return;
+    try {
+      const { error: storageError } = await supabase.storage
+        .from("documents")
+        .remove([documentToDelete.file_path]);
+      if (storageError) throw storageError;
+
+      const { error: dbError } = await supabase
+        .from("documents")
+        .delete()
+        .eq("id", documentToDelete.id);
+      if (dbError) throw dbError;
+
+      toast.success("Document deleted");
+      fetchAllData();
+    } catch (error) {
+      console.error("Error deleting:", error);
+      toast.error("Failed to delete document");
+    } finally {
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
+    }
+  };
+
   const filteredDocuments = documents.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesClassroom =
-      selectedClassroom === "all" || doc.classroom?.id === selectedClassroom;
-    return matchesSearch && matchesClassroom;
+    const matchesFolder = selectedFolder ? doc.folder_id === selectedFolder : true;
+    return matchesSearch && matchesFolder;
   });
+
+  const storagePercentage = (storageUsed / storageLimit) * 100;
+
+  const renderDocuments = () => {
+    if (filteredDocuments.length === 0) {
+      return (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <FileText className="w-12 h-12 text-muted-foreground mb-3 opacity-50" />
+            <h3 className="text-lg font-semibold mb-2">No documents found</h3>
+            <p className="text-muted-foreground text-center">
+              {searchQuery
+                ? "Try adjusting your search"
+                : "Upload your first document"}
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (viewMode === "grid") {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredDocuments.map((doc) => {
+            const { icon: FileIcon, color } = getFileIcon(doc.file_type);
+            return (
+              <Card
+                key={doc.id}
+                className="group hover:shadow-lg transition-shadow"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
+                      <FileIcon className="w-6 h-6" />
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadDocument(doc);
+                        }}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDocumentToDelete(doc);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <CardTitle className="text-sm line-clamp-2" title={doc.name}>
+                    {doc.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        {filteredDocuments.map((doc) => {
+          const { icon: FileIcon, color } = getFileIcon(doc.file_type);
+          return (
+            <Card
+              key={doc.id}
+              className="group hover:shadow-md transition-shadow"
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+                    <FileIcon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm truncate">{doc.name}</h4>
+                    <p className="text-xs text-muted-foreground">
+                      {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadDocument(doc);
+                      }}
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDocumentToDelete(doc);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold">Course Materials</h1>
-            <p className="text-muted-foreground mt-1">
-              Access documents shared by your teachers
+      <div className="flex gap-6 h-[calc(100vh-7rem)]">
+        {/* Left Sidebar - Folders & Storage */}
+        <div className="w-64 flex-shrink-0 flex flex-col">
+          <div className="flex-1 overflow-auto">
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  My Folders
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setNewFolderDialogOpen(true)}
+                >
+                  <FolderPlus className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-1">
+                <button
+                  onClick={() => setSelectedFolder(null)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                    selectedFolder === null
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-secondary"
+                  }`}
+                >
+                  <Folder className="w-4 h-4 text-primary" />
+                  <span className="text-sm">All Documents</span>
+                </button>
+
+                {folders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => setSelectedFolder(folder.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                      selectedFolder === folder.id
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    <Folder className="w-4 h-4 text-primary" />
+                    <span className="text-sm">{folder.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Storage Usage */}
+          <div className="pt-4 border-t border-border">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span className="text-muted-foreground">Storage</span>
+              <span className="font-medium">{storagePercentage.toFixed(0)}%</span>
+            </div>
+            <Progress value={storagePercentage} className="h-2 mb-2" />
+            <p className="text-xs text-muted-foreground">
+              {formatFileSize(storageUsed)} of {formatFileSize(storageLimit)} used
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All Classes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {classrooms?.map((classroom) => (
-                  <SelectItem key={classroom.id} value={classroom.id}>
-                    {classroom.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
-        {/* Search and View Toggle */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search documents..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Button variant="outline" size="sm" className="gap-2">
-            <Filter className="w-4 h-4" />
-            Filter
-          </Button>
-          <div className="flex border rounded-lg overflow-hidden">
-            <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              className="rounded-none h-9 w-9"
-              onClick={() => setViewMode("grid")}
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              className="rounded-none h-9 w-9"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && (!classrooms || classrooms.length === 0) && (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="feature-icon-indigo mb-4">
-                <BookOpen className="w-8 h-8" />
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold">My Documents</h1>
+              <p className="text-muted-foreground mt-1">
+                Your personal documents and files
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search documents..."
+                  className="pl-10 w-48"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No classes yet</h3>
-              <p className="text-muted-foreground text-center mb-6 max-w-sm">
-                Join a classroom to access shared course materials
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {!loading && classrooms && classrooms.length > 0 && filteredDocuments.length === 0 && (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <FileText className="w-12 h-12 text-muted-foreground mb-3 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">No documents found</h3>
-              <p className="text-muted-foreground text-center">
-                {searchQuery
-                  ? "Try adjusting your search"
-                  : "Your teachers haven't shared any documents yet"}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Documents Grid View */}
-        {!loading && filteredDocuments.length > 0 && viewMode === "grid" && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredDocuments.map((doc) => {
-              const { icon: FileIcon, color } = getFileIcon(doc.file_type);
-              return (
-                <Card
-                  key={doc.id}
-                  className="group hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => downloadDocument(doc)}
+              <div className="flex border rounded-lg overflow-hidden">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="rounded-none h-9 w-9"
+                  onClick={() => setViewMode("grid")}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
-                        <FileIcon className="w-6 h-6" />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadDocument(doc);
-                        }}
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <CardTitle className="text-sm line-clamp-2" title={doc.name}>
-                      {doc.name}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
-                      </p>
-                      {doc.classroom && (
-                        <Badge variant="secondary" className="text-xs">
-                          {doc.classroom.name}
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Documents List View */}
-        {!loading && filteredDocuments.length > 0 && viewMode === "list" && (
-          <div className="space-y-2">
-            {filteredDocuments.map((doc) => {
-              const { icon: FileIcon, color } = getFileIcon(doc.file_type);
-              return (
-                <Card
-                  key={doc.id}
-                  className="group hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => downloadDocument(doc)}
+                  <Grid3X3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="rounded-none h-9 w-9"
+                  onClick={() => setViewMode("list")}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
-                        <FileIcon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm truncate">{doc.name}</h4>
-                        <p className="text-xs text-muted-foreground">
-                          {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
-                        </p>
-                      </div>
-                      {doc.classroom && (
-                        <Badge variant="secondary">{doc.classroom.name}</Badge>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadDocument(doc);
-                        }}
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Upload Area */}
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-xl p-8 mb-6 text-center transition-colors cursor-pointer ${
+              isDragActive
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/50"
+            }`}
+          >
+            <input {...getInputProps()} />
+            <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="font-medium text-foreground mb-1">
+              {uploading ? "Uploading..." : isDragActive ? "Drop files here" : "Upload documents"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Drag & drop files or click to browse (Max 10MB)
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, images
+            </p>
+            {selectedFolder && (
+              <Badge variant="secondary" className="mt-3">
+                Uploading to: {folders.find((f) => f.id === selectedFolder)?.name || "Selected Folder"}
+              </Badge>
+            )}
+          </div>
+
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          )}
+
+          {/* Documents */}
+          {!loading && renderDocuments()}
+        </div>
       </div>
+
+      {/* New Folder Dialog */}
+      <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+            <DialogDescription>
+              Create a folder to organize your documents
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Input
+                placeholder="Folder name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") createFolder();
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createFolder} disabled={!newFolderName.trim()}>
+              Create Folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{documentToDelete?.name}&quot;? This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
