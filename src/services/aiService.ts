@@ -1,12 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import OpenAI from 'openai';
 import { supabase } from '@/integrations/supabase/client';
 
-// AI Provider Types
-export type AIProvider = 'gemini' | 'openai';
+// AI Provider Types - OpenAI only
+export type AIProvider = 'openai';
 export type AITaskType = 
   | 'content_generation'
-  | 'grading'
+  | 'checker'
   | 'lesson_planning'
   | 'study_materials'
   | 'rubric_generation'
@@ -16,77 +14,6 @@ export type AITaskType =
   | 'practice_questions'
   | 'flashcards'
   | 'study_plan';
-
-// Task complexity mapping - determines which provider to use
-const TASK_COMPLEXITY: Record<AITaskType, AIProvider> = {
-  // Simple tasks -> Gemini (free)
-  content_generation: 'gemini',
-  study_materials: 'gemini',
-  flashcards: 'gemini',
-  practice_questions: 'gemini',
-  concept_explanation: 'gemini',
-  differentiation: 'gemini',
-  
-  // Complex tasks -> OpenAI (paid)
-  grading: 'openai',
-  lesson_planning: 'openai',
-  rubric_generation: 'openai',
-  quiz_questions: 'openai',
-  study_plan: 'openai',
-};
-
-// Initialize AI clients
-const getGeminiClient = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Gemini API key not configured');
-  }
-  return new GoogleGenerativeAI(apiKey);
-};
-
-const getOpenAIClient = () => {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-  // WARNING: Using OpenAI in the browser exposes your API key to users.
-  // For production, use a backend API endpoint or Supabase Edge Function instead.
-  // See: https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety
-  return new OpenAI({ 
-    apiKey,
-    dangerouslyAllowBrowser: true // Only for development - move to backend in production
-  });
-};
-
-// Estimate token count (rough approximation)
-const estimateTokens = (text: string): number => {
-  // Rough estimate: 1 token ≈ 4 characters
-  return Math.ceil(text.length / 4);
-};
-
-// Calculate cost based on provider and tokens
-const calculateCost = (
-  provider: AIProvider,
-  model: string,
-  inputTokens: number,
-  outputTokens: number
-): number => {
-  if (provider === 'gemini') {
-    // Gemini free tier - no cost
-    return 0;
-  }
-  
-  // OpenAI pricing (as of 2024, adjust as needed)
-  if (model.includes('gpt-4')) {
-    // GPT-4: $0.03/1K input, $0.06/1K output
-    return (inputTokens / 1000) * 0.03 + (outputTokens / 1000) * 0.06;
-  } else if (model.includes('gpt-3.5')) {
-    // GPT-3.5: $0.0015/1K input, $0.002/1K output
-    return (inputTokens / 1000) * 0.0015 + (outputTokens / 1000) * 0.002;
-  }
-  
-  return 0;
-};
 
 // Check if user can make AI request
 export const checkAIUsageLimit = async (userId: string) => {
@@ -130,55 +57,6 @@ const recordInteraction = async (
   }
 };
 
-// Generate content using Gemini
-const generateWithGemini = async (
-  prompt: string,
-  systemInstruction?: string
-): Promise<{ content: string; tokens: number }> => {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ 
-    model: 'gemini-pro',
-    systemInstruction: systemInstruction || 'You are a helpful educational assistant.',
-  });
-
-  const inputTokens = estimateTokens(prompt + (systemInstruction || ''));
-  
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text();
-  
-  const outputTokens = estimateTokens(text);
-  const totalTokens = inputTokens + outputTokens;
-
-  return { content: text, tokens: totalTokens };
-};
-
-// Generate content using OpenAI
-const generateWithOpenAI = async (
-  prompt: string,
-  systemMessage?: string,
-  model: string = 'gpt-4'
-): Promise<{ content: string; tokens: number }> => {
-  const openai = getOpenAIClient();
-  
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-  if (systemMessage) {
-    messages.push({ role: 'system', content: systemMessage });
-  }
-  messages.push({ role: 'user', content: prompt });
-
-  const completion = await openai.chat.completions.create({
-    model,
-    messages,
-    temperature: 0.7,
-  });
-
-  const content = completion.choices[0]?.message?.content || '';
-  const tokens = completion.usage?.total_tokens || estimateTokens(prompt + content);
-
-  return { content, tokens };
-};
-
 // Main AI service function
 export interface AIGenerateOptions {
   taskType: AITaskType;
@@ -186,7 +64,6 @@ export interface AIGenerateOptions {
   systemInstruction?: string;
   model?: string;
   userId: string;
-  forceProvider?: AIProvider; // Override automatic provider selection
 }
 
 export interface AIGenerateResult {
@@ -200,14 +77,14 @@ export interface AIGenerateResult {
 }
 
 export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerateResult> => {
-  const { taskType, prompt, systemInstruction, model, userId, forceProvider } = options;
+  const { taskType, prompt, systemInstruction, model, userId } = options;
 
   // Check usage limit first
   const usageCheck = await checkAIUsageLimit(userId);
   if (!usageCheck.can_request) {
     return {
       content: '',
-      provider: 'gemini',
+      provider: 'openai',
       model: '',
       tokens: 0,
       cost: 0,
@@ -217,7 +94,7 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
   }
 
   try {
-    // Call Next.js API route
+    // Call Next.js API route (OpenAI only)
     const response = await fetch('/api/ai/generate', {
       method: 'POST',
       headers: {
@@ -229,7 +106,6 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
         systemInstruction,
         model,
         userId,
-        forceProvider,
       }),
     });
 
@@ -254,16 +130,13 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
     return result;
   } catch (error: any) {
     const errorMessage = error.message || 'Unknown error';
-    
-    // Determine provider for error recording
-    const provider = forceProvider || TASK_COMPLEXITY[taskType];
-    const selectedModel = model || (provider === 'openai' ? 'gpt-4' : 'gemini-pro');
-    
+    const selectedModel = model || 'gpt-4';
+
     // Record failed interaction
     await recordInteraction(
       userId,
       taskType,
-      provider,
+      'openai',
       selectedModel,
       0,
       0,
@@ -271,18 +144,9 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
       errorMessage
     );
 
-    // Try fallback provider if primary fails
-    if (!forceProvider && TASK_COMPLEXITY[taskType] === 'gemini') {
-      console.log('Gemini failed, trying OpenAI fallback...');
-      return generateAI({
-        ...options,
-        forceProvider: 'openai',
-      });
-    }
-
     return {
       content: '',
-      provider,
+      provider: 'openai',
       model: selectedModel,
       tokens: 0,
       cost: 0,
@@ -349,11 +213,86 @@ export const gradeSubmission = async (
   const prompt = `Analyze this student submission for the following assignment:\n\nAssignment: ${assignmentDescription}${rubricSection}\n\nSubmission:\n${submissionText}\n\nProvide:\n1. Grammar and spelling errors\n2. Content analysis\n3. Suggested improvements\n4. Rubric-based scoring suggestions (if rubric provided)\n5. Overall feedback`;
   
   return generateAI({
-    taskType: 'grading',
+    taskType: 'checker',
     prompt,
     systemInstruction: 'You are an expert teacher providing constructive feedback. Be specific, encouraging, and focus on learning improvement.',
     userId,
   });
+};
+
+// --- Syllabus → Lesson Plan (content + constraints → structured plan) ---
+export interface SyllabusLessonInput {
+  text: string;
+  subject: string;
+  gradeLevel?: string;
+  curriculum?: string;
+  teachingLevel?: 'beginner' | 'intermediate' | 'advanced';
+  totalWeeks: number;
+  hoursPerWeek: number;
+  classDurationMinutes: number;
+  daysAvailable?: string[];
+  teachingStyle?: 'concept-based' | 'practice-heavy' | 'revision-focused';
+  editPrompt?: string;
+}
+
+export interface SyllabusLessonItem {
+  lessonNo: number;
+  title: string;
+  learningObjectives?: string[];
+  durationMinutes: number;
+  topics?: string[];
+  activities?: string;
+  teachingNotes?: string;
+  isRevision?: boolean;
+}
+
+export interface SyllabusLessonPlanResult {
+  lessons: SyllabusLessonItem[];
+  weeklyDistribution: Record<string, number[]>;
+  confidence: 'full' | 'tight' | 'insufficient';
+  summary: string;
+  message: string | null;
+}
+
+export const generateLessonPlanFromSyllabus = async (
+  input: SyllabusLessonInput,
+  userId: string
+): Promise<{
+  success: boolean;
+  plan?: SyllabusLessonPlanResult;
+  error?: string;
+  tokens?: number;
+}> => {
+  const usageCheck = await checkAIUsageLimit(userId);
+  if (!usageCheck.can_request) {
+    return {
+      success: false,
+      error: usageCheck.reason || 'Usage limit reached',
+    };
+  }
+  try {
+    const response = await fetch('/api/ai/lesson-plan-from-syllabus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...input, userId }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Request failed' };
+    }
+    if (!data.success || !data.plan) {
+      return { success: false, error: data.error || 'Invalid response' };
+    }
+    const tokens = data.tokens ?? 0;
+    const inputT = data.inputTokens ?? 0;
+    const outputT = data.outputTokens ?? 0;
+    const cost = (inputT / 1000) * 0.03 + (outputT / 1000) * 0.06;
+    await recordInteraction(userId, 'lesson_planning', 'openai', 'gpt-4', tokens, cost, true);
+    return { success: true, plan: data.plan, tokens };
+  } catch (e: any) {
+    await recordInteraction(userId, 'lesson_planning', 'openai', 'gpt-4', 0, 0, false, e.message);
+    return { success: false, error: e.message || 'Failed to generate plan' };
+  }
 };
 
 export const generateLessonPlan = async (
@@ -433,4 +372,53 @@ export const generateStudyPlan = async (
     systemInstruction: 'You are a study planning expert. Create realistic, effective study schedules.',
     userId,
   });
+};
+
+// --- Lesson Planner Calendar: parse natural language to suggested events ---
+export interface CalendarEventSuggestion {
+  title: string;
+  start: string; // ISO date-time
+  end: string;   // ISO date-time
+  allDay?: boolean;
+  description?: string;
+}
+
+const CALENDAR_SYSTEM = `You are a calendar assistant for teachers. The user will describe events they want to add (e.g. "daily for next 10 days at 10 pm", "every Monday at 9am for the next month", "meeting tomorrow 2pm to 3pm").
+Respond with ONLY a valid JSON array of events, no other text or markdown. Each object must have: title (string), start (ISO 8601 date-time), end (ISO 8601 date-time), and optionally allDay (boolean), description (string).
+Include a short description when it helps: e.g. lesson topic, materials needed, or notes. Use the current date/time when relative times are given. For recurring intent (e.g. "daily for 10 days"), expand into separate event objects and vary descriptions per occurrence if useful (e.g. "Day 1: intro", "Day 2: practice").`;
+
+export const suggestCalendarEventsFromPrompt = async (
+  userPrompt: string,
+  userId: string
+): Promise<{ success: boolean; events?: CalendarEventSuggestion[]; error?: string }> => {
+  if (!userPrompt?.trim()) {
+    return { success: false, error: 'Please describe the events you want.' };
+  }
+  const prompt = `Current date and time: ${new Date().toISOString()}\n\nUser request: ${userPrompt.trim()}\n\nReturn ONLY a JSON array of event objects.`;
+  const result = await generateAI({
+    taskType: 'content_generation',
+    prompt,
+    systemInstruction: CALENDAR_SYSTEM,
+    userId,
+  });
+  if (!result.success || !result.content) {
+    return { success: false, error: result.error || 'Failed to generate suggestions.' };
+  }
+  try {
+    const raw = result.content.trim().replace(/^```json?\s*|\s*```$/g, '');
+    const parsed = JSON.parse(raw) as unknown;
+    const arr = Array.isArray(parsed) ? parsed : [parsed];
+    const events: CalendarEventSuggestion[] = arr
+      .filter((e: any) => e && typeof e.title === 'string' && e.start && e.end)
+      .map((e: any) => ({
+        title: String(e.title),
+        start: new Date(e.start).toISOString(),
+        end: new Date(e.end).toISOString(),
+        allDay: Boolean(e.allDay),
+        description: e.description ? String(e.description) : undefined,
+      }));
+    return { success: true, events };
+  } catch {
+    return { success: false, error: 'Could not parse AI response as event list.' };
+  }
 };

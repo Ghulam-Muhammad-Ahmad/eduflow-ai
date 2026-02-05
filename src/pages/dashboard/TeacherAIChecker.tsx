@@ -29,17 +29,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Brain, Upload, CheckCircle, XCircle, Loader2, FileText, Users } from "lucide-react";
-import { useAIGrading, AIFeedback } from "@/hooks/useAIGrading";
+import { useAIChecker, AIFeedback } from "@/hooks/useAIChecker";
 import { useAssignments, useAssignmentSubmissions } from "@/hooks/useAssignments";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { format } from "date-fns";
 
-const TeacherAIGrading = () => {
+const TeacherAIChecker = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { usage, isNearLimit } = useAIUsage();
-  const { gradeSubmissionWithAI, gradeBatchSubmissions, fetchAIFeedback, acceptAIFeedback, loading } = useAIGrading();
+  const { gradeSubmissionWithAI, gradeBatchSubmissions, fetchAIFeedback, acceptAIFeedback, loading } = useAIChecker();
   const { assignments } = useAssignments();
   
   const [selectedAssignment, setSelectedAssignment] = useState<string>("");
@@ -48,19 +48,15 @@ const TeacherAIGrading = () => {
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [aiFeedback, setAIFeedback] = useState<AIFeedback | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
-  const [gradingResult, setGradingResult] = useState<string>("");
+  const [checkerResult, setCheckerResult] = useState<string>("");
 
   const handleGradeSubmission = async (submission: any) => {
     if (!submission) return;
 
-    // Get assignment details
     const assignment = assignments?.find((a) => a.id === submission.assignment_id);
     if (!assignment) return;
 
-    // Get submission text (from file or text_content)
     let submissionText = submission.text_content || "";
-    
-    // If file submission, we'd need to extract text (simplified for now)
     if (submission.file_path && !submissionText) {
       submissionText = "[File submission - text extraction needed]";
     }
@@ -69,15 +65,14 @@ const TeacherAIGrading = () => {
       submission.id,
       submissionText,
       assignment.description || assignment.title,
-      undefined // rubric can be added later
+      undefined
     );
 
     if (result?.success) {
-      setGradingResult(result.content);
+      setCheckerResult(result.content);
       setSelectedSubmission(submission);
       setFeedbackDialogOpen(true);
       
-      // Load saved feedback
       const feedback = await fetchAIFeedback(submission.id);
       if (feedback) {
         setAIFeedback(feedback);
@@ -124,12 +119,11 @@ const TeacherAIGrading = () => {
   return (
     <DashboardLayout role="teacher">
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">AI Paper Checker</h1>
+            <h1 className="text-3xl font-bold text-foreground">AI Checker</h1>
             <p className="text-muted-foreground mt-1">
-              Get AI-powered grading assistance and feedback suggestions
+              Get AI-powered checking and feedback suggestions
             </p>
           </div>
           {isNearLimit() && (
@@ -139,7 +133,6 @@ const TeacherAIGrading = () => {
           )}
         </div>
 
-        {/* Assignment Selector */}
         <Card className="p-4">
           <div className="flex items-center gap-4">
             <div className="flex-1">
@@ -171,7 +164,7 @@ const TeacherAIGrading = () => {
                 ) : (
                   <>
                     <Brain className="h-4 w-4 mr-2" />
-                    Grade All Ungraded
+                    Check All Ungraded
                   </>
                 )}
               </Button>
@@ -179,7 +172,6 @@ const TeacherAIGrading = () => {
           </div>
         </Card>
 
-        {/* Submissions Table */}
         {selectedAssignment && (
           <Card>
             <Table>
@@ -250,7 +242,7 @@ const TeacherAIGrading = () => {
                           disabled={loading || submission.status !== "submitted"}
                         >
                           <Brain className="h-4 w-4 mr-2" />
-                          AI Grade
+                          AI Check
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -266,16 +258,15 @@ const TeacherAIGrading = () => {
             <Brain className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Select an Assignment</h3>
             <p className="text-muted-foreground">
-              Choose an assignment above to start using AI grading assistance
+              Choose an assignment above to start using AI checker
             </p>
           </Card>
         )}
 
-        {/* Feedback Dialog */}
         <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>AI Grading Feedback</DialogTitle>
+              <DialogTitle>AI Checker Feedback</DialogTitle>
               <DialogDescription>
                 Review and modify AI-generated feedback for this submission
               </DialogDescription>
@@ -324,4 +315,4 @@ const TeacherAIGrading = () => {
   );
 };
 
-export default TeacherAIGrading;
+export default TeacherAIChecker;

@@ -22,6 +22,9 @@ import {
   Trash2,
   Folder,
   FolderPlus,
+  Pencil,
+  Eye,
+  FolderInput,
 } from "lucide-react";
 import {
   Card,
@@ -92,6 +95,20 @@ const formatDate = (dateString: string) => {
   });
 };
 
+/** Returns a display name that doesn't collide with existing names (adds (1), (2), ... before extension). */
+function getUniqueDocumentName(originalName: string, existingNames: string[]): string {
+  const lastDot = originalName.lastIndexOf(".");
+  const base = lastDot >= 0 ? originalName.slice(0, lastDot) : originalName;
+  const ext = lastDot >= 0 ? originalName.slice(lastDot) : "";
+  let candidate = originalName;
+  let n = 0;
+  while (existingNames.includes(candidate)) {
+    n += 1;
+    candidate = `${base} (${n})${ext}`;
+  }
+  return candidate;
+}
+
 const StudentDocuments = () => {
   const { user } = useAuth();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
@@ -105,6 +122,16 @@ const StudentDocuments = () => {
   const [documentToDelete, setDocumentToDelete] = useState<DocumentType | null>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [documentToRename, setDocumentToRename] = useState<DocumentType | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [documentToPreview, setDocumentToPreview] = useState<DocumentType | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [documentToMove, setDocumentToMove] = useState<DocumentType | null>(null);
+  const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
   const storageLimit = 50 * 1024 * 1024; // 50 MB for students
 
@@ -167,7 +194,19 @@ const StudentDocuments = () => {
       setUploading(true);
 
       try {
+        const folderQuery = supabase
+          .from("documents")
+          .select("name")
+          .eq("user_id", user.id);
+        const { data: existingDocs } = selectedFolder
+          ? await folderQuery.eq("folder_id", selectedFolder)
+          : await folderQuery.is("folder_id", null);
+        const existingNamesList: string[] = (existingDocs ?? []).map((d) => d.name);
+
         for (const file of acceptedFiles) {
+          const displayName = getUniqueDocumentName(file.name, existingNamesList);
+          existingNamesList.push(displayName);
+
           const fileExt = file.name.split(".").pop();
           const fileName = `${user.id}/${Date.now()}_${file.name}`;
 
@@ -180,7 +219,7 @@ const StudentDocuments = () => {
           const { error: insertError } = await supabase.from("documents").insert({
             user_id: user.id,
             folder_id: selectedFolder,
-            name: file.name,
+            name: displayName,
             file_path: fileName,
             file_size: file.size,
             file_type: file.type || `application/${fileExt}`,
@@ -284,6 +323,95 @@ const StudentDocuments = () => {
     }
   };
 
+  const openRenameDialog = (doc: DocumentType) => {
+    setDocumentToRename(doc);
+    setRenameValue(doc.name);
+    setRenameDialogOpen(true);
+  };
+
+  const handleRenameDocument = async () => {
+    if (!documentToRename || !renameValue.trim()) return;
+    try {
+      const { error } = await supabase
+        .from("documents")
+        .update({ name: renameValue.trim() })
+        .eq("id", documentToRename.id);
+      if (error) throw error;
+      toast.success("Document renamed");
+      setRenameDialogOpen(false);
+      setDocumentToRename(null);
+      setRenameValue("");
+      fetchAllData();
+    } catch (error) {
+      console.error("Error renaming document:", error);
+      toast.error("Failed to rename document");
+    }
+  };
+
+  const openPreview = useCallback(async (doc: DocumentType) => {
+    setDocumentToPreview(doc);
+    setPreviewUrl(null);
+    setPreviewDialogOpen(true);
+    setPreviewLoading(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .createSignedUrl(doc.file_path, 3600);
+      if (error) throw error;
+      setPreviewUrl(data?.signedUrl ?? null);
+    } catch (e) {
+      console.error("Preview error:", e);
+      toast.error("Could not load preview");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
+
+  const closePreview = useCallback(() => {
+    setPreviewDialogOpen(false);
+    setDocumentToPreview(null);
+    setPreviewUrl(null);
+  }, []);
+
+  const isPreviewableType = (fileType: string) => {
+    const t = fileType.toLowerCase();
+    return (
+      t.includes("pdf") ||
+      t.includes("image") ||
+      t.includes("png") ||
+      t.includes("jpg") ||
+      t.includes("jpeg") ||
+      t.includes("gif") ||
+      t.includes("webp") ||
+      t.includes("svg")
+    );
+  };
+
+  const openMoveDialog = (doc: DocumentType) => {
+    setDocumentToMove(doc);
+    setMoveTargetFolderId(doc.folder_id);
+    setMoveDialogOpen(true);
+  };
+
+  const handleMoveDocument = async () => {
+    if (!documentToMove) return;
+    try {
+      const { error } = await supabase
+        .from("documents")
+        .update({ folder_id: moveTargetFolderId })
+        .eq("id", documentToMove.id);
+      if (error) throw error;
+      toast.success("Document moved");
+      setMoveDialogOpen(false);
+      setDocumentToMove(null);
+      setMoveTargetFolderId(null);
+      fetchAllData();
+    } catch (error) {
+      console.error("Error moving document:", error);
+      toast.error("Failed to move document");
+    }
+  };
+
   const filteredDocuments = documents.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFolder = selectedFolder ? doc.folder_id === selectedFolder : true;
@@ -325,6 +453,44 @@ const StudentDocuments = () => {
                       <FileIcon className="w-6 h-6" />
                     </div>
                     <div className="flex gap-1">
+                      {isPreviewableType(doc.file_type) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openPreview(doc);
+                          }}
+                          title="Preview"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openMoveDialog(doc);
+                        }}
+                        title="Move to folder"
+                      >
+                        <FolderInput className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRenameDialog(doc);
+                        }}
+                        title="Rename"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -350,7 +516,11 @@ const StudentDocuments = () => {
                       </Button>
                     </div>
                   </div>
-                  <CardTitle className="text-sm line-clamp-2" title={doc.name}>
+                  <CardTitle
+                    className={`text-sm line-clamp-2 ${isPreviewableType(doc.file_type) ? "cursor-pointer hover:underline" : ""}`}
+                    title={doc.name}
+                    onClick={() => isPreviewableType(doc.file_type) && openPreview(doc)}
+                  >
                     {doc.name}
                   </CardTitle>
                 </CardHeader>
@@ -383,12 +553,55 @@ const StudentDocuments = () => {
                     <FileIcon className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm truncate">{doc.name}</h4>
+                    <h4
+                      className={`font-medium text-sm truncate ${isPreviewableType(doc.file_type) ? "cursor-pointer hover:underline" : ""}`}
+                      onClick={() => isPreviewableType(doc.file_type) && openPreview(doc)}
+                    >
+                      {doc.name}
+                    </h4>
                     <p className="text-xs text-muted-foreground">
                       {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
                     </p>
                   </div>
                   <div className="flex gap-1">
+                    {isPreviewableType(doc.file_type) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openPreview(doc);
+                        }}
+                        title="Preview"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openMoveDialog(doc);
+                      }}
+                      title="Move to folder"
+                    >
+                      <FolderInput className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRenameDialog(doc);
+                      }}
+                      title="Rename"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -594,6 +807,175 @@ const StudentDocuments = () => {
             </Button>
             <Button onClick={createFolder} disabled={!newFolderName.trim()}>
               Create Folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview Dialog */}
+      <Dialog open={previewDialogOpen} onOpenChange={(open) => !open && closePreview()}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-8">{documentToPreview?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {previewLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+              </div>
+            ) : previewUrl && documentToPreview ? (
+              (() => {
+                const t = documentToPreview.file_type.toLowerCase();
+                const isPdf = t.includes("pdf");
+                const isImage =
+                  t.includes("image") ||
+                  t.includes("png") ||
+                  t.includes("jpg") ||
+                  t.includes("jpeg") ||
+                  t.includes("gif") ||
+                  t.includes("webp") ||
+                  t.includes("svg");
+                if (isPdf) {
+                  return (
+                    <iframe
+                      src={previewUrl}
+                      title={documentToPreview.name}
+                      className="w-full flex-1 min-h-[70vh] rounded border border-border bg-muted"
+                    />
+                  );
+                }
+                if (isImage) {
+                  return (
+                    <img
+                      src={previewUrl}
+                      alt={documentToPreview.name}
+                      className="max-w-full max-h-[70vh] object-contain mx-auto rounded border border-border"
+                    />
+                  );
+                }
+                return null;
+              })()
+            ) : (
+              <div className="py-16 text-center text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Preview not available for this file type.</p>
+                {documentToPreview && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => downloadDocument(documentToPreview)}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            {documentToPreview && (
+              <Button variant="outline" onClick={() => downloadDocument(documentToPreview)}>
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+            )}
+            <Button variant="outline" onClick={closePreview}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move to Folder Dialog */}
+      <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Move to folder</DialogTitle>
+            <DialogDescription>
+              Choose a folder for &quot;{documentToMove?.name}&quot;
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2 max-h-80 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setMoveTargetFolderId(null)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                moveTargetFolderId === null
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "hover:bg-secondary"
+              }`}
+            >
+              <Folder className="w-4 h-4 text-primary" />
+              <span className="text-sm">Main (no folder)</span>
+            </button>
+            {folders.map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                onClick={() => setMoveTargetFolderId(folder.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                  moveTargetFolderId === folder.id
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "hover:bg-secondary"
+                }`}
+              >
+                <Folder className="w-4 h-4 text-primary" />
+                <span className="text-sm">{folder.name}</span>
+              </button>
+            ))}
+            {folders.length === 0 && (
+              <p className="text-sm text-muted-foreground px-3">No folders yet. Create one from the sidebar.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setMoveDialogOpen(false);
+                setDocumentToMove(null);
+                setMoveTargetFolderId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleMoveDocument}
+              disabled={documentToMove?.folder_id === moveTargetFolderId}
+            >
+              Move here
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Document Dialog */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename document</DialogTitle>
+            <DialogDescription>
+              Change the display name only. The file in storage is unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Document name"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleRenameDocument()}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRenameDialogOpen(false);
+                setDocumentToRename(null);
+                setRenameValue("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRenameDocument} disabled={!renameValue.trim()}>
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

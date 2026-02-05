@@ -103,7 +103,7 @@ export default function ChooseRole() {
               <div className="space-y-1 text-center">
                 <span className="block font-semibold text-foreground">Teacher</span>
                 <span className="block text-sm text-muted-foreground">
-                  Create classrooms, assignments & quizzes. Use AI grading and lesson planning.
+                  Create classrooms, assignments & quizzes. Use AI checker and lesson planning.
                 </span>
               </div>
             </button>

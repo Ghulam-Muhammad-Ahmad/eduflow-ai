@@ -26,7 +26,7 @@ const plans = [
     features: [
       "Unlimited students",
       "Unlimited AI lesson plans",
-      "AI paper grading",
+      "AI paper checker",
       "Advanced analytics",
       "Document storage (50GB)",
       "Priority support",

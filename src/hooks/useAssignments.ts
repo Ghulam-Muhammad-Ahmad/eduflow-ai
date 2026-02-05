@@ -172,6 +172,45 @@ export const useAssignments = (classroomId?: string) => {
     },
   });
 
+  // Fetch teacher's documents (for attaching to assignments)
+  const { data: teacherDocuments = [] } = useQuery({
+    queryKey: ["teacher-documents", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("documents")
+        .select("id, name, file_type, created_at")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Add documents to an assignment
+  const addAssignmentAttachments = async (
+    assignmentId: string,
+    documentIds: string[]
+  ): Promise<boolean> => {
+    if (documentIds.length === 0) return true;
+    const rows = documentIds.map((document_id) => ({
+      assignment_id: assignmentId,
+      document_id,
+    }));
+    const { error } = await supabase.from("assignment_attachments").insert(rows);
+    if (error) {
+      toast({
+        title: "Error attaching documents",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+    queryClient.invalidateQueries({ queryKey: ["assignments"] });
+    return true;
+  };
+
   return {
     assignments,
     isLoading,
@@ -180,6 +219,8 @@ export const useAssignments = (classroomId?: string) => {
     updateAssignment,
     publishAssignment,
     deleteAssignment,
+    teacherDocuments,
+    addAssignmentAttachments,
   };
 };
 
@@ -231,7 +272,7 @@ export const useStudentAssignments = (classroomId?: string) => {
       
       if (enrolledClassroomIds.length === 0) return [];
 
-      // Get assignments from enrolled classrooms
+      // Get assignments from enrolled classrooms (with attached documents for students)
       let query = supabase
         .from("assignments")
         .select(`
@@ -240,6 +281,15 @@ export const useStudentAssignments = (classroomId?: string) => {
             id,
             name,
             subject
+          ),
+          assignment_attachments (
+            document_id,
+            documents (
+              id,
+              name,
+              file_path,
+              file_type
+            )
           )
         `)
         .eq("status", "published")

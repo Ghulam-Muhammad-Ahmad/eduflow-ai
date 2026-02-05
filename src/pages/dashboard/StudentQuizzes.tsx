@@ -85,15 +85,27 @@ const StudentQuizzes = () => {
   };
 
   const getQuizStatus = (quiz: Quiz) => {
-    if (quiz.status !== "active") return null;
+    // Only process scheduled and active quizzes
+    if (quiz.status !== "active" && quiz.status !== "scheduled") return null;
 
     const now = new Date();
+    
+    // Check if quiz is upcoming (not yet available based on available_from date)
     if (quiz.available_from && isFuture(new Date(quiz.available_from))) {
       return { label: "Upcoming", variant: "secondary" as const };
     }
+    
+    // Check if quiz has expired (available_until date has passed)
     if (quiz.available_until && isPast(new Date(quiz.available_until))) {
       return { label: "Expired", variant: "destructive" as const };
     }
+    
+    // If status is scheduled but no available_from date, treat as upcoming
+    if (quiz.status === "scheduled") {
+      return { label: "Upcoming", variant: "secondary" as const };
+    }
+    
+    // Quiz is currently available
     return { label: "Available", variant: "live" as const };
   };
 
@@ -101,6 +113,14 @@ const StudentQuizzes = () => {
     const quizAttempts = attempts.filter((a) => a.quiz_id === quizId);
     const completedAttempts = quizAttempts.filter((a) => a.status === "graded");
     const inProgressAttempt = quizAttempts.find((a) => a.status === "in_progress");
+
+    // Find the best attempt (highest score) among completed attempts
+    let bestAttempt = null;
+    if (completedAttempts.length > 0) {
+      bestAttempt = completedAttempts.reduce((best, current) => {
+        return (current.score || 0) > (best.score || 0) ? current : best;
+      });
+    }
 
     return {
       total: quizAttempts.length,
@@ -110,7 +130,8 @@ const StudentQuizzes = () => {
         completedAttempts.length > 0
           ? Math.max(...completedAttempts.map((a) => a.score || 0))
           : null,
-      lastAttempt: quizAttempts.length > 0 ? quizAttempts[0] : null,
+      bestAttempt: bestAttempt, // The attempt with the highest score
+      lastAttempt: quizAttempts.length > 0 ? quizAttempts[0] : null, // Most recent attempt
     };
   };
 
@@ -191,8 +212,12 @@ const StudentQuizzes = () => {
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle className="h-4 w-4 text-green-500" />
               <span>
-                Best Score: <strong>{attemptInfo.bestScore?.toFixed(1)}%</strong> (
-                {attemptInfo.completed}/{quiz.max_attempts} attempts)
+                Best Score: <strong>{attemptInfo.bestScore?.toFixed(1)}%</strong>
+                {quiz.max_attempts && (
+                  <span className="ml-1">
+                    ({attemptInfo.completed}/{quiz.max_attempts} {quiz.max_attempts === 1 ? 'attempt' : 'attempts'})
+                  </span>
+                )}
               </span>
             </div>
           )}
@@ -220,17 +245,17 @@ const StudentQuizzes = () => {
                 <Play className="h-4 w-4 mr-2" />
                 {attemptInfo.completed > 0 ? "Retake Quiz" : "Start Quiz"}
               </Button>
-              {attemptInfo.lastAttempt && (
+              {attemptInfo.bestAttempt && (
                 <Button
                   variant="outline"
                   onClick={() =>
                     router.push(
-                      `/dashboard/student/quizzes/${quiz.id}/results/${attemptInfo.lastAttempt?.id}`
+                      `/dashboard/student/quizzes/${quiz.id}/results/${attemptInfo.bestAttempt?.id}`
                     )
                   }
                 >
                   <Eye className="h-4 w-4 mr-2" />
-                  View Results
+                  View Best Result
                 </Button>
               )}
             </>

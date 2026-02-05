@@ -76,7 +76,7 @@ const Hero = () => {
               <div className="feature-icon-lime mb-4">
                 <Brain className="w-6 h-6" />
               </div>
-              <h3 className="font-semibold mb-2 text-foreground">AI Grading</h3>
+              <h3 className="font-semibold mb-2 text-foreground">AI Checker</h3>
               <p className="text-sm text-muted-foreground">Instant, unbiased assessment with detailed feedback</p>
             </div>
 

@@ -2,95 +2,84 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-export interface AIUsage {
-  current_usage: number;
-  limit: number;
-  remaining: number;
-  can_request: boolean;
-  reason?: string;
-}
+const TOKENS_PER_CREDIT = 1000;
 
-export interface MonthlyUsage {
-  month: string;
-  interactions_count: number;
-  tokens_used: number;
-  cost: number;
-  limit_reached: boolean;
-  usage_limit: number;
+interface AIUsage {
+  /** Raw tokens used this period */
+  current: number;
+  current_usage?: number; // alias for components that use this name
+  /** Limit in tokens */
+  limit: number;
+  /** Remaining tokens */
+  remaining: number;
+  percentage: number;
+  /** Display: 1 credit = 1000 tokens */
+  currentCredits: number;
+  limitCredits: number;
+  remainingCredits: number;
 }
 
 export const useAIUsage = () => {
   const { user } = useAuth();
   const [usage, setUsage] = useState<AIUsage | null>(null);
-  const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user?.id) {
-      loadUsage();
+      fetchAIUsage();
+      // Refresh every 30 seconds
+      const interval = setInterval(fetchAIUsage, 30000);
+      return () => clearInterval(interval);
     }
   }, [user]);
 
-  const loadUsage = async () => {
+  const fetchAIUsage = async () => {
     if (!user?.id) return;
-    
+
     try {
-      setLoading(true);
-      
-      // Get current usage status
-      const { data: usageData, error: usageError } = await supabase.rpc(
-        'can_make_ai_request',
-        { _user_id: user.id }
-      );
+      const { data, error } = await supabase.rpc('can_make_ai_request', {
+        _user_id: user.id,
+      });
 
-      if (usageError) throw usageError;
-      setUsage(usageData as AIUsage);
+      if (error) throw error;
 
-      // Get monthly usage details
-      const currentMonth = new Date();
-      currentMonth.setDate(1);
-      
-      const { data: monthlyData, error: monthlyError } = await supabase
-        .from('user_ai_usage')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('month', currentMonth.toISOString().split('T')[0])
-        .maybeSingle();
+      if (data) {
+        const current = data.current_usage || 0;
+        const limit = data.limit || 0;
+        const remaining = data.remaining || 0;
+        const percentage = limit > 0 ? (current / limit) * 100 : 0;
 
-      if (monthlyError) throw monthlyError;
-      if (monthlyData) {
-        setMonthlyUsage({
-          month: monthlyData.month,
-          interactions_count: monthlyData.interactions_count,
-          tokens_used: monthlyData.tokens_used,
-          cost: monthlyData.cost,
-          limit_reached: monthlyData.limit_reached,
-          usage_limit: monthlyData.usage_limit || 0,
+        setUsage({
+          current,
+          current_usage: current,
+          limit,
+          remaining,
+          percentage,
+          currentCredits: Math.round(current / TOKENS_PER_CREDIT),
+          limitCredits: Math.round(limit / TOKENS_PER_CREDIT),
+          remainingCredits: Math.round(remaining / TOKENS_PER_CREDIT),
         });
       }
     } catch (error) {
-      console.error('Error loading AI usage:', error);
+      console.error('Error fetching AI usage:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getUsagePercentage = (): number => {
-    if (!usage || !usage.limit) return 0;
-    return Math.min((usage.current_usage / usage.limit) * 100, 100);
+  const isNearLimit = (): boolean => {
+    if (!usage) return false;
+    return usage.remainingCredits <= 10 || usage.percentage >= 70;
   };
 
-  const isNearLimit = (): boolean => {
-    if (!usage || !usage.limit) return false;
-    return getUsagePercentage() >= 80;
-  };
+  const getUsagePercentage = (): number => usage?.percentage ?? 0;
 
   return {
     usage,
-    monthlyUsage,
+    monthlyUsage: usage,
     loading,
-    refresh: loadUsage,
-    getUsagePercentage,
+    refetch: fetchAIUsage,
     isNearLimit,
+    getUsagePercentage,
   };
 };

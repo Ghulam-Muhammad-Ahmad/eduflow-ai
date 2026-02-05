@@ -28,8 +28,12 @@ import {
   CheckCircle,
   AlertCircle,
   Send,
+  Download,
+  Paperclip,
 } from "lucide-react";
 import { format, isPast, isWithinInterval, addDays } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const StudentAssignments = () => {
   const [classroomFilter, setClassroomFilter] = useState<string>("all");
@@ -86,6 +90,32 @@ const StudentAssignments = () => {
     setSubmitDialogOpen(true);
   };
 
+  const downloadAttachment = async (doc: { name: string; file_path: string }) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .download(doc.file_path);
+      if (error) throw error;
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.name;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Document downloaded");
+    } catch (error) {
+      console.error("Error downloading:", error);
+      toast.error("Failed to download document");
+    }
+  };
+
+  const getAttachments = (assignment: any) => {
+    const attachments = assignment?.assignment_attachments ?? [];
+    return attachments
+      .map((a: any) => a.documents)
+      .filter(Boolean) as { id: string; name: string; file_path: string; file_type: string }[];
+  };
+
   const renderAssignmentCard = (assignment: any) => {
     const status = getAssignmentStatus(assignment);
     const dueDate = assignment.due_date ? new Date(assignment.due_date) : null;
@@ -118,6 +148,33 @@ const StudentAssignments = () => {
             <p className="text-sm text-muted-foreground line-clamp-2">
               {assignment.description}
             </p>
+          )}
+
+          {getAttachments(assignment).length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                <Paperclip className="w-3.5 h-3.5" />
+                Attached materials
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {getAttachments(assignment).map((doc) => (
+                  <Button
+                    key={doc.id}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadAttachment(doc);
+                    }}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="truncate max-w-[120px]">{doc.name}</span>
+                    <Download className="w-3 h-3 shrink-0" />
+                  </Button>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">

@@ -47,7 +47,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAIGrading } from "@/hooks/useAIGrading";
+import { useAIChecker } from "@/hooks/useAIChecker";
 
 const TeacherAssignmentSubmissions = () => {
   const router = useRouter();
@@ -60,7 +60,7 @@ const TeacherAssignmentSubmissions = () => {
   const [grade, setGrade] = useState("");
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { gradeSubmissionWithAI, fetchAIFeedback, loading: aiGradingLoading } = useAIGrading();
+  const { gradeSubmissionWithAI, fetchAIFeedback, loading: aiCheckerLoading } = useAIChecker();
   const [aiFeedbackLoading, setAIFeedbackLoading] = useState(false);
 
   // Get assignment details from first submission

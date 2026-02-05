@@ -444,6 +444,42 @@ export type Database = {
         }
         Relationships: []
       }
+      planner_events: {
+        Row: {
+          id: string
+          teacher_id: string
+          title: string
+          start_at: string
+          end_at: string
+          all_day: boolean
+          description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          teacher_id: string
+          title: string
+          start_at: string
+          end_at: string
+          all_day?: boolean
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          teacher_id?: string
+          title?: string
+          start_at?: string
+          end_at?: string
+          all_day?: boolean
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

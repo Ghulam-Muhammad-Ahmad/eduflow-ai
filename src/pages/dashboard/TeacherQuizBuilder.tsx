@@ -240,6 +240,16 @@ const TeacherQuizBuilder = () => {
     if (!classroomId) return "Please select a classroom";
     if (questions.length === 0) return "Add at least one question";
 
+    // Validate date ranges
+    if (availableFrom && availableUntil) {
+      const fromDate = new Date(availableFrom);
+      const untilDate = new Date(availableUntil);
+      
+      if (untilDate <= fromDate) {
+        return "Available Until date must be after the Available From date";
+      }
+    }
+
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.question_text.trim()) return `Question ${i + 1} text is required`;

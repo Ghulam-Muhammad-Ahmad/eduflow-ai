@@ -84,7 +84,7 @@ const TeacherDashboard = () => {
     { icon: ClipboardCheck, label: "Create Assignment", color: "text-primary", path: "/dashboard/teacher/assignments" },
     { icon: HelpCircle, label: "Create Quiz", color: "text-primary", path: "/dashboard/teacher/quizzes/create" },
     { icon: Calendar, label: "Plan Lesson", color: "text-primary", path: "/dashboard/teacher/lessons" },
-    { icon: Brain, label: "AI Grade Papers", color: "text-brand-lime-dark", path: "/dashboard/teacher/grading" },
+    { icon: Brain, label: "AI Checker", color: "text-brand-lime-dark", path: "/dashboard/teacher/checker" },
   ];
 
   const assignments = [
@@ -110,7 +110,7 @@ const TeacherDashboard = () => {
     return 'No due date';
   };
 
-  const gradingStatus = [
+  const checkerStatus = [
     { title: "Chemistry Exam", progress: 80, completed: 24, total: 30 },
     { title: "Biology Quiz", progress: 72, completed: 18, total: 25 },
     { title: "Physics Assignment", progress: 60, completed: 12, total: 20 },
@@ -307,11 +307,11 @@ const TeacherDashboard = () => {
             </div>
           </div>
 
-          {/* AI Grading Status */}
+          {/* AI Checker Status */}
           <div className="bg-card rounded-xl border border-border p-4">
-            <h2 className="text-sm font-semibold mb-3 text-foreground">AI Grading Status</h2>
+            <h2 className="text-sm font-semibold mb-3 text-foreground">AI Checker Status</h2>
             <div className="space-y-4">
-              {gradingStatus.map((item, index) => (
+              {checkerStatus.map((item, index) => (
                 <div key={index}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm text-foreground font-medium">{item.title}</span>

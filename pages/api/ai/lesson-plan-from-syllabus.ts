@@ -1,0 +1,174 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import OpenAI from "openai";
+
+const getOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OpenAI API key not configured");
+  return new OpenAI({ apiKey });
+};
+
+const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+
+const SYSTEM = `You are an expert academic planner for teachers. Given syllabus or teaching content and time constraints, you produce a structured lesson plan that fits the content into the available time.
+
+Output ONLY valid JSON with no markdown or extra text. Use this exact structure:
+{
+  "lessons": [
+    {
+      "lessonNo": 1,
+      "title": "Lesson title",
+      "learningObjectives": ["objective 1", "objective 2"],
+      "durationMinutes": 60,
+      "topics": ["topic A", "topic B"],
+      "activities": "Brief note on activities (optional)",
+      "teachingNotes": "Optional note for teacher",
+      "isRevision": false
+    }
+  ],
+  "weeklyDistribution": { "Week 1": [1, 2], "Week 2": [3, 4] },
+  "confidence": "full" | "tight" | "insufficient",
+  "summary": "One sentence on coverage.",
+  "message": "Optional warning if time is tight or content too large."
+}
+
+Rules:
+- lessonNo must be 1-based and sequential.
+- durationMinutes is per session. Total lessons must fit within total teaching hours (totalWeeks * hoursPerWeek * 60 minutes).
+- Give harder topics more time. Include revision/assessment slots where appropriate.
+- If content cannot fit, set confidence to "insufficient" and suggest in message: skip optional topics, extend duration, or assign self-study.
+- weeklyDistribution maps "Week N" to array of lesson numbers in that week.
+- teachingNotes and activities can be short; keep teacher-ready.`;
+
+export interface LessonPlanFromSyllabusBody {
+  text: string;
+  userId: string;
+  subject: string;
+  gradeLevel?: string;
+  curriculum?: string;
+  teachingLevel?: "beginner" | "intermediate" | "advanced";
+  totalWeeks: number;
+  hoursPerWeek: number;
+  classDurationMinutes: number;
+  daysAvailable?: string[];
+  teachingStyle?: "concept-based" | "practice-heavy" | "revision-focused";
+  editPrompt?: string; // For regenerate: "add more practice", "skip chapter 3", etc.
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const body = req.body as LessonPlanFromSyllabusBody;
+  const {
+    text,
+    userId,
+    subject,
+    gradeLevel,
+    curriculum,
+    teachingLevel,
+    totalWeeks,
+    hoursPerWeek,
+    classDurationMinutes,
+    daysAvailable,
+    teachingStyle,
+    editPrompt,
+  } = body;
+
+  if (!text?.trim() || !userId || !subject?.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: "text, userId, and subject are required",
+    });
+  }
+
+  const totalMinutes = totalWeeks * hoursPerWeek * 60;
+  const maxSessions = Math.floor(totalMinutes / Math.max(1, classDurationMinutes));
+
+  let userPrompt = `Current date: ${new Date().toISOString().slice(0, 10)}
+
+TEACHING CONTENT (syllabus / topics to cover):
+---
+${text.slice(0, 12000)}
+${text.length > 12000 ? "\n[... content truncated for length ...]" : ""}
+---
+
+CONSTRAINTS:
+- Subject: ${subject}
+${gradeLevel ? `- Grade/Class: ${gradeLevel}` : ""}
+${curriculum ? `- Curriculum: ${curriculum}` : ""}
+${teachingLevel ? `- Level: ${teachingLevel}` : ""}
+- Total time: ${totalWeeks} weeks, ${hoursPerWeek} hours/week (${totalMinutes} minutes total)
+- Class duration: ${classDurationMinutes} minutes per session
+- Max sessions that fit: ~${maxSessions}
+${daysAvailable?.length ? `- Days available: ${daysAvailable.join(", ")}` : ""}
+${teachingStyle ? `- Teaching style: ${teachingStyle}` : ""}
+${editPrompt ? `\nTEACHER EDIT REQUEST: ${editPrompt}` : ""}
+
+Produce the lesson plan JSON. Ensure total lesson duration fits within ${totalMinutes} minutes.`;
+
+  try {
+    const openai = getOpenAIClient();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.5,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim() ?? "";
+    const usage = completion.usage;
+    const inputTokens = usage?.prompt_tokens ?? estimateTokens(SYSTEM + userPrompt);
+    const outputTokens = usage?.completion_tokens ?? estimateTokens(raw);
+
+    const cleaned = raw.replace(/^```json?\s*|\s*```$/g, "");
+    const plan = JSON.parse(cleaned) as {
+      lessons: Array<{
+        lessonNo: number;
+        title: string;
+        learningObjectives?: string[];
+        durationMinutes: number;
+        topics?: string[];
+        activities?: string;
+        teachingNotes?: string;
+        isRevision?: boolean;
+      }>;
+      weeklyDistribution?: Record<string, number[]>;
+      confidence?: string;
+      summary?: string;
+      message?: string;
+    };
+
+    if (!Array.isArray(plan.lessons)) {
+      return res.status(500).json({
+        success: false,
+        error: "AI did not return a valid lessons array",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      plan: {
+        lessons: plan.lessons,
+        weeklyDistribution: plan.weeklyDistribution ?? {},
+        confidence: plan.confidence ?? "full",
+        summary: plan.summary ?? "",
+        message: plan.message ?? null,
+      },
+      tokens: inputTokens + outputTokens,
+      inputTokens,
+      outputTokens,
+    });
+  } catch (err: unknown) {
+    console.error("Lesson plan from syllabus error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to generate lesson plan",
+    });
+  }
+}

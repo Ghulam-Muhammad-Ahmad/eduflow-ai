@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { gradeSubmission, generateAI } from '@/services/aiService';
+import { gradeSubmission } from '@/services/aiService';
 import type { AIGenerateResult } from '@/services/aiService';
 
 export interface AIFeedback {
@@ -24,12 +24,12 @@ export interface AIFeedback {
   updated_at: string;
 }
 
-export const useAIGrading = () => {
+export const useAIChecker = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Grade a single submission
+  // Check a single submission with AI
   const gradeSubmissionWithAI = async (
     submissionId: string,
     submissionText: string,
@@ -48,7 +48,6 @@ export const useAIGrading = () => {
       );
 
       if (result.success) {
-        // Parse and save feedback
         await saveAIFeedback(submissionId, result.content, rubric);
       }
 
@@ -56,7 +55,7 @@ export const useAIGrading = () => {
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to grade submission',
+        description: error.message || 'Failed to check submission',
         variant: 'destructive',
       });
       return null;
@@ -65,7 +64,7 @@ export const useAIGrading = () => {
     }
   };
 
-  // Grade multiple submissions in batch
+  // Check multiple submissions in batch
   const gradeBatchSubmissions = async (
     submissions: Array<{
       id: string;
@@ -97,14 +96,14 @@ export const useAIGrading = () => {
 
       toast({
         title: 'Success',
-        description: `Graded ${results.length} submissions`,
+        description: `Checked ${results.length} submissions`,
       });
 
       return results;
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to grade submissions',
+        description: error.message || 'Failed to check submissions',
         variant: 'destructive',
       });
       return results;
@@ -122,10 +121,7 @@ export const useAIGrading = () => {
     if (!user?.id) return null;
 
     try {
-      // Parse feedback (this is simplified - in production, you'd parse the structured response)
       const feedbackData = parseFeedback(feedbackText);
-
-      // Calculate consistency hash for similar errors
       const consistencyHash = calculateConsistencyHash(feedbackData);
 
       const { data, error } = await supabase
@@ -194,10 +190,7 @@ export const useAIGrading = () => {
     }
   };
 
-  // Helper to parse feedback text into structured format
   const parseFeedback = (text: string): any => {
-    // This is a simplified parser - in production, you'd use more sophisticated parsing
-    // or have the AI return structured JSON
     return {
       overall_feedback: text,
       grammar_errors: [],
@@ -207,15 +200,11 @@ export const useAIGrading = () => {
     };
   };
 
-  // Calculate hash for consistency checking
   const calculateConsistencyHash = (feedbackData: any): string => {
-    // Simple hash based on error types and patterns
     const errorTypes = [
       ...(feedbackData.grammar_errors || []).map((e: any) => e.type || 'grammar'),
       ...(feedbackData.spelling_errors || []).map((e: any) => 'spelling'),
     ].sort().join(',');
-    
-    // In production, use a proper hash function
     return btoa(errorTypes).substring(0, 16);
   };
 

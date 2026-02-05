@@ -4,8 +4,10 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
+import { useAIUsage } from "@/hooks/useAIUsage";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
 import {
   LayoutDashboard,
   FileText,
@@ -18,9 +20,13 @@ import {
   Menu,
   X,
   Bell,
-  HelpCircle,
   Sparkles,
   BookOpen,
+  Zap,
+  School,
+  ListChecks,
+  GraduationCap,
+  ScrollText,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -32,13 +38,15 @@ const roleConfig = {
     title: "Teacher Dashboard",
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/teacher" },
-      { icon: Users, label: "Classrooms", path: "/dashboard/teacher/classrooms" },
+      { icon: School, label: "Classrooms", path: "/dashboard/teacher/classrooms" },
       { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
       { icon: Sparkles, label: "AI Studio", path: "/dashboard/teacher/ai-studio" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
-      { icon: HelpCircle, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
-      { icon: Brain, label: "AI Grading", path: "/dashboard/teacher/grading" },
-      { icon: Calendar, label: "Lesson Planner", path: "/dashboard/teacher/lessons" },
+      { icon: ListChecks, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
+      { icon: ScrollText, label: "Student Records", path: "/dashboard/teacher/student-records" },
+      { icon: Brain, label: "AI Checker", path: "/dashboard/teacher/checker" },
+      { icon: BookOpen, label: "Lesson Planner", path: "/dashboard/teacher/lesson-planner" },
+      { icon: Calendar, label: "Calendar", path: "/dashboard/teacher/calendar" },
     ],
   },
   student: {
@@ -49,8 +57,8 @@ const roleConfig = {
       { icon: FileText, label: "My Documents", path: "/dashboard/student/documents" },
       { icon: BookOpen, label: "Course Materials", path: "/dashboard/student/course-materials" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
-      { icon: HelpCircle, label: "Quizzes", path: "/dashboard/student/quizzes" },
-      { icon: Brain, label: "Study Hub", path: "/dashboard/student/study" },
+      { icon: ListChecks, label: "Quizzes", path: "/dashboard/student/quizzes" },
+      { icon: GraduationCap, label: "Study Hub", path: "/dashboard/student/study" },
     ],
   },
   admin: {
@@ -64,6 +72,7 @@ const roleConfig = {
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const { user, role, profile, signOut } = useAuth();
+  const { usage, loading: usageLoading } = useAIUsage();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -133,7 +142,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         }`}
       >
         {/* Logo */}
-        <div className="p-6 border-b border-border">
+        <div className="p-4 border-b border-border">
           <Link href="/" className="flex flex-col group">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 flex items-center justify-center">
@@ -149,15 +158,15 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 EduLabLoom
               </span>
             </div>
-            <span className="text-xs text-primary font-medium mt-1">
+            <span className="text-xs text-primary font-medium mt-0.5">
               Learning Management
             </span>
           </Link>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-1">
+        <nav className="flex-1 px-3 py-2 overflow-y-auto">
+          <div className="space-y-0.5">
             {config.navItems.map((item) => {
               // Check for exact match or if current path starts with nav item path (for nested routes)
               const isActive = 
@@ -188,9 +197,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </nav>
 
         {/* User Section */}
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-3 px-2 py-3 mb-2">
-            <Avatar className="h-10 w-10 border-2 border-primary/20">
+        <div className="p-3 border-t border-border space-y-2">
+          <div className="flex items-center gap-2 px-1 py-2">
+            <Avatar className="h-9 w-9 border-2 border-primary/20">
               <AvatarImage src={avatarUrl} />
               <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                 {displayName[0]?.toUpperCase()}
@@ -201,6 +210,45 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <p className="text-xs text-muted-foreground capitalize">{role}</p>
             </div>
           </div>
+
+          {/* AI Usage Bar */}
+          {!usageLoading && usage && (
+            <div className="px-2 py-2 bg-secondary/30 rounded-lg">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Zap className={`h-3.5 w-3.5 ${
+                    usage.percentage >= 90 ? 'text-red-500' : 
+                    usage.percentage >= 70 ? 'text-yellow-500' : 
+                    'text-primary'
+                  }`} />
+                  <span className="text-xs font-medium text-foreground">AI Credits</span>
+                </div>
+                <span className={`text-xs font-medium ${
+                  usage.percentage >= 90 ? 'text-red-500' : 
+                  usage.percentage >= 70 ? 'text-yellow-500' : 
+                  'text-muted-foreground'
+                }`}>
+                  {usage.currentCredits}/{usage.limitCredits}
+                </span>
+              </div>
+              <Progress 
+                value={usage.percentage} 
+                className={`h-1.5 ${
+                  usage.percentage >= 90 ? '[&>div]:bg-red-500' : 
+                  usage.percentage >= 70 ? '[&>div]:bg-yellow-500' : 
+                  ''
+                }`}
+              />
+              <p className={`text-xs mt-1 ${
+                usage.percentage >= 90 ? 'text-red-500 font-medium' : 
+                usage.percentage >= 70 ? 'text-yellow-600 dark:text-yellow-500' : 
+                'text-muted-foreground'
+              }`}>
+                {usage.remainingCredits} remaining
+              </p>
+            </div>
+          )}
+
           <Button
             variant="ghost"
             size="sm"

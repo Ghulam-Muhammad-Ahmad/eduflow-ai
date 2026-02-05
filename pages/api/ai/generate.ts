@@ -1,11 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 
-type AIProvider = "gemini" | "openai";
 type AITaskType =
   | "content_generation"
-  | "grading"
+  | "checker"
   | "lesson_planning"
   | "study_materials"
   | "rubric_generation"
@@ -15,28 +13,6 @@ type AITaskType =
   | "practice_questions"
   | "flashcards"
   | "study_plan";
-
-const TASK_COMPLEXITY: Record<AITaskType, AIProvider> = {
-  content_generation: "gemini",
-  study_materials: "gemini",
-  flashcards: "gemini",
-  practice_questions: "gemini",
-  concept_explanation: "gemini",
-  differentiation: "gemini",
-  grading: "openai",
-  lesson_planning: "openai",
-  rubric_generation: "openai",
-  quiz_questions: "openai",
-  study_plan: "openai",
-};
-
-const getGeminiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Gemini API key not configured");
-  }
-  return new GoogleGenerativeAI(apiKey);
-};
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -51,51 +27,23 @@ const estimateTokens = (text: string): number => {
 };
 
 const calculateCost = (
-  provider: AIProvider,
   model: string,
   inputTokens: number,
   outputTokens: number
 ): number => {
-  if (provider === "gemini") {
-    return 0;
-  }
-
   if (model.includes("gpt-4")) {
     return (inputTokens / 1000) * 0.03 + (outputTokens / 1000) * 0.06;
   } else if (model.includes("gpt-3.5")) {
     return (inputTokens / 1000) * 0.0015 + (outputTokens / 1000) * 0.002;
   }
-
   return 0;
-};
-
-const generateWithGemini = async (
-  prompt: string,
-  systemInstruction?: string
-): Promise<{ content: string; tokens: number }> => {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    systemInstruction: systemInstruction || "You are a helpful educational assistant.",
-  });
-
-  const inputTokens = estimateTokens(prompt + (systemInstruction || ""));
-
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text();
-
-  const outputTokens = estimateTokens(text);
-  const totalTokens = inputTokens + outputTokens;
-
-  return { content: text, tokens: totalTokens };
 };
 
 const generateWithOpenAI = async (
   prompt: string,
   systemMessage?: string,
   model: string = "gpt-4"
-): Promise<{ content: string; tokens: number }> => {
+): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
   const openai = getOpenAIClient();
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
@@ -111,9 +59,13 @@ const generateWithOpenAI = async (
   });
 
   const content = completion.choices[0]?.message?.content || "";
-  const tokens = completion.usage?.total_tokens || estimateTokens(prompt + content);
+  const usage = completion.usage;
+  const inputTokens =
+    usage?.prompt_tokens ?? Math.floor(estimateTokens(prompt + (systemMessage ?? "")) * 0.6);
+  const outputTokens =
+    usage?.completion_tokens ?? Math.ceil(estimateTokens(content) * 0.4);
 
-  return { content, tokens };
+  return { content, inputTokens, outputTokens };
 };
 
 interface AIGenerateRequest {
@@ -122,7 +74,6 @@ interface AIGenerateRequest {
   systemInstruction?: string;
   model?: string;
   userId: string;
-  forceProvider?: AIProvider;
 }
 
 export default async function handler(
@@ -140,38 +91,25 @@ export default async function handler(
       systemInstruction,
       model,
       userId,
-      forceProvider,
     }: AIGenerateRequest = req.body;
 
     if (!taskType || !prompt || !userId) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Determine provider
-    const provider = forceProvider || TASK_COMPLEXITY[taskType];
-    const selectedModel = model || (provider === "openai" ? "gpt-4" : "gemini-pro");
+    const selectedModel = model || "gpt-4";
 
-    let result: { content: string; tokens: number };
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    if (provider === "gemini") {
-      result = await generateWithGemini(prompt, systemInstruction);
-      inputTokens = Math.floor(result.tokens * 0.6);
-      outputTokens = Math.floor(result.tokens * 0.4);
-    } else {
-      result = await generateWithOpenAI(prompt, systemInstruction, selectedModel);
-      inputTokens = Math.floor(result.tokens * 0.6);
-      outputTokens = Math.floor(result.tokens * 0.4);
-    }
-
-    const cost = calculateCost(provider, selectedModel, inputTokens, outputTokens);
+    const result = await generateWithOpenAI(prompt, systemInstruction, selectedModel);
+    const totalTokens = result.inputTokens + result.outputTokens;
+    const cost = calculateCost(selectedModel, result.inputTokens, result.outputTokens);
 
     return res.status(200).json({
       content: result.content,
-      provider,
+      provider: "openai",
       model: selectedModel,
-      tokens: result.tokens,
+      tokens: totalTokens,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
       cost,
       success: true,
     });

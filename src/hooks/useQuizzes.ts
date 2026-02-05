@@ -146,7 +146,8 @@ export const useQuizzes = () => {
         return [];
       }
 
-      // Get active quizzes from enrolled classrooms
+      // Get quizzes from enrolled classrooms
+      // Fetch both 'scheduled' and 'active' status (matches RLS policy)
       const { data, error } = await supabase
         .from('quizzes')
         .select(`
@@ -155,10 +156,23 @@ export const useQuizzes = () => {
         `)
         .in('classroom_id', classroomIds)
         .in('status', ['scheduled', 'active'])
-        .order('available_from', { ascending: true, nullsFirst: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Quiz[];
+      
+      // Filter quizzes based on availability dates
+      const now = new Date();
+      const filteredData = (data as Quiz[]).filter((quiz) => {
+        // Filter out expired quizzes (available_until is in the past)
+        if (quiz.available_until && new Date(quiz.available_until) <= now) {
+          return false;
+        }
+        
+        // Include the quiz if it's available now or in the future
+        return true;
+      });
+      
+      return filteredData;
     } catch (error: any) {
       toast({
         title: 'Error',

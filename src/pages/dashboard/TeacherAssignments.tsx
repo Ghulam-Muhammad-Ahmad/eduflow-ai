@@ -1,27 +1,9 @@
-import { useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignments } from "@/hooks/useAssignments";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -49,56 +31,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { format } from "date-fns";
 
 const TeacherAssignments = () => {
   const router = useRouter();
-  const { assignments, isLoading, createAssignment, publishAssignment, deleteAssignment } = useAssignments();
+  const { assignments, isLoading, publishAssignment, deleteAssignment } = useAssignments();
   const { classrooms } = useClassrooms();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
-
-  // Form state
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [classroomId, setClassroomId] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [pointsPossible, setPointsPossible] = useState("100");
-
-  const resetForm = () => {
-    setTitle("");
-    setDescription("");
-    setInstructions("");
-    setClassroomId("");
-    setDueDate("");
-    setPointsPossible("100");
-  };
-
-  const handleCreate = async () => {
-    if (!title.trim() || !classroomId) return;
-
-    await createAssignment.mutateAsync({
-      title: title.trim(),
-      description: description.trim() || null,
-      instructions: instructions.trim() || null,
-      classroom_id: classroomId,
-      due_date: dueDate ? new Date(dueDate).toISOString() : null,
-      points_possible: parseInt(pointsPossible) || 100,
-      status: "draft",
-    });
-
-    resetForm();
-    setCreateDialogOpen(false);
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -127,102 +65,12 @@ const TeacherAssignments = () => {
               Create and manage assignments for your classrooms
             </p>
           </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Assignment
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Create New Assignment</DialogTitle>
-                <DialogDescription>
-                  Set up a new assignment for your students. You can save as draft and publish later.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Classroom *</label>
-                    <Select value={classroomId} onValueChange={setClassroomId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select classroom" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {classrooms?.map((classroom) => (
-                          <SelectItem key={classroom.id} value={classroom.id}>
-                            {classroom.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Points</label>
-                    <Input
-                      type="number"
-                      placeholder="100"
-                      value={pointsPossible}
-                      onChange={(e) => setPointsPossible(e.target.value)}
-                      min="0"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Title *</label>
-                  <Input
-                    placeholder="e.g., Chapter 5 Essay"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea
-                    placeholder="Brief description of the assignment..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Instructions</label>
-                  <Textarea
-                    placeholder="Detailed instructions for students..."
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                    rows={4}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Due Date</label>
-                  <Input
-                    type="datetime-local"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    resetForm();
-                    setCreateDialogOpen(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreate}
-                  disabled={!title.trim() || !classroomId || createAssignment.isPending}
-                >
-                  {createAssignment.isPending ? "Creating..." : "Save as Draft"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button asChild className="gap-2">
+            <Link href="/dashboard/teacher/assignments/new">
+              <Plus className="w-4 h-4" />
+              Create Assignment
+            </Link>
+          </Button>
         </div>
 
         {/* Stats */}
@@ -296,9 +144,11 @@ const TeacherAssignments = () => {
               <p className="text-muted-foreground text-center mb-6 max-w-sm">
                 Create your first assignment to start collecting student work.
               </p>
-              <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Your First Assignment
+              <Button asChild className="gap-2">
+                <Link href="/dashboard/teacher/assignments/new">
+                  <Plus className="w-4 h-4" />
+                  Create Your First Assignment
+                </Link>
               </Button>
             </CardContent>
           </Card>

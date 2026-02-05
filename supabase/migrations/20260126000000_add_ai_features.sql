@@ -58,7 +58,7 @@ CREATE TABLE public.ai_generated_content (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
--- 3. AI FEEDBACK TABLE - Store AI grading feedback
+-- 3. AI FEEDBACK TABLE - Store AI checker feedback
 CREATE TABLE public.ai_feedback (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   submission_id UUID NOT NULL REFERENCES public.submissions(id) ON DELETE CASCADE,
