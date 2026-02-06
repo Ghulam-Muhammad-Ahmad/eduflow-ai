@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase as supabaseClient } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 // Types
@@ -74,6 +74,7 @@ export interface QuizAttempt {
 export const useQuizzes = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const supabase = supabaseClient as any;
 
   // Fetch all quizzes for a teacher
   const fetchTeacherQuizzes = async (teacherId: string) => {
@@ -81,15 +82,12 @@ export const useQuizzes = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('quizzes')
-        .select(`
-          *,
-          classroom:classrooms(name, subject)
-        `)
+        .select('*, classroom:classrooms(name, subject)')
         .eq('teacher_id', teacherId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Quiz[];
+      return data || [];
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -113,7 +111,7 @@ export const useQuizzes = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Quiz[];
+      return data || [];
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -150,10 +148,7 @@ export const useQuizzes = () => {
       // Fetch both 'scheduled' and 'active' status (matches RLS policy)
       const { data, error } = await supabase
         .from('quizzes')
-        .select(`
-          *,
-          classroom:classrooms(name, subject)
-        `)
+        .select('*, classroom:classrooms(name, subject)')
         .in('classroom_id', classroomIds)
         .in('status', ['scheduled', 'active'])
         .order('created_at', { ascending: false });
@@ -162,7 +157,7 @@ export const useQuizzes = () => {
       
       // Filter quizzes based on availability dates
       const now = new Date();
-      const filteredData = (data as Quiz[]).filter((quiz) => {
+      const filteredData = (data || []).filter((quiz) => {
         // Filter out expired quizzes (available_until is in the past)
         if (quiz.available_until && new Date(quiz.available_until) <= now) {
           return false;
@@ -192,10 +187,7 @@ export const useQuizzes = () => {
       
       const { data: quiz, error: quizError } = await supabase
         .from('quizzes')
-        .select(`
-          *,
-          classroom:classrooms(name, subject)
-        `)
+        .select('*, classroom:classrooms(name, subject)')
         .eq('id', quizId)
         .single();
 
@@ -556,13 +548,7 @@ export const useQuizzes = () => {
       
       let query = supabase
         .from('quiz_attempts')
-        .select(`
-          *,
-          quiz:quizzes(
-            *,
-            classroom:classrooms(name, subject)
-          )
-        `)
+        .select('*, quiz:quizzes(*, classroom:classrooms(name, subject))')
         .eq('student_id', studentId);
 
       if (quizId) {

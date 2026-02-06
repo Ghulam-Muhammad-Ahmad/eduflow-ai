@@ -81,7 +81,7 @@ export function useTeacherStudentRecords(classroomId: string | null) {
         .order("name");
 
       if (classroomsError) throw classroomsError;
-      const classroomList = classrooms || [];
+      const classroomList = Array.isArray(classrooms) ? classrooms : [];
       const targetClassroomIds = classroomId
         ? [classroomId]
         : classroomList.map((c) => c.id);
@@ -103,19 +103,21 @@ export function useTeacherStudentRecords(classroomId: string | null) {
         .order("joined_at", { ascending: false });
 
       if (enrollError) throw enrollError;
-      const roster = enrollments || [];
+      const roster = Array.isArray(enrollments) ? enrollments : [];
       const studentIds = [...new Set(roster.map((e) => e.student_id))];
 
       // 3. Profiles for students
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email, avatar_url")
+        .select("user_id, display_name, avatar_url")
         .in("user_id", studentIds);
 
       if (profilesError) throw profilesError;
-      const profileMap = new Map(
-        (profiles || []).map((p) => [p.user_id, p])
-      );
+      // If profiles query fails, profiles may be returned as an error object, not an array.
+      // Only map if profiles is an array.
+      const profileMap = Array.isArray(profiles)
+        ? new Map(profiles.map((p) => [p.user_id, p]))
+        : new Map();
 
       // 4. Assignments for target classrooms
       const { data: assignmentsData, error: assignError } = await supabase
@@ -131,13 +133,15 @@ export function useTeacherStudentRecords(classroomId: string | null) {
         .order("created_at", { ascending: false });
 
       if (assignError) throw assignError;
-      const assignmentsList = (assignmentsData || []).map((a: any) => ({
-        id: a.id,
-        title: a.title,
-        points_possible: a.points_possible,
-        classroom_id: a.classroom_id,
-        classroom_name: a.classrooms?.name ?? "",
-      }));
+      const assignmentsList = Array.isArray(assignmentsData)
+        ? assignmentsData.map((a: any) => ({
+            id: a.id,
+            title: a.title,
+            points_possible: a.points_possible,
+            classroom_id: a.classroom_id,
+            classroom_name: a.classrooms?.name ?? "",
+          }))
+        : [];
       const assignmentIds = assignmentsList.map((a) => a.id);
 
       // 5. Quizzes for target classrooms
@@ -153,12 +157,14 @@ export function useTeacherStudentRecords(classroomId: string | null) {
         .order("created_at", { ascending: false });
 
       if (quizzesError) throw quizzesError;
-      const quizzesList = (quizzesData || []).map((q: any) => ({
-        id: q.id,
-        title: q.title,
-        classroom_id: q.classroom_id,
-        classroom_name: q.classrooms?.name ?? "",
-      }));
+      const quizzesList = Array.isArray(quizzesData)
+        ? quizzesData.map((q: any) => ({
+            id: q.id,
+            title: q.title,
+            classroom_id: q.classroom_id,
+            classroom_name: q.classrooms?.name ?? "",
+          }))
+        : [];
       const quizIds = quizzesList.map((q) => q.id);
 
       // 6. Submissions for these assignments (any student in roster)
@@ -169,7 +175,7 @@ export function useTeacherStudentRecords(classroomId: string | null) {
           .select("id, assignment_id, student_id, grade, status, submitted_at, graded_at")
           .in("assignment_id", assignmentIds)
           .in("student_id", studentIds);
-        if (!subError) submissions = subData || [];
+        if (!subError && Array.isArray(subData)) submissions = subData;
       }
 
       // 7. Quiz attempts for these quizzes (any student in roster)
@@ -181,11 +187,13 @@ export function useTeacherStudentRecords(classroomId: string | null) {
           .in("quiz_id", quizIds)
           .in("student_id", studentIds)
           .in("status", ["submitted", "graded"]);
-        if (!attemptError) attempts = attemptData || [];
+        if (!attemptError && Array.isArray(attemptData)) attempts = attemptData;
       }
 
       // Build classroom name lookup
-      const classroomNameById = new Map(classroomList.map((c) => [c.id, c.name]));
+      const classroomNameById = new Map(
+        classroomList.map((c) => [c.id, c.name])
+      );
 
       // Build student records (one per enrollment so same student in two classes = two rows, or we can merge by student; per-enrollment is better for "per classroom" view)
       const students: StudentRecord[] = roster.map((enrollment) => {
@@ -264,9 +272,9 @@ export function useTeacherStudentRecords(classroomId: string | null) {
 
         return {
           student_id: enrollment.student_id,
-          display_name: profile?.display_name ?? null,
-          email: (profile as any)?.email ?? null,
-          avatar_url: profile?.avatar_url ?? null,
+          display_name: profile && typeof profile === "object" && "display_name" in profile ? (profile.display_name as string | null) : null,
+          email: null,
+          avatar_url: profile && typeof profile === "object" && "avatar_url" in profile ? (profile.avatar_url as string | null) : null,
           classroom_id: enrollment.classroom_id,
           classroom_name: enrollment.classroom_id ? (classroomNameById.get(enrollment.classroom_id) ?? "") : "",
           joined_at: enrollment.joined_at,

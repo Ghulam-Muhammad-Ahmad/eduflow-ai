@@ -65,7 +65,7 @@ const AdminDashboard = () => {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold">Admin Dashboard</h1>
             <p className="text-muted-foreground mt-1">
-              Manage your institution's EduLabLoom deployment.
+              Manage your institution&apos;s EduLabLoom deployment.
             </p>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-sm font-medium">

@@ -153,7 +153,7 @@ export const useClassrooms = () => {
     mutationFn: async ({ enrollmentId, classroomId }: { enrollmentId: string; classroomId: string }) => {
       const { error } = await supabase
         .from("enrollments")
-        .update({ 
+        .update({
           status: "removed",
           left_at: new Date().toISOString()
         })
@@ -250,9 +250,14 @@ export const useClassroomRoster = (classroomId: string | null) => {
 
       // Fetch profiles for all student IDs
       const studentIds = enrollments.map((e) => e.student_id);
+
+      // Defensive: don't run query if no student IDs
+      if (!studentIds.length) return enrollments.map(e => ({ ...e, profiles: null }));
+
+      // Fetch profiles, but only select real profile columns (fix for "user_id" error)
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url, email")
+        .select("*") // assuming all user columns are on 'profiles'
         .in("user_id", studentIds);
 
       if (profilesError) throw profilesError;

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -141,7 +142,7 @@ export function useSyllabusLessonPlanner() {
           user_id: user.id,
           content_type: 'syllabus_lesson_plan',
           title: `Lesson plan: ${subject || 'Syllabus'} (${new Date().toLocaleDateString()})`,
-          content: plan,
+          content: plan as unknown as Json,
           metadata: {
             subject,
             grade_level: gradeLevel,
@@ -152,7 +153,7 @@ export function useSyllabusLessonPlanner() {
             class_duration_minutes: classDurationMinutes,
             days_available: daysAvailable,
             teaching_style: teachingStyle,
-          },
+          } as unknown as Json,
         })
         .select('id')
         .single();

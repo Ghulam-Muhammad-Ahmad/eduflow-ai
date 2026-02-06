@@ -164,7 +164,7 @@ const StudentClassroomDetail = () => {
           <BookOpen className="w-16 h-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">Classroom Not Found</h2>
           <p className="text-muted-foreground mb-6">
-            This classroom doesn't exist or you don't have access to it.
+            This classroom doesn&apos;t exist or you don&apos;t have access to it.
           </p>
           <Button onClick={() => router.push("/dashboard/student/classrooms")}>
             <ArrowLeft className="w-4 h-4 mr-2" />

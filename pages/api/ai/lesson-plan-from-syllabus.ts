@@ -88,7 +88,7 @@ export default async function handler(
   const totalMinutes = totalWeeks * hoursPerWeek * 60;
   const maxSessions = Math.floor(totalMinutes / Math.max(1, classDurationMinutes));
 
-  let userPrompt = `Current date: ${new Date().toISOString().slice(0, 10)}
+  const userPrompt = `Current date: ${new Date().toISOString().slice(0, 10)}
 
 TEACHING CONTENT (syllabus / topics to cover):
 ---

@@ -41,13 +41,11 @@ import {
   Users,
   AlertCircle,
   Send,
-  Brain,
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAIChecker } from "@/hooks/useAIChecker";
 
 const TeacherAssignmentSubmissions = () => {
   const router = useRouter();
@@ -416,7 +414,7 @@ const TeacherAssignmentSubmissions = () => {
             <DialogHeader>
               <DialogTitle>Grade Submission</DialogTitle>
               <DialogDescription>
-                {(selectedSubmission?.profiles as any)?.display_name || "Student"}'s submission
+                {(selectedSubmission?.profiles as any)?.display_name || "Student"}&apos;s submission
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

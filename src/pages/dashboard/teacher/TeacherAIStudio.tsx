@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,26 +6,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useAIStudio, AIGeneratedContent } from "@/hooks/useAIStudio";
 import { useAIUsage } from "@/hooks/useAIUsage";
-import { Sparkles, FileText, HelpCircle, ListChecks, Lightbulb, TrendingUp, History, Save, Download, Trash2 } from "lucide-react";
+import { Sparkles, FileText, ListChecks, TrendingUp, History, Save, Download, Trash2 } from "lucide-react";
 import ContentGenerator from "@/components/ai/ContentGenerator";
 import DifferentiationAssistant from "@/components/ai/DifferentiationAssistant";
 import RubricGenerator from "@/components/ai/RubricGenerator";
-import QuizQuestionGenerator from "@/components/ai/QuizQuestionGenerator";
 
 const TeacherAIStudio = () => {
-  const { usage, monthlyUsage, getUsagePercentage, isNearLimit } = useAIUsage();
+  const { usage, getUsagePercentage, isNearLimit } = useAIUsage();
   const { fetchGeneratedContent, deleteGeneratedContent, loading } = useAIStudio();
   const [activeTab, setActiveTab] = useState("generate");
   const [history, setHistory] = useState<AIGeneratedContent[]>([]);
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     const content = await fetchGeneratedContent();
     setHistory(content);
-  };
+  }, [fetchGeneratedContent]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const handleDelete = async (id: string) => {
     const success = await deleteGeneratedContent(id);
@@ -79,7 +78,7 @@ const TeacherAIStudio = () => {
                 </div>
                 {isNearLimit() && (
                   <p className="text-xs text-destructive mt-1">
-                    You're approaching your monthly limit
+                    You&apos;re approaching your monthly limit
                   </p>
                 )}
               </div>
@@ -89,7 +88,7 @@ const TeacherAIStudio = () => {
 
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="generate">
               <Sparkles className="h-4 w-4 mr-2" />
               Generate
@@ -101,10 +100,6 @@ const TeacherAIStudio = () => {
             <TabsTrigger value="rubric">
               <ListChecks className="h-4 w-4 mr-2" />
               Rubric
-            </TabsTrigger>
-            <TabsTrigger value="quiz">
-              <HelpCircle className="h-4 w-4 mr-2" />
-              Quiz Questions
             </TabsTrigger>
             <TabsTrigger value="history">
               <History className="h-4 w-4 mr-2" />
@@ -122,10 +117,6 @@ const TeacherAIStudio = () => {
 
           <TabsContent value="rubric">
             <RubricGenerator onContentGenerated={loadHistory} />
-          </TabsContent>
-
-          <TabsContent value="quiz">
-            <QuizQuestionGenerator onContentGenerated={loadHistory} />
           </TabsContent>
 
           <TabsContent value="history">

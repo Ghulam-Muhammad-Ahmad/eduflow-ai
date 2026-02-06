@@ -317,7 +317,7 @@ const StudentAssignments = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2">No assignments yet</h3>
               <p className="text-muted-foreground text-center mb-6 max-w-sm">
-                Your teachers haven't published any assignments yet. Check back later!
+                Your teachers haven&apos;t published any assignments yet. Check back later!
               </p>
             </CardContent>
           </Card>
@@ -351,7 +351,7 @@ const StudentAssignments = () => {
                     <CheckCircle className="w-12 h-12 text-accent mb-3" />
                     <h3 className="text-lg font-semibold">All caught up!</h3>
                     <p className="text-muted-foreground text-center">
-                      You've submitted all your pending assignments.
+                      You&apos;ve submitted all your pending assignments.
                     </p>
                   </CardContent>
                 </Card>

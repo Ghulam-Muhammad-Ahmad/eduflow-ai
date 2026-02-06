@@ -350,7 +350,7 @@ const TeacherQuizzes = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Quiz</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{selectedQuiz?.title}"? This action cannot
+              Are you sure you want to delete &quot;{selectedQuiz?.title}&quot;? This action cannot
               be undone and will delete all student attempts.
             </AlertDialogDescription>
           </AlertDialogHeader>

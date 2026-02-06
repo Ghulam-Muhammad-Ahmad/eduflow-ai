@@ -50,6 +50,106 @@ export type Database = {
           },
         ]
       }
+      ai_feedback: {
+        Row: {
+          id: string
+          submission_id: string
+          user_id: string
+          feedback_data: Json
+          suggestions: Json | null
+          consistency_hash: string | null
+          rubric_suggestions: Json | null
+          accepted: boolean
+          modified_feedback: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          submission_id: string
+          user_id: string
+          feedback_data: Json
+          suggestions?: Json | null
+          consistency_hash?: string | null
+          rubric_suggestions?: Json | null
+          accepted?: boolean
+          modified_feedback?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          submission_id?: string
+          user_id?: string
+          feedback_data?: Json
+          suggestions?: Json | null
+          consistency_hash?: string | null
+          rubric_suggestions?: Json | null
+          accepted?: boolean
+          modified_feedback?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_feedback_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_generated_content: {
+        Row: {
+          id: string
+          user_id: string
+          content_type: string
+          title: string
+          content: Json
+          source_materials: Json | null
+          metadata: Json | null
+          saved_to_documents: boolean | null
+          document_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          content_type: string
+          title: string
+          content: Json
+          source_materials?: Json | null
+          metadata?: Json | null
+          saved_to_documents?: boolean | null
+          document_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          content_type?: string
+          title?: string
+          content?: Json
+          source_materials?: Json | null
+          metadata?: Json | null
+          saved_to_documents?: boolean | null
+          document_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_generated_content_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assignments: {
         Row: {
           allow_late_submission: boolean | null

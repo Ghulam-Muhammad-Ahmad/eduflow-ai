@@ -99,7 +99,7 @@ const RoleSection = () => {
                   S
                 </div>
                 <div>
-                  <div className="font-semibold text-foreground">Sarah's Progress</div>
+                  <div className="font-semibold text-foreground">Sarah&apos;s Progress</div>
                   <div className="text-sm text-muted-foreground">Advanced Mathematics</div>
                 </div>
               </div>

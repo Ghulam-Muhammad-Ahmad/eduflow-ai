@@ -193,12 +193,21 @@ export const generateQuizQuestions = async (
   questionType: 'multiple_choice' | 'true_false' | 'short_answer',
   userId: string
 ) => {
-  const prompt = `Based on the following material, generate ${numQuestions} ${questionType} questions:\n\n${sourceMaterial}\n\nFormat the questions as JSON with the following structure for each question: {question_text, options (for multiple choice), correct_answer, explanation}`;
+  let prompt: string;
+  
+  if (questionType === 'multiple_choice') {
+    prompt = `Based on the following material, generate ${numQuestions} multiple choice questions:\n\n${sourceMaterial}\n\nFormat the questions as a JSON array where EACH question has this exact structure:\n{\n  "question_text": "the question",\n  "options": [\n    {"text": "option 1", "is_correct": false},\n    {"text": "option 2", "is_correct": true},\n    {"text": "option 3", "is_correct": false},\n    {"text": "option 4", "is_correct": false}\n  ],\n  "explanation": "explain why the correct answer is right"\n}\n\nIMPORTANT: Exactly ONE option must have "is_correct": true. Place the correct answer in random positions, not always the same position.`;
+  } else if (questionType === 'true_false') {
+    prompt = `Based on the following material, generate ${numQuestions} true/false questions:\n\n${sourceMaterial}\n\nFormat the questions as a JSON array where EACH question has this exact structure:\n{\n  "question_text": "the question statement",\n  "correct_answer": "true" or "false",\n  "explanation": "explain why the statement is true or false"\n}\n\nMix the true and false answers - don't make them all one or the other.`;
+  } else {
+    // short_answer
+    prompt = `Based on the following material, generate ${numQuestions} short answer questions:\n\n${sourceMaterial}\n\nFormat the questions as a JSON array where EACH question has this exact structure:\n{\n  "question_text": "the question",\n  "correct_answer": "the expected answer or key points to look for",\n  "explanation": "explain what a good answer should include"\n}\n\nCreate clear, specific questions with well-defined answers.`;
+  }
   
   return generateAI({
     taskType: 'quiz_questions',
     prompt,
-    systemInstruction: 'You are an expert in creating educational assessment questions. Generate clear, fair questions that test understanding.',
+    systemInstruction: 'You are an expert in creating educational assessment questions. Generate clear, fair questions that test understanding. Always provide well-reasoned explanations for correct answers.',
     userId,
   });
 };

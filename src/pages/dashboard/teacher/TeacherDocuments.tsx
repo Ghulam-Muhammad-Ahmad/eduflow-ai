@@ -1043,7 +1043,7 @@ const TeacherDocuments = () => {
               Share with Classrooms
             </DialogTitle>
             <DialogDescription>
-              Select classrooms to share "{documentToShare?.name}" with
+              Select classrooms to share &quot;{documentToShare?.name}&quot; with
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

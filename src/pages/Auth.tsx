@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/hooks/useNavigate";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,10 +217,10 @@ const Auth = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Check your email</h3>
                 <p className="text-muted-foreground mb-4">
-                  We've sent a password reset link to <span className="font-medium text-foreground">{formData.email}</span>
+                  We&apos;ve sent a password reset link to <span className="font-medium text-foreground">{formData.email}</span>
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Didn't receive the email? Check your spam folder or{" "}
+                  Didn&apos;t receive the email? Check your spam folder or{" "}
                   <button
                     type="button"
                     onClick={() => setResetEmailSent(false)}

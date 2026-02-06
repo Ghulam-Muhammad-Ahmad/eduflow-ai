@@ -83,7 +83,7 @@ const TeacherDashboard = () => {
   const quickActions = [
     { icon: ClipboardCheck, label: "Create Assignment", color: "text-primary", path: "/dashboard/teacher/assignments" },
     { icon: HelpCircle, label: "Create Quiz", color: "text-primary", path: "/dashboard/teacher/quizzes/create" },
-    { icon: Calendar, label: "Plan Lesson", color: "text-primary", path: "/dashboard/teacher/lessons" },
+    { icon: Calendar, label: "Plan Lesson", color: "text-primary", path: "/dashboard/teacher/lesson-planner" },
     { icon: Brain, label: "AI Checker", color: "text-brand-lime-dark", path: "/dashboard/teacher/checker" },
   ];
 

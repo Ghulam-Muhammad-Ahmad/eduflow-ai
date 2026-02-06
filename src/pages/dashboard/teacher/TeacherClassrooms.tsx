@@ -195,7 +195,7 @@ const TeacherClassrooms = () => {
               <DialogHeader>
                 <DialogTitle>Create New Classroom</DialogTitle>
                 <DialogDescription>
-                  Set up a new classroom for your students. You'll get a unique
+                  Set up a new classroom for your students. You&apos;ll get a unique
                   join code to share.
                 </DialogDescription>
               </DialogHeader>

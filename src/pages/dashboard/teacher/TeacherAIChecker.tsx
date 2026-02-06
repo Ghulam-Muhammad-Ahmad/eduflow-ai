@@ -34,6 +34,7 @@ import { useAssignments, useAssignmentSubmissions } from "@/hooks/useAssignments
 import { useAuth } from "@/hooks/useAuth";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 const TeacherAIChecker = () => {
   const router = useRouter();
@@ -94,7 +95,7 @@ const TeacherAIChecker = () => {
     );
 
     if (ungradedSubmissions.length === 0) {
-      alert("No ungraded submissions to process");
+      toast.info("No ungraded submissions to process");
       return;
     }
 

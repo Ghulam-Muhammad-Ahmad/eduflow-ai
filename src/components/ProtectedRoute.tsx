@@ -1,4 +1,5 @@
-import { Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 
 type AppRole = "teacher" | "student" | "admin";
@@ -9,7 +10,31 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
+  const router = useRouter();
   const { user, role, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      router.replace("/auth");
+      return;
+    }
+    if (allowedRoles && role && !allowedRoles.includes(role)) {
+      switch (role) {
+        case "teacher":
+          router.replace("/dashboard/teacher");
+          break;
+        case "student":
+          router.replace("/dashboard/student");
+          break;
+        case "admin":
+          router.replace("/dashboard/admin");
+          break;
+        default:
+          router.replace("/");
+      }
+    }
+  }, [user, role, loading, allowedRoles, router]);
 
   if (loading) {
     return (
@@ -23,21 +48,11 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return null;
   }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    // Redirect to their appropriate dashboard
-    switch (role) {
-      case "teacher":
-        return <Navigate to="/dashboard/teacher" replace />;
-      case "student":
-        return <Navigate to="/dashboard/student" replace />;
-      case "admin":
-        return <Navigate to="/dashboard/admin" replace />;
-      default:
-        return <Navigate to="/" replace />;
-    }
+    return null;
   }
 
   return <>{children}</>;

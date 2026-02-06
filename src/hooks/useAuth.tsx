@@ -113,7 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (session?.user) {
           setTimeout(async () => {
-            let fetchedRole = await fetchUserRole(session.user.id);
+            const fetchedRole = await fetchUserRole(session.user.id);
             const fetchedProfile = await fetchUserProfile(session.user.id);
             if (!fetchedRole && session.user.app_metadata?.provider) {
               await ensureOAuthUserProfile(session.user.id, session.user.user_metadata || {});
@@ -135,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        let fetchedRole = await fetchUserRole(session.user.id);
+        const fetchedRole = await fetchUserRole(session.user.id);
         const fetchedProfile = await fetchUserProfile(session.user.id);
         if (!fetchedRole && session.user.app_metadata?.provider) {
           await ensureOAuthUserProfile(session.user.id, session.user.user_metadata || {});

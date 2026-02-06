@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, CheckCircle, XCircle, Clock, Target, TrendingUp } from "lucide-react";
 import { useQuizzes, Quiz, QuizAttempt, QuizQuestion } from "@/hooks/useQuizzes";
 import { supabase } from "@/integrations/supabase/client";

@@ -70,7 +70,7 @@ const StudentDashboard = () => {
             Hello, {displayName}!
           </h1>
           <p className="text-muted-foreground mt-1">
-            Keep up the great work! Here's your learning progress.
+            Keep up the great work! Here&apos;s your learning progress.
           </p>
         </div>
 

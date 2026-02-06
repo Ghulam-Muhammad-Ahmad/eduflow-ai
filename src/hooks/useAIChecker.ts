@@ -5,6 +5,66 @@ import { useToast } from '@/hooks/use-toast';
 import { gradeSubmission } from '@/services/aiService';
 import type { AIGenerateResult } from '@/services/aiService';
 
+// Utility Types and Functions for Safe Data Handling
+type Json = any; // for Supabase raw output, you may want to use 'unknown' and add runtime logic
+
+function isRecord(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+function coerceString(val: unknown): string {
+  return typeof val === 'string' ? val : '';
+}
+function coerceNumber(val: unknown): number {
+  return typeof val === 'number' ? val : Number(val) || 0;
+}
+// Defensive parsing for feedback_data
+function parseFeedbackData(json: Json): AIFeedback['feedback_data'] {
+  if (!isRecord(json)) return {
+    grammar_errors: [],
+    spelling_errors: [],
+    content_analysis: '',
+    suggestions: [],
+    overall_feedback: '',
+  };
+  return {
+    grammar_errors: Array.isArray(json.grammar_errors)
+      ? json.grammar_errors.map((e: any) => ({
+          text: coerceString(e?.text),
+          suggestion: coerceString(e?.suggestion),
+          position: typeof e?.position === 'number' ? e.position : undefined,
+        }))
+      : [],
+    spelling_errors: Array.isArray(json.spelling_errors)
+      ? json.spelling_errors.map((e: any) => ({
+          word: coerceString(e?.word),
+          suggestion: coerceString(e?.suggestion),
+        }))
+      : [],
+    content_analysis: coerceString(json.content_analysis),
+    suggestions: Array.isArray(json.suggestions)
+      ? json.suggestions.map((e: any) => ({
+          type: coerceString(e?.type),
+          text: coerceString(e?.text),
+          priority: ['high', 'medium', 'low'].includes(e?.priority)
+            ? e.priority
+            : 'medium',
+        }))
+      : [],
+    overall_feedback: coerceString(json.overall_feedback),
+  };
+}
+function parseRubricSuggestions(json: Json): Array<{ criterion: string; score: number; max_score: number; feedback: string }> | undefined {
+  if (!Array.isArray(json)) return undefined;
+  return json
+    .filter(isRecord)
+    .map((r) => ({
+      criterion: coerceString(r.criterion),
+      score: coerceNumber(r.score),
+      max_score: coerceNumber(r.max_score),
+      feedback: coerceString(r.feedback),
+    }));
+}
+
 export interface AIFeedback {
   id: string;
   submission_id: string;
@@ -22,6 +82,22 @@ export interface AIFeedback {
   modified_feedback?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Reconstruct AIFeedback from raw DB (Json) record
+function convertDbToAIFeedback(data: any): AIFeedback {
+  return {
+    id: coerceString(data.id),
+    submission_id: coerceString(data.submission_id),
+    user_id: coerceString(data.user_id),
+    feedback_data: parseFeedbackData(data.feedback_data),
+    rubric_suggestions: parseRubricSuggestions(data.rubric_suggestions),
+    consistency_hash: typeof data.consistency_hash === 'string' ? data.consistency_hash : undefined,
+    accepted: !!data.accepted,
+    modified_feedback: typeof data.modified_feedback === 'string' ? data.modified_feedback : undefined,
+    created_at: coerceString(data.created_at),
+    updated_at: coerceString(data.updated_at),
+  };
 }
 
 export const useAIChecker = () => {
@@ -136,7 +212,7 @@ export const useAIChecker = () => {
         .single();
 
       if (error) throw error;
-      return data as AIFeedback;
+      return data ? convertDbToAIFeedback(data) : null;
     } catch (error: any) {
       console.error('Error saving AI feedback:', error);
       return null;
@@ -155,7 +231,7 @@ export const useAIChecker = () => {
         .maybeSingle();
 
       if (error) throw error;
-      return data as AIFeedback | null;
+      return data ? convertDbToAIFeedback(data) : null;
     } catch (error: any) {
       console.error('Error fetching AI feedback:', error);
       return null;
