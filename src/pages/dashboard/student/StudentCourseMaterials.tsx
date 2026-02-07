@@ -81,6 +81,12 @@ const StudentCourseMaterials = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedType, setSelectedType] = useState<string>("all");
+
+  const handleToggleFilter = () => {
+    setIsFilterOpen(!isFilterOpen);
+  };
 
   const fetchSharedDocuments = useCallback(async () => {
     if (!user || !classrooms) return;
@@ -172,7 +178,14 @@ const StudentCourseMaterials = () => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesClassroom =
       selectedClassroom === "all" || doc.classroom?.id === selectedClassroom;
-    return matchesSearch && matchesClassroom;
+    const matchesType =
+      selectedType === "all" ||
+      (selectedType === "pdf" && doc.file_type.includes("pdf")) ||
+      (selectedType === "image" && doc.file_type.includes("image")) ||
+      (selectedType === "spreadsheet" && (doc.file_type.includes("spreadsheet") || doc.file_type.includes("excel") || doc.file_type.includes("xlsx"))) ||
+      (selectedType === "document" && (doc.file_type.includes("document") || doc.file_type.includes("docx") || doc.file_type.includes("word")));
+    
+    return matchesSearch && matchesClassroom && matchesType;
   });
 
   return (
@@ -185,21 +198,6 @@ const StudentCourseMaterials = () => {
             <p className="text-muted-foreground mt-1">
               Access documents and resources shared by your teachers
             </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All Classes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {classrooms?.map((classroom) => (
-                  <SelectItem key={classroom.id} value={classroom.id}>
-                    {classroom.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -214,7 +212,12 @@ const StudentCourseMaterials = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button
+            variant={isFilterOpen ? "secondary" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={handleToggleFilter}
+          >
             <Filter className="w-4 h-4" />
             Filter
           </Button>
@@ -237,6 +240,67 @@ const StudentCourseMaterials = () => {
             </Button>
           </div>
         </div>
+
+        {/* Filters Panel */}
+        {isFilterOpen && (
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    File Type
+                  </label>
+                  <Select value={selectedType} onValueChange={setSelectedType}>
+                    <SelectTrigger className="w-40 bg-background">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="pdf">PDF Documents</SelectItem>
+                      <SelectItem value="image">Images</SelectItem>
+                      <SelectItem value="spreadsheet">Spreadsheets</SelectItem>
+                      <SelectItem value="document">Word Documents</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Classroom
+                  </label>
+                  <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
+                    <SelectTrigger className="w-48 bg-background">
+                      <SelectValue placeholder="All Classes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Classes</SelectItem>
+                      {classrooms?.map((classroom) => (
+                        <SelectItem key={classroom.id} value={classroom.id}>
+                          {classroom.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setSelectedClassroom("all");
+                      setSelectedType("all");
+                      setSearchQuery("");
+                    }}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Loading State */}
         {loading && (

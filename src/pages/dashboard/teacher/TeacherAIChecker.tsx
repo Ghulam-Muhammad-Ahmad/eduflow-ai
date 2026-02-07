@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,70 +28,110 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Brain, Upload, CheckCircle, XCircle, Loader2, FileText, Users } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Brain, FileText, Loader2, CheckCircle, XCircle, Users } from "lucide-react";
 import { useAIChecker, AIFeedback } from "@/hooks/useAIChecker";
 import { useAssignments, useAssignmentSubmissions } from "@/hooks/useAssignments";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import CheckPaperFlow from "@/components/teacher/CheckPaperFlow";
+
+type FlowMode = "assignment" | "paper";
 
 const TeacherAIChecker = () => {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { usage, isNearLimit } = useAIUsage();
-  const { gradeSubmissionWithAI, gradeBatchSubmissions, fetchAIFeedback, acceptAIFeedback, loading } = useAIChecker();
+  const {
+    gradeSubmissionWithAI,
+    gradeBatchSubmissions,
+    fetchAIFeedback,
+    applyGradeAndFeedback,
+    loading,
+  } = useAIChecker();
   const { assignments } = useAssignments();
-  
+
+  const [flowMode, setFlowMode] = useState<FlowMode>("assignment");
   const [selectedAssignment, setSelectedAssignment] = useState<string>("");
-  const { data: submissions, isLoading: submissionsLoading } = useAssignmentSubmissions(selectedAssignment || null);
+  const {
+    data: submissions,
+    isLoading: submissionsLoading,
+    refetch: refetchSubmissions,
+  } = useAssignmentSubmissions(selectedAssignment || null);
   const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [aiFeedback, setAIFeedback] = useState<AIFeedback | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
-  const [checkerResult, setCheckerResult] = useState<string>("");
+  const [suggestedGrade, setSuggestedGrade] = useState<string>("");
+  const [applyLoading, setApplyLoading] = useState(false);
+
+  const assignment = assignments?.find((a) => a.id === selectedAssignment);
+  const pointsPossible = assignment?.points_possible ?? 100;
 
   const handleGradeSubmission = async (submission: any) => {
     if (!submission) return;
 
-    const assignment = assignments?.find((a) => a.id === submission.assignment_id);
-    if (!assignment) return;
+    const assign = assignments?.find((a) => a.id === submission.assignment_id);
+    if (!assign) return;
 
-    let submissionText = submission.text_content || "";
-    if (submission.file_path && !submissionText) {
-      submissionText = "[File submission - text extraction needed]";
+    if (submission.file_path && !submission.text_content?.trim()) {
+      toast.info("File submission detected. Please extract text before grading with AI.");
+      return;
     }
 
-    const result = await gradeSubmissionWithAI(
-      submission.id,
-      submissionText,
-      assignment.description || assignment.title,
-      undefined
-    );
+    const submissionText = submission.text_content || "";
 
-    if (result?.success) {
-      setCheckerResult(result.content);
-      setSelectedSubmission(submission);
-      setFeedbackDialogOpen(true);
-      
-      const feedback = await fetchAIFeedback(submission.id);
-      if (feedback) {
-        setAIFeedback(feedback);
-        setFeedbackText(feedback.feedback_data.overall_feedback || result.content);
-      } else {
-        setFeedbackText(result.content);
+    try {
+      const result = await gradeSubmissionWithAI(
+        submission.id,
+        submissionText,
+        assign.description || assign.title,
+        undefined,
+        assign.points_possible ?? 100
+      );
+
+      if (result?.success) {
+        setSelectedSubmission(submission);
+        setFeedbackDialogOpen(true);
+
+        const feedback = await fetchAIFeedback(submission.id);
+        if (feedback) {
+          setAIFeedback(feedback);
+          const grade =
+            feedback.feedback_data.suggested_grade ?? result.suggested_grade;
+          setSuggestedGrade(
+            typeof grade === "number" ? String(grade) : ""
+          );
+          setFeedbackText(
+            result.feedback ??
+              feedback.feedback_data.overall_feedback ??
+              ""
+          );
+        } else {
+          setSuggestedGrade(
+            typeof result.suggested_grade === "number"
+              ? String(result.suggested_grade)
+              : ""
+          );
+          setFeedbackText(result.feedback ?? result.content ?? "");
+        }
       }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to grade submission");
     }
   };
 
   const handleBatchGrade = async () => {
     if (!selectedAssignment || !submissions || submissions.length === 0) return;
 
-    const assignment = assignments?.find((a) => a.id === selectedAssignment);
-    if (!assignment) return;
+    const assign = assignments?.find((a) => a.id === selectedAssignment);
+    if (!assign) return;
 
     const ungradedSubmissions = submissions.filter(
-      (s: any) => s.status === 'submitted' && !s.grade
+      (s: any) => s.status === "submitted" && !s.grade
     );
 
     if (ungradedSubmissions.length === 0) {
@@ -101,19 +141,51 @@ const TeacherAIChecker = () => {
 
     const batchData = ungradedSubmissions.map((s: any) => ({
       id: s.id,
-      text: s.text_content || "[File submission]",
-      assignmentDescription: assignment.description || assignment.title,
+      text: s.text_content || "",
+      assignmentDescription: assign.description || assign.title,
+      hasFile: !!s.file_path,
     }));
 
-    await gradeBatchSubmissions(batchData);
+    try {
+      const results = await gradeBatchSubmissions(batchData);
+      toast.success(`Checked ${results.length} submissions`);
+      await refetchSubmissions();
+    } catch (error: any) {
+      toast.error(
+        (error as Error)?.message || "Failed to check submissions"
+      );
+    }
   };
 
-  const handleAcceptFeedback = async () => {
-    if (!aiFeedback) return;
+  const handleAcceptAndApply = async () => {
+    if (!aiFeedback || !selectedSubmission) return;
 
-    const success = await acceptAIFeedback(aiFeedback.id, feedbackText);
-    if (success) {
-      setFeedbackDialogOpen(false);
+    const gradeValue = parseFloat(suggestedGrade);
+    if (isNaN(gradeValue) || gradeValue < 0 || gradeValue > pointsPossible) {
+      toast.error(`Grade must be between 0 and ${pointsPossible}`);
+      return;
+    }
+
+    setApplyLoading(true);
+    try {
+      const success = await applyGradeAndFeedback(
+        selectedSubmission.id,
+        gradeValue,
+        feedbackText,
+        aiFeedback.id,
+        { pointsPossible }
+      );
+      if (success) {
+        setFeedbackDialogOpen(false);
+        setSelectedSubmission(null);
+        setAIFeedback(null);
+        queryClient.invalidateQueries({
+          queryKey: ["assignment-submissions", selectedAssignment],
+        });
+        refetchSubmissions();
+      }
+    } finally {
+      setApplyLoading(false);
     }
   };
 
@@ -124,158 +196,223 @@ const TeacherAIChecker = () => {
           <div>
             <h1 className="text-3xl font-bold text-foreground">AI Checker</h1>
             <p className="text-muted-foreground mt-1">
-              Get AI-powered checking and feedback suggestions
+              Check assignments with suggested grades, or check any paper (PDF/paste) and save for students
             </p>
           </div>
-          {isNearLimit() && (
+          {usage && isNearLimit() && (
             <Badge variant="destructive">
-              {usage?.remaining} AI requests remaining
+              {usage.remaining} AI requests remaining
             </Badge>
           )}
         </div>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Label>Select Assignment</Label>
-              <Select value={selectedAssignment} onValueChange={setSelectedAssignment}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose an assignment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignments?.map((assignment) => (
-                    <SelectItem key={assignment.id} value={assignment.id}>
-                      {assignment.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <Tabs value={flowMode} onValueChange={(v) => setFlowMode(v as FlowMode)}>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="assignment" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Check Assignment
+            </TabsTrigger>
+            <TabsTrigger value="paper" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Check Paper
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="assignment" className="space-y-6 mt-6">
+            <Card className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Label>Select Assignment</Label>
+                  <Select
+                    value={selectedAssignment}
+                    onValueChange={setSelectedAssignment}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose an assignment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignments?.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {selectedAssignment && (
+                  <Button
+                    onClick={handleBatchGrade}
+                    disabled={loading}
+                    variant="outline"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="h-4 w-4 mr-2" />
+                        Check All Ungraded
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </Card>
+
             {selectedAssignment && (
-              <Button
-                onClick={handleBatchGrade}
-                disabled={loading}
-                variant="outline"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="h-4 w-4 mr-2" />
-                    Check All Ungraded
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </Card>
-
-        {selectedAssignment && (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Grade</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {submissionsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      Loading submissions...
-                    </TableCell>
-                  </TableRow>
-                ) : !submissions || submissions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No submissions yet
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  submissions.map((submission: any) => (
-                    <TableRow key={submission.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          <span>
-                            {submission.profiles?.display_name || 
-                             (submission.profiles ? 'Student' : 'Unknown')}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {submission.submitted_at
-                          ? format(new Date(submission.submitted_at), "MMM d, yyyy")
-                          : "Not submitted"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            submission.status === "graded"
-                              ? "live"
-                              : submission.status === "submitted"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {submission.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {submission.grade !== null ? (
-                          <span className="font-semibold">{submission.grade}%</span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleGradeSubmission(submission)}
-                          disabled={loading || submission.status !== "submitted"}
-                        >
-                          <Brain className="h-4 w-4 mr-2" />
-                          AI Check
-                        </Button>
-                      </TableCell>
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Grade</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
+                  </TableHeader>
+                  <TableBody>
+                    {submissionsLoading ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="text-center py-8 text-muted-foreground"
+                        >
+                          Loading submissions...
+                        </TableCell>
+                      </TableRow>
+                    ) : !submissions || submissions.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="text-center py-8 text-muted-foreground"
+                        >
+                          No submissions yet
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      submissions.map((submission: any) => (
+                        <TableRow key={submission.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                              <span>
+                                {submission.profiles?.display_name ??
+                                  (submission.profiles ? "Student" : "Unknown")}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {submission.submitted_at
+                              ? format(
+                                  new Date(submission.submitted_at),
+                                  "MMM d, yyyy"
+                                )
+                              : "Not submitted"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                submission.status === "graded"
+                                  ? "default"
+                                  : submission.status === "submitted"
+                                  ? "secondary"
+                                  : "outline"
+                              }
+                            >
+                              {submission.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {submission.grade !== null &&
+                            submission.grade !== undefined ? (
+                              <span className="font-semibold">
+                                {submission.grade}
+                                {pointsPossible !== 100
+                                  ? ` / ${pointsPossible}`
+                                  : "%"}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleGradeSubmission(submission)}
+                              disabled={
+                                loading || submission.status !== "submitted"
+                              }
+                            >
+                              <Brain className="h-4 w-4 mr-2" />
+                              AI Check
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
 
-        {!selectedAssignment && (
-          <Card className="p-12 text-center">
-            <Brain className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Select an Assignment</h3>
-            <p className="text-muted-foreground">
-              Choose an assignment above to start using AI checker
-            </p>
-          </Card>
-        )}
+            {selectedAssignment && !submissions?.length && !submissionsLoading && (
+              <Card className="p-12 text-center">
+                <Brain className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No submissions yet</h3>
+                <p className="text-muted-foreground">
+                  Submissions will appear here when students submit.
+                </p>
+              </Card>
+            )}
+
+            {!selectedAssignment && (
+              <Card className="p-12 text-center">
+                <Brain className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  Select an Assignment
+                </h3>
+                <p className="text-muted-foreground">
+                  Choose an assignment above to see submissions and run AI Check
+                </p>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="paper" className="mt-6">
+            <CheckPaperFlow />
+          </TabsContent>
+        </Tabs>
 
         <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>AI Checker Feedback</DialogTitle>
               <DialogDescription>
-                Review and modify AI-generated feedback for this submission
+                Review suggested grade and feedback, then Accept & Apply to save
+                to the submission.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Suggested grade (0 – {pointsPossible})</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={pointsPossible}
+                    value={suggestedGrade}
+                    onChange={(e) => setSuggestedGrade(e.target.value)}
+                    placeholder="Grade"
+                  />
+                </div>
+              </div>
               <div>
-                <Label>AI Feedback</Label>
+                <Label>Feedback</Label>
                 <Textarea
                   value={feedbackText}
                   onChange={(e) => setFeedbackText(e.target.value)}
@@ -294,18 +431,32 @@ const TeacherAIChecker = () => {
                   ) : (
                     <>
                       <XCircle className="h-4 w-4 text-orange-500" />
-                      <span>Review and accept to apply</span>
+                      <span>Accept & Apply to set grade and feedback on submission</span>
                     </>
                   )}
                 </div>
               )}
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setFeedbackDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setFeedbackDialogOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleAcceptFeedback}>
-                  Accept & Apply Feedback
+                <Button
+                  onClick={handleAcceptAndApply}
+                  disabled={
+                    applyLoading ||
+                    !suggestedGrade.trim() ||
+                    isNaN(parseFloat(suggestedGrade))
+                  }
+                >
+                  {applyLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Accept & Apply"
+                  )}
                 </Button>
               </div>
             </div>

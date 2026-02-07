@@ -436,6 +436,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           display_name: string | null
+          email: string | null
           id: string
           updated_at: string
           user_id: string
@@ -444,6 +445,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
           id?: string
           updated_at?: string
           user_id: string
@@ -452,11 +454,198 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
           id?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: []
+      }
+      quizzes: {
+        Row: {
+          id: string
+          classroom_id: string
+          teacher_id: string
+          title: string
+          description: string | null
+          instructions: string | null
+          time_limit_minutes: number | null
+          available_from: string | null
+          available_until: string | null
+          passing_score: number | null
+          max_attempts: number | null
+          randomize_questions: boolean | null
+          show_correct_answers: boolean | null
+          show_results_immediately: boolean | null
+          status: string
+          published_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          classroom_id: string
+          teacher_id: string
+          title: string
+          description?: string | null
+          instructions?: string | null
+          time_limit_minutes?: number | null
+          available_from?: string | null
+          available_until?: string | null
+          passing_score?: number | null
+          max_attempts?: number | null
+          randomize_questions?: boolean | null
+          show_correct_answers?: boolean | null
+          show_results_immediately?: boolean | null
+          status?: string
+          published_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          classroom_id?: string
+          teacher_id?: string
+          title?: string
+          description?: string | null
+          instructions?: string | null
+          time_limit_minutes?: number | null
+          available_from?: string | null
+          available_until?: string | null
+          passing_score?: number | null
+          max_attempts?: number | null
+          randomize_questions?: boolean | null
+          show_correct_answers?: boolean | null
+          show_results_immediately?: boolean | null
+          status?: string
+          published_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          id: string
+          quiz_id: string
+          question_type: string
+          question_text: string
+          points: number
+          order_index: number
+          options: Json | null
+          correct_answer: string | null
+          explanation: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          quiz_id: string
+          question_type: string
+          question_text: string
+          points?: number
+          order_index?: number
+          options?: Json | null
+          correct_answer?: string | null
+          explanation?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          quiz_id?: string
+          question_type?: string
+          question_text?: string
+          points?: number
+          order_index?: number
+          options?: Json | null
+          correct_answer?: string | null
+          explanation?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_attempts: {
+        Row: {
+          id: string
+          quiz_id: string
+          student_id: string
+          attempt_number: number
+          started_at: string
+          submitted_at: string | null
+          time_spent_seconds: number | null
+          answers: Json
+          score: number | null
+          points_earned: number | null
+          points_possible: number | null
+          status: string
+          auto_graded_at: string | null
+          manually_graded_at: string | null
+          feedback: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          quiz_id: string
+          student_id: string
+          attempt_number?: number
+          started_at?: string
+          submitted_at?: string | null
+          time_spent_seconds?: number | null
+          answers?: Json
+          score?: number | null
+          points_earned?: number | null
+          points_possible?: number | null
+          status?: string
+          auto_graded_at?: string | null
+          manually_graded_at?: string | null
+          feedback?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          quiz_id?: string
+          student_id?: string
+          attempt_number?: number
+          started_at?: string
+          submitted_at?: string | null
+          time_spent_seconds?: number | null
+          answers?: Json
+          score?: number | null
+          points_earned?: number | null
+          points_possible?: number | null
+          status?: string
+          auto_graded_at?: string | null
+          manually_graded_at?: string | null
+          feedback?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       submissions: {
         Row: {
@@ -580,6 +769,45 @@ export type Database = {
         }
         Relationships: []
       }
+      checked_papers: {
+        Row: {
+          id: string
+          teacher_id: string
+          classroom_id: string
+          student_id: string | null
+          title: string
+          file_path: string
+          grade: number | null
+          feedback_text: string | null
+          instructions_used: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          teacher_id: string
+          classroom_id: string
+          student_id?: string | null
+          title: string
+          file_path: string
+          grade?: number | null
+          feedback_text?: string | null
+          instructions_used?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          teacher_id?: string
+          classroom_id?: string
+          student_id?: string | null
+          title?: string
+          file_path?: string
+          grade?: number | null
+          feedback_text?: string | null
+          instructions_used?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -606,6 +834,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_quiz_score: {
+        Args: { attempt_id: string }
+        Returns: {
+          score: number | null
+          points_earned: number | null
+          points_possible: number | null
+        }
+      }
+      can_attempt_quiz: {
+        Args: { _quiz_id: string; _student_id: string }
+        Returns: { can_attempt: boolean; reason: string | null }
+      }
       generate_join_code: { Args: never; Returns: string }
       get_classroom_by_join_code: {
         Args: { code: string }

@@ -59,8 +59,17 @@ const StudentAIPrep = () => {
   }, []);
 
   const loadStudyMaterials = async () => {
-    const materials = await fetchStudyMaterials();
-    setStudyMaterials(materials);
+    try {
+      const materials = await fetchStudyMaterials();
+      setStudyMaterials(materials);
+    } catch (error) {
+      console.error("Failed to load study materials:", error);
+      toast({
+        title: "Unable to load study materials",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleGenerateSummary = async () => {
@@ -73,10 +82,25 @@ const StudentAIPrep = () => {
       return;
     }
 
-    const response = await generateSummary(sourceMaterial);
-    if (response?.success) {
-      setResult(response.content);
-      loadStudyMaterials();
+    try {
+      const response = await generateSummary(sourceMaterial);
+      if (response?.success) {
+        setResult(response.content);
+        loadStudyMaterials();
+      } else {
+        toast({
+          title: "Summary generation failed",
+          description: "Please try again with different content.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      toast({
+        title: "Summary generation failed",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -90,10 +114,25 @@ const StudentAIPrep = () => {
       return;
     }
 
-    const response = await generateFlashcards(sourceMaterial);
-    if (response?.success) {
-      setResult(response.content);
-      loadStudyMaterials();
+    try {
+      const response = await generateFlashcards(sourceMaterial);
+      if (response?.success) {
+        setResult(response.content);
+        loadStudyMaterials();
+      } else {
+        toast({
+          title: "Flashcard generation failed",
+          description: "Please try again with different content.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating flashcards:", error);
+      toast({
+        title: "Flashcard generation failed",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -107,10 +146,25 @@ const StudentAIPrep = () => {
       return;
     }
 
-    const response = await generatePracticeQuestions(sourceMaterial, numQuestions);
-    if (response?.success) {
-      setResult(response.content);
-      loadStudyMaterials();
+    try {
+      const response = await generatePracticeQuestions(sourceMaterial, numQuestions);
+      if (response?.success) {
+        setResult(response.content);
+        loadStudyMaterials();
+      } else {
+        toast({
+          title: "Question generation failed",
+          description: "Please try again with different content.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating practice questions:", error);
+      toast({
+        title: "Question generation failed",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -124,10 +178,25 @@ const StudentAIPrep = () => {
       return;
     }
 
-    const response = await explainConceptSimple(concept, context || undefined);
-    if (response?.success) {
-      setResult(response.content);
-      loadStudyMaterials();
+    try {
+      const response = await explainConceptSimple(concept, context || undefined);
+      if (response?.success) {
+        setResult(response.content);
+        loadStudyMaterials();
+      } else {
+        toast({
+          title: "Explanation failed",
+          description: "Please try again with a different concept.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error explaining concept:", error);
+      toast({
+        title: "Explanation failed",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -153,11 +222,52 @@ const StudentAIPrep = () => {
       return;
     }
 
-    const response = await createStudyPlan(upcoming, availableTime);
-    if (response?.success) {
-      setResult(response.content);
-      loadStudyMaterials();
+    try {
+      const response = await createStudyPlan(upcoming, availableTime);
+      if (response?.success) {
+        setResult(response.content);
+        loadStudyMaterials();
+      } else {
+        toast({
+          title: "Study plan generation failed",
+          description: "Please try again in a moment.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating study plan:", error);
+      toast({
+        title: "Study plan generation failed",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
     }
+  };
+
+  const handleNumQuestionsChange = (value: string) => {
+    const parsed = parseInt(value, 10);
+    const fallback = 10;
+    const min = 1;
+    const max = 20;
+    const normalized = Number.isNaN(parsed) ? fallback : Math.min(max, Math.max(min, parsed));
+    setNumQuestions(normalized);
+  };
+
+  const handleViewMaterial = (material: any) => {
+    if (!material?.content) {
+      toast({
+        title: "Unable to open material",
+        description: "This material is missing content.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const allowedTabs = new Set(["summary", "flashcards", "questions", "explain", "plan"]);
+    if (material.content_type && allowedTabs.has(material.content_type)) {
+      setActiveTab(material.content_type);
+    }
+    setResult(material.content);
   };
 
   return (
@@ -306,7 +416,7 @@ const StudentAIPrep = () => {
                     min="1"
                     max="20"
                     value={numQuestions}
-                    onChange={(e) => setNumQuestions(parseInt(e.target.value) || 10)}
+                    onChange={(e) => handleNumQuestionsChange(e.target.value)}
                   />
                 </div>
                 <Button onClick={handleGenerateQuestions} disabled={loading} className="w-full">
@@ -440,7 +550,11 @@ const StudentAIPrep = () => {
                       {material.content_type} • {new Date(material.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleViewMaterial(material)}
+                  >
                     View
                   </Button>
                 </div>

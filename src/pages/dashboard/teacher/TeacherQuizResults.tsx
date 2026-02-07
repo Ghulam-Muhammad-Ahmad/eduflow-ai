@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -43,28 +43,58 @@ const TeacherQuizResults = () => {
   const [selectedAttempt, setSelectedAttempt] = useState<QuizAttempt | null>(null);
   const [gradingDialogOpen, setGradingDialogOpen] = useState(false);
   const [gradingAnswers, setGradingAnswers] = useState<Array<{ question_id: string; points_earned: number; is_correct: boolean }>>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [gradingError, setGradingError] = useState<string | null>(null);
+
+  const quizIdString = typeof quizId === "string" ? quizId : null;
+  const isInvalidQuizId = Array.isArray(quizId);
+
+  const loadQuizData = useCallback(
+    async (id: string) => {
+      setError(null);
+      try {
+        const data = await fetchQuizWithQuestions(id);
+        if (data) {
+          setQuiz(data.quiz);
+          setQuestions(data.questions);
+        } else {
+          setQuiz(null);
+        }
+      } catch (error) {
+        console.error("Failed to load quiz data:", error);
+        setError("Failed to load quiz results. Please try again.");
+        setQuiz(null);
+      }
+    },
+    [fetchQuizWithQuestions]
+  );
+
+  const loadAttempts = useCallback(
+    async (id: string) => {
+      try {
+        const data = await fetchQuizAttempts(id);
+        setAttempts(data ?? []);
+      } catch (error) {
+        console.error("Failed to load attempts:", error);
+        setError("Failed to load quiz attempts. Please try again.");
+        setAttempts([]);
+      }
+    },
+    [fetchQuizAttempts]
+  );
 
   useEffect(() => {
-    if (quizId) {
-      loadQuizData();
-      loadAttempts();
+    if (isInvalidQuizId) {
+      setError("Invalid quiz link.");
+      setQuiz(null);
+      return;
     }
-  }, [quizId]);
 
-  const loadQuizData = async () => {
-    if (!quizId) return;
-    const data = await fetchQuizWithQuestions(quizId);
-    if (data) {
-      setQuiz(data.quiz);
-      setQuestions(data.questions);
+    if (quizIdString) {
+      loadQuizData(quizIdString);
+      loadAttempts(quizIdString);
     }
-  };
-
-  const loadAttempts = async () => {
-    if (!quizId) return;
-    const data = await fetchQuizAttempts(quizId);
-    setAttempts(data);
-  };
+  }, [quizIdString, isInvalidQuizId, loadQuizData, loadAttempts]);
 
   const calculateStats = () => {
     if (attempts.length === 0) {
@@ -99,6 +129,7 @@ const TeacherQuizResults = () => {
 
   const openGradingDialog = (attempt: QuizAttempt) => {
     setSelectedAttempt(attempt);
+    setGradingError(null);
     // Initialize grading answers for short answer questions
     const shortAnswerQuestions = attempt.answers.filter((ans) => {
       const question = questions.find((q) => q.id === ans.question_id);
@@ -117,10 +148,18 @@ const TeacherQuizResults = () => {
 
   const handleGrade = async () => {
     if (!selectedAttempt) return;
-    const success = await gradeShortAnswers(selectedAttempt.id, gradingAnswers);
-    if (success) {
+    setGradingError(null);
+    try {
+      const success = await gradeShortAnswers(selectedAttempt.id, gradingAnswers);
+      if (!success) {
+        setGradingError("Failed to submit grades. Please try again.");
+        return;
+      }
       setGradingDialogOpen(false);
-      loadAttempts();
+      loadAttempts(selectedAttempt.quiz_id);
+    } catch (error) {
+      console.error("Failed to grade short answers:", error);
+      setGradingError("Failed to submit grades. Please try again.");
     }
   };
 
@@ -132,6 +171,75 @@ const TeacherQuizResults = () => {
           : ans
       )
     );
+  };
+
+  const handleExportResults = () => {
+    const headers = [
+      "Student Name",
+      "Student Email",
+      "Attempt #",
+      "Score (%)",
+      "Points Earned",
+      "Points Possible",
+      "Status",
+      "Submitted At",
+      "Time Spent (min)",
+    ];
+
+    const escapeCsv = (value: string | number | null | undefined) => {
+      const stringValue = value ?? "";
+      const normalized = String(stringValue);
+      if (/[",\n]/.test(normalized)) {
+        return `"${normalized.replace(/"/g, '""')}"`;
+      }
+      return normalized;
+    };
+
+    const rows = attempts.map((attempt) => {
+      const studentName = attempt.student?.display_name || "Student";
+      const studentEmail = attempt.student?.email || "";
+      const score = typeof attempt.score === "number" ? attempt.score.toFixed(1) : "";
+      const submittedAt = attempt.submitted_at
+        ? format(new Date(attempt.submitted_at), "yyyy-MM-dd HH:mm")
+        : "";
+      const timeMinutes =
+        typeof attempt.time_spent_seconds === "number"
+          ? (attempt.time_spent_seconds / 60).toFixed(1)
+          : "";
+
+      return [
+        studentName,
+        studentEmail,
+        attempt.attempt_number,
+        score,
+        attempt.points_earned ?? "",
+        attempt.points_possible ?? "",
+        attempt.status,
+        submittedAt,
+        timeMinutes,
+      ];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\n");
+
+    const safeTitle = (quiz?.title || "quiz")
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "quiz";
+
+    try {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeTitle}-results.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export results:", error);
+    }
   };
 
   const stats = calculateStats();
@@ -146,9 +254,24 @@ const TeacherQuizResults = () => {
     }
   };
 
-  if (loading || !quiz) {
+  const formatStudentAnswer = (value: unknown) => {
+    if (value == null) return "No answer";
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(", ") : "No answer";
+    }
+    if (typeof value === "string") {
+      return value.trim() ? value : "No answer";
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "No answer";
+    }
+  };
+
+  if (loading) {
     return (
-      <DashboardLayout role="teacher">
+      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <p>Loading quiz results...</p>
         </div>
@@ -156,8 +279,28 @@ const TeacherQuizResults = () => {
     );
   }
 
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <p>{error}</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!quiz) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <p>Quiz not found or access denied.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout role="teacher">
+    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -174,7 +317,11 @@ const TeacherQuizResults = () => {
               <p className="text-muted-foreground mt-1">Quiz Results & Analytics</p>
             </div>
           </div>
-          <Button variant="outline">
+          <Button
+            variant="outline"
+            onClick={handleExportResults}
+            aria-label="Export quiz results"
+          >
             <Download className="h-4 w-4 mr-2" />
             Export Results
           </Button>
@@ -405,6 +552,11 @@ const TeacherQuizResults = () => {
           </DialogHeader>
 
           <div className="space-y-6 mt-4">
+            {gradingError && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+                {gradingError}
+              </div>
+            )}
             {selectedAttempt?.answers
               .filter((ans) => {
                 const question = questions.find((q) => q.id === ans.question_id);
@@ -427,7 +579,7 @@ const TeacherQuizResults = () => {
 
                     <div className="bg-secondary/50 p-3 rounded-lg mb-3">
                       <Label className="text-xs text-muted-foreground">Student Answer:</Label>
-                      <p className="text-sm mt-1">{answer.answer as string}</p>
+                      <p className="text-sm mt-1">{formatStudentAnswer(answer.answer)}</p>
                     </div>
 
                     {question.correct_answer && (

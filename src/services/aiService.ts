@@ -64,6 +64,8 @@ export interface AIGenerateOptions {
   systemInstruction?: string;
   model?: string;
   userId: string;
+  /** For checker: max points so the model suggests a grade in range [0, pointsPossible] */
+  pointsPossible?: number;
 }
 
 export interface AIGenerateResult {
@@ -74,10 +76,13 @@ export interface AIGenerateResult {
   cost: number;
   success: boolean;
   error?: string;
+  /** Set when taskType is checker and API returns structured response */
+  suggested_grade?: number;
+  feedback?: string;
 }
 
 export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerateResult> => {
-  const { taskType, prompt, systemInstruction, model, userId } = options;
+  const { taskType, prompt, systemInstruction, model, userId, pointsPossible } = options;
 
   // Check usage limit first
   const usageCheck = await checkAIUsageLimit(userId);
@@ -95,18 +100,22 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
 
   try {
     // Call Next.js API route (OpenAI only)
+    const body: Record<string, unknown> = {
+      taskType,
+      prompt,
+      systemInstruction,
+      model,
+      userId,
+    };
+    if (taskType === 'checker' && pointsPossible != null) {
+      body.pointsPossible = pointsPossible;
+    }
     const response = await fetch('/api/ai/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        taskType,
-        prompt,
-        systemInstruction,
-        model,
-        userId,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -127,7 +136,11 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
       true
     );
 
-    return result;
+    return {
+      ...result,
+      suggested_grade: result.suggested_grade,
+      feedback: result.feedback,
+    };
   } catch (error: any) {
     const errorMessage = error.message || 'Unknown error';
     const selectedModel = model || 'gpt-4';
@@ -215,17 +228,19 @@ export const generateQuizQuestions = async (
 export const gradeSubmission = async (
   submissionText: string,
   assignmentDescription: string,
-  rubric?: string,
-  userId: string
+  rubric: string | undefined,
+  userId: string,
+  pointsPossible: number = 100
 ) => {
   const rubricSection = rubric ? `\n\nUse this rubric:\n${rubric}` : '';
-  const prompt = `Analyze this student submission for the following assignment:\n\nAssignment: ${assignmentDescription}${rubricSection}\n\nSubmission:\n${submissionText}\n\nProvide:\n1. Grammar and spelling errors\n2. Content analysis\n3. Suggested improvements\n4. Rubric-based scoring suggestions (if rubric provided)\n5. Overall feedback`;
+  const prompt = `Analyze this student submission for the following assignment:\n\nAssignment: ${assignmentDescription}${rubricSection}\n\nSubmission:\n${submissionText}\n\nProvide a suggested grade (0–${pointsPossible}) and detailed feedback. Include: grammar/spelling errors, content analysis, suggested improvements, and overall feedback.`;
   
   return generateAI({
     taskType: 'checker',
     prompt,
     systemInstruction: 'You are an expert teacher providing constructive feedback. Be specific, encouraging, and focus on learning improvement.',
     userId,
+    pointsPossible,
   });
 };
 

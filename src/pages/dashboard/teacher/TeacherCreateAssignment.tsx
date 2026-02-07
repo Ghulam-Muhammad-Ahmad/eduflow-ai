@@ -42,9 +42,10 @@ const TeacherCreateAssignment = () => {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [attachedDocumentIds, setAttachedDocumentIds] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleGenerateWithAI = async () => {
-    if (!aiPrompt.trim() || !user?.id) return;
+    if (!aiPrompt.trim()) return;
     setAiGenerating(true);
     try {
       const res = await fetch("/api/ai/generate", {
@@ -54,9 +55,21 @@ const TeacherCreateAssignment = () => {
           taskType: "content_generation",
           prompt: aiPrompt.trim(),
           systemInstruction: ASSIGNMENT_AI_SYSTEM,
-          userId: user.id,
         }),
       });
+      if (!res.ok) {
+        let errorMessage = `AI request failed (${res.status})`;
+        try {
+          const errorData = await res.json();
+          if (errorData?.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Ignore JSON parsing errors for non-OK responses.
+        }
+        toast.error(errorMessage);
+        return;
+      }
       const data = await res.json();
       if (!data.success || !data.content) {
         toast.error(data.error || "Failed to generate assignment");
@@ -89,24 +102,34 @@ const TeacherCreateAssignment = () => {
   };
 
   const handleCreate = async () => {
-    if (!title.trim() || !classroomId) return;
-
-    const assignment = await createAssignment.mutateAsync({
-      title: title.trim(),
-      description: description.trim() || null,
-      instructions: instructions.trim() || null,
-      classroom_id: classroomId,
-      due_date: dueDate ? new Date(dueDate).toISOString() : null,
-      points_possible: parseInt(pointsPossible) || 100,
-      status: "draft",
-    });
-
-    if (assignment?.id && attachedDocumentIds.length > 0) {
-      await addAssignmentAttachments(assignment.id, attachedDocumentIds);
+    if (!title.trim() || !classroomId) {
+      toast.error("Please provide a title and classroom before saving.");
+      return;
     }
 
-    toast.success("Assignment saved as draft");
-    router.push("/dashboard/teacher/assignments");
+    setIsCreating(true);
+    try {
+      const assignment = await createAssignment.mutateAsync({
+        title: title.trim(),
+        description: description.trim() || null,
+        instructions: instructions.trim() || null,
+        classroom_id: classroomId,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        points_possible: parseInt(pointsPossible) || 100,
+        status: "draft",
+      });
+
+      if (assignment?.id && attachedDocumentIds.length > 0) {
+        await addAssignmentAttachments(assignment.id, attachedDocumentIds);
+      }
+
+      toast.success("Assignment saved as draft");
+      router.push("/dashboard/teacher/assignments");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to create assignment");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -198,6 +221,7 @@ const TeacherCreateAssignment = () => {
                   value={pointsPossible}
                   onChange={(e) => setPointsPossible(e.target.value)}
                   min="0"
+                  max="100"
                 />
               </div>
             </div>
@@ -290,9 +314,9 @@ const TeacherCreateAssignment = () => {
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={!title.trim() || !classroomId || createAssignment.isPending}
+            disabled={!title.trim() || !classroomId || createAssignment.isPending || isCreating}
           >
-            {createAssignment.isPending ? "Saving..." : "Save as Draft"}
+            {createAssignment.isPending || isCreating ? "Saving..." : "Save as Draft"}
           </Button>
         </div>
       </div>

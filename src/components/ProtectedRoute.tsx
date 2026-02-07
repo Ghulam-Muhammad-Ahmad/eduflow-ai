@@ -19,7 +19,13 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       router.replace("/auth");
       return;
     }
-    if (allowedRoles && role && !allowedRoles.includes(role)) {
+    if (allowedRoles && role == null) {
+      // If a route requires roles, a missing role should be treated as unauthorized.
+      // Redirect to a safe fallback (avoid rendering children while role is unresolved).
+      router.replace("/");
+      return;
+    }
+    if (allowedRoles && !allowedRoles.includes(role)) {
       switch (role) {
         case "teacher":
           router.replace("/dashboard/teacher");
@@ -51,7 +57,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return null;
   }
 
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
+  if (allowedRoles && (role == null || !allowedRoles.includes(role))) {
     return null;
   }
 

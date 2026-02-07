@@ -82,11 +82,15 @@ const getFileIcon = (fileType: string) => {
 };
 
 const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return "0 Bytes";
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 Bytes";
   const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB"];
+  const rawIndex = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(Math.max(rawIndex, 0), sizes.length - 1);
+  const value = bytes / Math.pow(k, i);
+  if (!Number.isFinite(value)) return "0 Bytes";
+  const unit = sizes[i] || sizes[sizes.length - 1];
+  return `${parseFloat(value.toFixed(1))} ${unit}`;
 };
 
 const formatDate = (dateString: string) => {
@@ -147,21 +151,23 @@ const TeacherDocuments = () => {
 
     try {
       // Fetch folders
-      const { data: foldersData } = await supabase
+      const { data: foldersData, error: foldersError } = await supabase
         .from("folders")
         .select("*")
         .eq("user_id", user.id)
         .order("name");
+      if (foldersError) throw foldersError;
 
       // Fetch tags
-      const { data: tagsData } = await supabase
+      const { data: tagsData, error: tagsError } = await supabase
         .from("tags")
         .select("*")
         .eq("user_id", user.id)
         .order("name");
+      if (tagsError) throw tagsError;
 
       // Fetch documents with tags
-      const { data: docsData } = await supabase
+      const { data: docsData, error: docsError } = await supabase
         .from("documents")
         .select(`
           *,
@@ -171,6 +177,7 @@ const TeacherDocuments = () => {
         `)
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
+      if (docsError) throw docsError;
 
       if (foldersData) setFolders(foldersData);
       if (tagsData) setTags(tagsData);
@@ -203,6 +210,29 @@ const TeacherDocuments = () => {
       setUploading(true);
 
       try {
+        const incomingBytes = acceptedFiles.reduce((acc, f) => acc + f.size, 0);
+        let usageQuery = supabase
+          .from("documents")
+          .select("file_size")
+          .eq("user_id", user.id);
+        if (selectedFolder) {
+          usageQuery = usageQuery.eq("folder_id", selectedFolder);
+        }
+        const { data: sizeData, error: sizeError } = await usageQuery;
+        if (sizeError) throw sizeError;
+
+        const currentUsedBytes =
+          sizeData?.reduce((acc, doc) => acc + (doc.file_size || 0), 0) || 0;
+
+        if (currentUsedBytes + incomingBytes > storageLimit) {
+          toast.error(
+            `Storage limit exceeded. Remaining: ${formatFileSize(
+              Math.max(0, storageLimit - currentUsedBytes)
+            )}. Attempted: ${formatFileSize(incomingBytes)}.`
+          );
+          return;
+        }
+
         // Existing document names in this folder (to avoid duplicates)
         const folderQuery = supabase
           .from("documents")
@@ -238,7 +268,15 @@ const TeacherDocuments = () => {
             file_type: file.type || `application/${fileExt}`,
           });
 
-          if (insertError) throw insertError;
+          if (insertError) {
+            const { error: removeError } = await supabase.storage
+              .from("documents")
+              .remove([fileName]);
+            if (removeError) {
+              console.error("Error removing orphaned upload:", removeError);
+            }
+            throw insertError;
+          }
         }
 
         toast.success(`${acceptedFiles.length} file(s) uploaded successfully`);
@@ -292,10 +330,21 @@ const TeacherDocuments = () => {
 
   const deleteDocument = async (doc: DocumentType) => {
     if (!user) return;
+    const shouldDelete = window.confirm(
+      `Are you sure you want to delete "${doc.name}"? This action cannot be undone.`
+    );
+    if (!shouldDelete) return;
 
     try {
       // Delete from storage
-      await supabase.storage.from("documents").remove([doc.file_path]);
+      const { error: storageError } = await supabase.storage
+        .from("documents")
+        .remove([doc.file_path]);
+      if (storageError) {
+        console.error("Error deleting file from storage:", storageError);
+        toast.error("Failed to delete document file from storage");
+        return;
+      }
 
       // Delete from database
       const { error } = await supabase.from("documents").delete().eq("id", doc.id);
@@ -346,15 +395,30 @@ const TeacherDocuments = () => {
     if (!documentToShare) return;
 
     try {
-      // First, remove all existing shares
-      await supabase
+      const { data: existingShares, error: existingError } = await supabase
         .from("document_classroom_shares")
-        .delete()
+        .select("classroom_id")
         .eq("document_id", documentToShare.id);
+      if (existingError) throw existingError;
+
+      const existingIds = existingShares?.map((s) => s.classroom_id) || [];
+      const idsToRemove = existingIds.filter((id) => !selectedClassrooms.includes(id));
+      const idsToAdd = selectedClassrooms.filter((id) => !existingIds.includes(id));
+      let removedIds: string[] = [];
+
+      if (idsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("document_classroom_shares")
+          .delete()
+          .in("classroom_id", idsToRemove)
+          .eq("document_id", documentToShare.id);
+        if (deleteError) throw deleteError;
+        removedIds = idsToRemove;
+      }
 
       // Then add new shares
-      if (selectedClassrooms.length > 0) {
-        const shares = selectedClassrooms.map((classroomId) => ({
+      if (idsToAdd.length > 0) {
+        const shares = idsToAdd.map((classroomId) => ({
           document_id: documentToShare.id,
           classroom_id: classroomId,
         }));
@@ -363,7 +427,22 @@ const TeacherDocuments = () => {
           .from("document_classroom_shares")
           .insert(shares);
 
-        if (error) throw error;
+        if (error) {
+          if (removedIds.length > 0) {
+            const { error: rollbackError } = await supabase
+              .from("document_classroom_shares")
+              .insert(
+                removedIds.map((classroomId) => ({
+                  document_id: documentToShare.id,
+                  classroom_id: classroomId,
+                }))
+              );
+            if (rollbackError) {
+              console.error("Rollback failed after share insert error:", rollbackError);
+            }
+          }
+          throw error;
+        }
       }
 
       toast.success(
@@ -488,7 +567,7 @@ const TeacherDocuments = () => {
   });
 
   const defaultFolders = [
-    { name: "Defualt Folder", icon: Folder },
+    { name: "Default Folder", icon: Folder },
   ];
 
   const storagePercentage = (storageUsed / storageLimit) * 100;
@@ -547,7 +626,10 @@ const TeacherDocuments = () => {
                   defaultFolders.map((folder, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setNewFolderName(folder.name)}
+                      onClick={() => {
+                        setNewFolderName(folder.name);
+                        setNewFolderDialogOpen(true);
+                      }}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-muted-foreground hover:bg-secondary transition-colors"
                     >
                       <Folder className="w-4 h-4 text-primary" />

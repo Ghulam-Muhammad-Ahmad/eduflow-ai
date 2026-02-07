@@ -4,8 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAIStudio, AIGeneratedContent } from "@/hooks/useAIStudio";
 import { useAIUsage } from "@/hooks/useAIUsage";
+import { useToast } from "@/hooks/use-toast";
 import { Sparkles, FileText, ListChecks, TrendingUp, History, Save, Download, Trash2 } from "lucide-react";
 import ContentGenerator from "@/components/ai/ContentGenerator";
 import DifferentiationAssistant from "@/components/ai/DifferentiationAssistant";
@@ -14,8 +25,12 @@ import RubricGenerator from "@/components/ai/RubricGenerator";
 const TeacherAIStudio = () => {
   const { usage, getUsagePercentage, isNearLimit } = useAIUsage();
   const { fetchGeneratedContent, deleteGeneratedContent, loading } = useAIStudio();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("generate");
   const [history, setHistory] = useState<AIGeneratedContent[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AIGeneratedContent | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   const loadHistory = useCallback(async () => {
     const content = await fetchGeneratedContent();
@@ -27,10 +42,68 @@ const TeacherAIStudio = () => {
   }, [loadHistory]);
 
   const handleDelete = async (id: string) => {
-    const success = await deleteGeneratedContent(id);
-    if (success) {
-      loadHistory();
+    try {
+      const success = await deleteGeneratedContent(id);
+      if (!success) {
+        toast({
+          title: "Delete failed",
+          description: "Could not delete generated content. Please try again.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      await loadHistory();
+      return true;
+    } catch (error: any) {
+      console.error("Error deleting generated content:", error);
+      toast({
+        title: "Delete failed",
+        description: error?.message || "Could not delete generated content. Please try again.",
+        variant: "destructive",
+      });
+      return false;
     }
+  };
+
+  const formatCreatedAt = (dateString: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(new Date(dateString));
+
+  const formatMetadataValue = (value: unknown) => {
+    const truncate = (text: string, max = 60) =>
+      text.length > max ? `${text.slice(0, max - 3)}...` : text;
+
+    const formatPrimitive = (input: unknown) => {
+      if (input === null) return "null";
+      if (input === undefined) return "undefined";
+      if (typeof input === "string") return truncate(input);
+      if (typeof input === "number" || typeof input === "boolean") return String(input);
+      try {
+        return truncate(JSON.stringify(input));
+      } catch {
+        return "[object]";
+      }
+    };
+
+    if (Array.isArray(value)) {
+      const preview = value.slice(0, 3).map((item) => formatPrimitive(item));
+      const suffix = value.length > 3 ? ", ..." : "";
+      return `[${preview.join(", ")}${suffix}]`;
+    }
+
+    if (value && typeof value === "object") {
+      const entries = Object.entries(value as Record<string, unknown>);
+      const preview = entries
+        .slice(0, 3)
+        .map(([key, val]) => `${key}: ${formatPrimitive(val)}`);
+      const suffix = entries.length > 3 ? ", ..." : "";
+      return `{ ${preview.join(", ")}${suffix} }`;
+    }
+
+    return formatPrimitive(value);
   };
 
   const usagePercentage = getUsagePercentage();
@@ -143,13 +216,13 @@ const TeacherAIStudio = () => {
                             <Badge variant="outline">{item.content_type}</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            Created {new Date(item.created_at).toLocaleDateString()}
+                            Created {formatCreatedAt(item.created_at)}
                           </p>
                           {item.metadata && (
                             <div className="mt-2 flex flex-wrap gap-2">
                               {Object.entries(item.metadata).map(([key, value]) => (
                                 <Badge key={key} variant="secondary" className="text-xs">
-                                  {key}: {String(value)}
+                                  {key}: {formatMetadataValue(value)}
                                 </Badge>
                               ))}
                             </div>
@@ -179,7 +252,10 @@ const TeacherAIStudio = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(item.id)}
+                            onClick={() => {
+                              setDeleteTarget(item);
+                              setDeleteDialogOpen(true);
+                            }}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -200,6 +276,52 @@ const TeacherAIStudio = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete generated content</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `Are you sure you want to delete "${deleteTarget.title}"? This action cannot be undone.`
+                : "Are you sure you want to delete this item? This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setDeleteTarget(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              disabled={deletePending}
+              onClick={async (event) => {
+                event.preventDefault();
+                if (!deleteTarget) return;
+                setDeletePending(true);
+                const success = await handleDelete(deleteTarget.id);
+                setDeletePending(false);
+                if (success) {
+                  setDeleteDialogOpen(false);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              {deletePending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

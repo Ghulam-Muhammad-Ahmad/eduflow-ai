@@ -86,9 +86,11 @@ const TeacherClassrooms = () => {
   const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [removeStudentDialogOpen, setRemoveStudentDialogOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [studentToRemove, setStudentToRemove] = useState<{ enrollmentId: string; name: string } | null>(null);
+  const [classroomToArchive, setClassroomToArchive] = useState<{ id: string; name: string } | null>(null);
 
   // Form state
   const [name, setName] = useState("");
@@ -111,28 +113,61 @@ const TeacherClassrooms = () => {
   }, [settingsDialogOpen, selectedClassroom]);
 
   const handleCreate = async () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      toast({
+        title: "Classroom name required",
+        description: "Please enter a classroom name to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    await createClassroom.mutateAsync({
-      name: name.trim(),
-      subject: subject.trim() || null,
-      description: description.trim() || null,
-    });
+    try {
+      await createClassroom.mutateAsync({
+        name: name.trim(),
+        subject: subject.trim() || null,
+        description: description.trim() || null,
+      });
 
-    setName("");
-    setSubject("");
-    setDescription("");
-    setCreateDialogOpen(false);
+      setName("");
+      setSubject("");
+      setDescription("");
+      setCreateDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Failed to create classroom",
+        description: error?.message || "Please try again in a moment.",
+        variant: "destructive",
+      });
+    }
   };
 
   const copyJoinCode = async (code: string) => {
-    await navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    toast({
-      title: "Code copied!",
-      description: "Share this code with your students.",
-    });
-    setTimeout(() => setCopiedCode(null), 2000);
+    if (!navigator?.clipboard?.writeText) {
+      toast({
+        title: "Copy failed",
+        description: "Clipboard not supported. Please copy the code manually.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      toast({
+        title: "Code copied!",
+        description: "Share this code with your students.",
+      });
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (error) {
+      console.error("Failed to copy join code:", error);
+      toast({
+        title: "Copy failed",
+        description: "Unable to copy the code. Please copy it manually.",
+        variant: "destructive",
+      });
+    }
   };
 
   const openRoster = (classroomId: string) => {
@@ -326,7 +361,10 @@ const TeacherClassrooms = () => {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => archiveClassroom.mutate(classroom.id)}
+                          onClick={() => {
+                            setClassroomToArchive({ id: classroom.id, name: classroom.name });
+                            setArchiveDialogOpen(true);
+                          }}
                         >
                           <Archive className="w-4 h-4 mr-2" />
                           Archive
@@ -458,6 +496,45 @@ const TeacherClassrooms = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive classroom</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to archive{" "}
+                <span className="font-semibold">{classroomToArchive?.name}</span>? Students will
+                lose access until it is restored.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setClassroomToArchive(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (!classroomToArchive) return;
+                  try {
+                    await archiveClassroom.mutateAsync(classroomToArchive.id);
+                  } catch (error: any) {
+                    toast({
+                      title: "Archive failed",
+                      description: error?.message || "Unable to archive classroom.",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setArchiveDialogOpen(false);
+                    setClassroomToArchive(null);
+                  }
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={archiveClassroom.isPending}
+              >
+                {archiveClassroom.isPending ? "Archiving..." : "Archive"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Settings Dialog */}
         <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>

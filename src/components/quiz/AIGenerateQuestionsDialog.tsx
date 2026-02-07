@@ -104,6 +104,21 @@ export function AIGenerateQuestionsDialog({
           onOpenChange(false);
           setSourceMaterial("");
         } else {
+          toast({
+            title: "AI output could not be parsed",
+            description:
+              "We could not parse the AI response. You can insert a single fallback question and edit it.",
+            variant: "destructive",
+          });
+
+          const shouldInsertFallback = window.confirm(
+            "AI output could not be parsed. Insert a fallback question so you can edit it?"
+          );
+
+          if (!shouldInsertFallback) {
+            return;
+          }
+
           const fallback: QuizQuestion = {
             question_type: questionType,
             question_text: result.content.substring(0, 300),
@@ -115,6 +130,12 @@ export function AIGenerateQuestionsDialog({
         }
     } catch (error) {
       console.error("Error parsing quiz questions:", error);
+      toast({
+        title: "AI output could not be parsed",
+        description:
+          "We could not parse the AI response. You can insert a single fallback question and edit it.",
+        variant: "destructive",
+      });
       const fallback: QuizQuestion = {
         question_type: questionType,
         question_text: result.content.substring(0, 300),

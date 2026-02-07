@@ -6,10 +6,10 @@ const NotFound = () => {
   const router = useRouter();
 
   useEffect(() => {
-    if (router.pathname) {
-      console.error("404 Error: User attempted to access non-existent route:", router.pathname);
+    if (router.asPath) {
+      console.error("404 Error: User attempted to access non-existent route:", router.asPath);
     }
-  }, [router.pathname]);
+  }, [router.asPath]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted">

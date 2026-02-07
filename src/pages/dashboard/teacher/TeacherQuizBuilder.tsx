@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -169,6 +169,7 @@ const TeacherQuizBuilder = () => {
   const [showCorrectAnswers, setShowCorrectAnswers] = useState(true);
   const [showResultsImmediately, setShowResultsImmediately] = useState(true);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [loadingQuiz, setLoadingQuiz] = useState(false);
 
   // ── Derived stats ───────────────────────────────────────────────
   const totalPoints = useMemo(
@@ -183,14 +184,12 @@ const TeacherQuizBuilder = () => {
     return counts;
   }, [questions]);
 
-  useEffect(() => {
-    if (quizId) loadQuiz();
-  }, [quizId]);
-
-  const loadQuiz = async () => {
+  const loadQuiz = useCallback(async () => {
     if (!quizId) return;
-    const data = await fetchQuizWithQuestions(quizId as string);
-    if (data) {
+    setLoadingQuiz(true);
+    try {
+      const data = await fetchQuizWithQuestions(quizId as string);
+      if (!data?.quiz) return;
       const { quiz, questions: loadedQuestions } = data;
       setTitle(quiz.title);
       setDescription(quiz.description || "");
@@ -204,13 +203,45 @@ const TeacherQuizBuilder = () => {
       setRandomizeQuestions(quiz.randomize_questions);
       setShowCorrectAnswers(quiz.show_correct_answers);
       setShowResultsImmediately(quiz.show_results_immediately);
-      setQuestions(loadedQuestions);
+      setQuestions(
+        loadedQuestions.map((question) => ({
+          ...question,
+          id: question.id ?? uuidv4(),
+        }))
+      );
+    } catch (error: any) {
+      console.error("Error loading quiz:", error);
+      toast({
+        title: "Failed to load quiz",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+      setTitle("");
+      setDescription("");
+      setInstructions("");
+      setClassroomId("");
+      setTimeLimitMinutes(undefined);
+      setAvailableFrom("");
+      setAvailableUntil("");
+      setPassingScore(70);
+      setMaxAttempts(1);
+      setRandomizeQuestions(false);
+      setShowCorrectAnswers(true);
+      setShowResultsImmediately(true);
+      setQuestions([]);
+    } finally {
+      setLoadingQuiz(false);
     }
-  };
+  }, [fetchQuizWithQuestions, quizId, toast]);
+
+  useEffect(() => {
+    if (quizId) loadQuiz();
+  }, [quizId, loadQuiz]);
 
   const handleAIGenerateQuestions = (newQuestions: QuizQuestion[]) => {
     const withOrder = newQuestions.map((q, i) => ({
       ...q,
+      id: q.id ?? uuidv4(),
       order_index: questions.length + i,
     }));
     setQuestions([...questions, ...withOrder]);
@@ -222,6 +253,7 @@ const TeacherQuizBuilder = () => {
 
   const addQuestion = (type: QuizQuestion["question_type"]) => {
     const newQuestion: QuizQuestion = {
+      id: uuidv4(),
       question_type: type,
       question_text: "",
       points: 1,
@@ -245,6 +277,7 @@ const TeacherQuizBuilder = () => {
     const original = questions[index];
     const duplicate: QuizQuestion = {
       ...original,
+      id: uuidv4(),
       order_index: questions.length,
       options: original.options?.map((opt) => ({ ...opt, id: uuidv4() })),
     };
@@ -259,10 +292,12 @@ const TeacherQuizBuilder = () => {
   };
 
   const deleteQuestion = (index: number) => {
-    const updated = questions.filter((_, i) => i !== index);
-    updated.forEach((q, i) => {
-      q.order_index = i;
-    });
+    const updated = questions
+      .filter((_, i) => i !== index)
+      .map((q, i) => ({
+        ...q,
+        order_index: i,
+      }));
     setQuestions(updated);
     setDeleteDialogOpen(false);
     setQuestionToDelete(null);
@@ -273,22 +308,23 @@ const TeacherQuizBuilder = () => {
     const newIndex = direction === "up" ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= updated.length) return;
     [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
-    updated.forEach((q, i) => {
-      q.order_index = i;
-    });
-    setQuestions(updated);
+    const reindexed = updated.map((q, i) => ({
+      ...q,
+      order_index: i,
+    }));
+    setQuestions(reindexed);
   };
 
   const addOption = (questionIndex: number) => {
     const updated = [...questions];
     const question = updated[questionIndex];
-    if (question.options) {
-      question.options = [
-        ...question.options,
-        { id: uuidv4(), text: "", is_correct: false },
-      ];
-      setQuestions(updated);
-    }
+    if (!question?.options) return;
+    const newQuestion: QuizQuestion = {
+      ...question,
+      options: [...question.options, { id: uuidv4(), text: "", is_correct: false }],
+    };
+    updated[questionIndex] = newQuestion;
+    setQuestions(updated);
   };
 
   const updateOption = (
@@ -298,21 +334,27 @@ const TeacherQuizBuilder = () => {
   ) => {
     const updated = [...questions];
     const question = updated[questionIndex];
-    if (question.options) {
-      question.options = question.options.map((opt) =>
+    if (!question?.options) return;
+    const newQuestion: QuizQuestion = {
+      ...question,
+      options: question.options.map((opt) =>
         opt.id === optionId ? { ...opt, ...updates } : opt
-      );
-      setQuestions(updated);
-    }
+      ),
+    };
+    updated[questionIndex] = newQuestion;
+    setQuestions(updated);
   };
 
   const deleteOption = (questionIndex: number, optionId: string) => {
     const updated = [...questions];
     const question = updated[questionIndex];
-    if (question.options && question.options.length > 2) {
-      question.options = question.options.filter((opt) => opt.id !== optionId);
-      setQuestions(updated);
-    }
+    if (!question?.options || question.options.length <= 2) return;
+    const newQuestion: QuizQuestion = {
+      ...question,
+      options: question.options.filter((opt) => opt.id !== optionId),
+    };
+    updated[questionIndex] = newQuestion;
+    setQuestions(updated);
   };
 
   const validateQuiz = (): string | null => {
@@ -346,32 +388,41 @@ const TeacherQuizBuilder = () => {
       return;
     }
     setSaving(true);
-    const quizData: Partial<Quiz> = {
-      title,
-      description: description || null,
-      instructions: instructions || null,
-      classroom_id: classroomId,
-      teacher_id: user?.id,
-      time_limit_minutes: timeLimitMinutes || null,
-      available_from: availableFrom ? new Date(availableFrom).toISOString() : null,
-      available_until: availableUntil ? new Date(availableUntil).toISOString() : null,
-      passing_score: passingScore,
-      max_attempts: maxAttempts,
-      randomize_questions: randomizeQuestions,
-      show_correct_answers: showCorrectAnswers,
-      show_results_immediately: showResultsImmediately,
-      status: publish ? "active" : "draft",
-      published_at: publish ? new Date().toISOString() : null,
-    };
-    let success = false;
-    if (quizId) {
-      success = await updateQuiz(quizId as string, quizData, questions);
-    } else {
-      const created = await createQuiz(quizData, questions);
-      success = !!created;
+    try {
+      const quizData: Partial<Quiz> = {
+        title,
+        description: description || null,
+        instructions: instructions || null,
+        classroom_id: classroomId,
+        teacher_id: user?.id,
+        time_limit_minutes: timeLimitMinutes || null,
+        available_from: availableFrom ? new Date(availableFrom).toISOString() : null,
+        available_until: availableUntil ? new Date(availableUntil).toISOString() : null,
+        passing_score: passingScore,
+        max_attempts: maxAttempts,
+        randomize_questions: randomizeQuestions,
+        show_correct_answers: showCorrectAnswers,
+        show_results_immediately: showResultsImmediately,
+        status: publish ? "active" : "draft",
+        published_at: publish ? new Date().toISOString() : null,
+      };
+      let success = false;
+      if (quizId) {
+        success = await updateQuiz(quizId as string, quizData, questions);
+      } else {
+        const created = await createQuiz(quizData, questions);
+        success = !!created;
+      }
+      if (success) router.push("/dashboard/teacher/quizzes");
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    if (success) router.push("/dashboard/teacher/quizzes");
   };
 
   return (
@@ -579,7 +630,7 @@ const TeacherQuizBuilder = () => {
 
                     return (
                       <Card
-                        key={index}
+                        key={question.id}
                         className={cn(
                           "overflow-hidden border-l-4 transition-all hover:shadow-md",
                           config.borderColor
@@ -1135,7 +1186,7 @@ const TeacherQuizBuilder = () => {
               <Button
                 variant="outline"
                 onClick={() => handleSave(false)}
-                disabled={saving}
+                disabled={saving || loadingQuiz}
                 className="flex-1 gap-2 sm:flex-none"
               >
                 <Save className="h-4 w-4" />
@@ -1143,7 +1194,7 @@ const TeacherQuizBuilder = () => {
               </Button>
               <Button
                 onClick={() => handleSave(true)}
-                disabled={saving}
+                disabled={saving || loadingQuiz}
                 className="flex-1 gap-2 sm:flex-none"
               >
                 <Check className="h-4 w-4" />

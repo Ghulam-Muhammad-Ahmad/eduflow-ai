@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignmentSubmissions } from "@/hooks/useAssignments";
+import { useAIChecker } from "@/hooks/useAIChecker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,17 +50,55 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const TeacherAssignmentSubmissions = () => {
   const router = useRouter();
-  const { assignmentId } = router.query as { assignmentId: string };
+
+  if (!router.isReady) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const { assignmentId } = router.query as { assignmentId?: string };
+
+  if (!assignmentId) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <p className="text-muted-foreground">Assignment not found.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return <TeacherAssignmentSubmissionsContent assignmentId={assignmentId} />;
+};
+
+const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: string }) => {
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: submissions, isLoading } = useAssignmentSubmissions(assignmentId || null);
-  
+  const { data: submissions, isLoading } = useAssignmentSubmissions(assignmentId);
+
   const [gradeDialogOpen, setGradeDialogOpen] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
   const [grade, setGrade] = useState("");
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { gradeSubmissionWithAI, fetchAIFeedback, loading: aiCheckerLoading } = useAIChecker();
-  const [aiFeedbackLoading, setAIFeedbackLoading] = useState(false);
+  const [aiFeedback, setAIFeedback] = useState("");
+  const [aiGenerating, setAIGenerating] = useState(false);
+  const selectedSubmissionRef = useRef<any>(null);
+  const gradeDialogOpenRef = useRef(false);
+
+  useEffect(() => {
+    selectedSubmissionRef.current = selectedSubmission;
+  }, [selectedSubmission]);
+
+  useEffect(() => {
+    gradeDialogOpenRef.current = gradeDialogOpen;
+  }, [gradeDialogOpen]);
 
   // Get assignment details from first submission
   const assignment = submissions?.[0]?.assignments;
@@ -69,17 +108,25 @@ const TeacherAssignmentSubmissions = () => {
   const totalStudents = submissions?.length || 0;
 
   const openGradeDialog = async (submission: any) => {
+    const currentId = submission.id;
     setSelectedSubmission(submission);
     setGrade(submission.grade?.toString() || "");
     setFeedback(submission.feedback || "");
+    setAIFeedback("");
     setGradeDialogOpen(true);
     
     // Try to load existing AI feedback
-    if (submission.id) {
-      const aiFeedback = await fetchAIFeedback(submission.id);
-      if (aiFeedback && !aiFeedback.accepted) {
+    if (currentId) {
+      try {
+        const aiFeedback = await fetchAIFeedback(currentId);
+        if (!aiFeedback || aiFeedback.accepted) return;
+        if (selectedSubmissionRef.current?.id !== currentId || !gradeDialogOpenRef.current) return;
+        const nextFeedback = aiFeedback.feedback_data?.overall_feedback || submission.feedback || "";
+        setAIFeedback(nextFeedback);
         // Pre-fill with AI feedback if available and not yet accepted
-        setFeedback(aiFeedback.feedback_data.overall_feedback || submission.feedback || "");
+        setFeedback(nextFeedback);
+      } catch (error) {
+        console.error("Error fetching AI feedback:", error);
       }
     }
   };
@@ -87,7 +134,7 @@ const TeacherAssignmentSubmissions = () => {
   const handleAIGrade = async () => {
     if (!selectedSubmission || !assignment) return;
 
-    setAIFeedbackLoading(true);
+    setAIGenerating(true);
     try {
       let submissionText = selectedSubmission.text_content || "";
       if (selectedSubmission.file_path && !submissionText) {
@@ -102,6 +149,7 @@ const TeacherAssignmentSubmissions = () => {
       );
 
       if (result?.success) {
+        setAIFeedback(result.content);
         setFeedback(result.content);
         toast.success("AI feedback generated! Review and modify as needed.");
       } else {
@@ -110,7 +158,7 @@ const TeacherAssignmentSubmissions = () => {
     } catch (error: any) {
       toast.error(error.message || "Failed to generate AI feedback");
     } finally {
-      setAIFeedbackLoading(false);
+      setAIGenerating(false);
     }
   };
 
@@ -144,6 +192,7 @@ const TeacherAssignmentSubmissions = () => {
       setSelectedSubmission(null);
       setGrade("");
       setFeedback("");
+      setAIFeedback("");
     } catch (error) {
       console.error("Error grading submission:", error);
       toast.error("Failed to submit grade");
@@ -479,7 +528,18 @@ const TeacherAssignmentSubmissions = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="feedback">Feedback</Label>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="feedback">Feedback</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAIGrade}
+                    disabled={aiGenerating || !selectedSubmission}
+                  >
+                    {aiGenerating ? "Generating..." : "AI Generate Feedback"}
+                  </Button>
+                </div>
                 <Textarea
                   id="feedback"
                   rows={4}
@@ -487,6 +547,11 @@ const TeacherAssignmentSubmissions = () => {
                   onChange={(e) => setFeedback(e.target.value)}
                   placeholder="Provide feedback to the student..."
                 />
+                {aiFeedback ? (
+                  <p className="text-xs text-muted-foreground">
+                    AI feedback generated. Review before submitting.
+                  </p>
+                ) : null}
               </div>
             </div>
             <DialogFooter>
@@ -497,6 +562,7 @@ const TeacherAssignmentSubmissions = () => {
                   setSelectedSubmission(null);
                   setGrade("");
                   setFeedback("");
+                  setAIFeedback("");
                 }}
               >
                 Cancel

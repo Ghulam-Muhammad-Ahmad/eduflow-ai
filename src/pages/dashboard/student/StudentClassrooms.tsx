@@ -4,6 +4,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useLeaveClassroom } from "@/hooks/useClassrooms";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import JoinClassroomDialog from "@/components/student/JoinClassroomDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ import {
 const StudentClassrooms = () => {
   const { classrooms, isLoading } = useClassrooms();
   const { user } = useAuth();
+  const { toast } = useToast();
   const leaveClassroom = useLeaveClassroom();
   const router = useRouter();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
@@ -54,49 +56,84 @@ const StudentClassrooms = () => {
   useEffect(() => {
     if (!user || !classrooms || classrooms.length === 0) return;
 
+    let cancelled = false;
+
     const fetchStats = async () => {
-      const stats: Record<string, { materials: number; due: number }> = {};
-
-      for (const classroom of classrooms) {
-        // Fetch materials count
-        const { data: shares } = await supabase
-          .from("document_classroom_shares")
-          .select("document_id")
-          .eq("classroom_id", classroom.id);
-
-        const documentIds = shares?.map((s) => s.document_id) || [];
-        const { count: materialsCount } = documentIds.length > 0
-          ? await supabase
-              .from("documents")
-              .select("*", { count: "exact", head: true })
-              .in("id", documentIds)
-          : { count: 0 };
-
-        // Fetch assignments due soon (within 7 days)
-        const { data: assignments } = await supabase
-          .from("assignments")
-          .select("*")
-          .eq("classroom_id", classroom.id)
-          .eq("status", "published");
-
+      try {
         const now = new Date();
         const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const dueCount = assignments?.filter((a) => {
-          if (!a.due_date) return false;
-          const dueDate = new Date(a.due_date);
-          return dueDate >= now && dueDate <= sevenDaysFromNow;
-        }).length || 0;
 
-        stats[classroom.id] = {
-          materials: materialsCount || 0,
-          due: dueCount,
-        };
+        const statsEntries = await Promise.all(
+          classrooms.map(async (classroom) => {
+            try {
+              const { data: shares, error: sharesError } = await supabase
+                .from("document_classroom_shares")
+                .select("document_id")
+                .eq("classroom_id", classroom.id);
+
+              if (sharesError) throw sharesError;
+
+              const documentIds = shares?.map((s) => s.document_id) || [];
+              const materialsPromise =
+                documentIds.length > 0
+                  ? supabase
+                      .from("documents")
+                      .select("*", { count: "exact", head: true })
+                      .in("id", documentIds)
+                  : Promise.resolve({ count: 0, error: null });
+
+              const assignmentsPromise = supabase
+                .from("assignments")
+                .select("due_date")
+                .eq("classroom_id", classroom.id)
+                .eq("status", "published");
+
+              const [{ count: materialsCount, error: materialsError }, { data: assignments, error: assignmentsError }] =
+                await Promise.all([materialsPromise, assignmentsPromise]);
+
+              if (materialsError) throw materialsError;
+              if (assignmentsError) throw assignmentsError;
+
+              const dueCount =
+                assignments?.filter((a) => {
+                  if (!a.due_date) return false;
+                  const dueDate = new Date(a.due_date);
+                  return dueDate >= now && dueDate <= sevenDaysFromNow;
+                }).length || 0;
+
+              return [
+                classroom.id,
+                {
+                  materials: materialsCount || 0,
+                  due: dueCount,
+                },
+              ] as const;
+            } catch (error) {
+              console.error("Failed to load classroom stats:", error);
+              return [
+                classroom.id,
+                {
+                  materials: 0,
+                  due: 0,
+                },
+              ] as const;
+            }
+          })
+        );
+
+        if (!cancelled) {
+          setClassroomStats(Object.fromEntries(statsEntries));
+        }
+      } catch (error) {
+        console.error("Failed to load classroom stats:", error);
       }
-
-      setClassroomStats(stats);
     };
 
     fetchStats();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, classrooms]);
 
   const handleLeaveClassroom = (classroomId: string, classroomName: string) => {
@@ -107,9 +144,35 @@ const StudentClassrooms = () => {
   const confirmLeaveClassroom = async () => {
     if (!classroomToLeave) return;
     
-    await leaveClassroom.mutateAsync(classroomToLeave.id);
-    setLeaveDialogOpen(false);
-    setClassroomToLeave(null);
+    try {
+      await leaveClassroom.mutateAsync(classroomToLeave.id);
+      setLeaveDialogOpen(false);
+      setClassroomToLeave(null);
+    } catch (error: any) {
+      console.error("Failed to leave classroom:", error);
+      toast({
+        title: "Failed to leave classroom",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLeaveDialogOpen(false);
+    }
+  };
+
+  const getStatusBadge = (status?: string | null, isArchived?: boolean) => {
+    const normalized = status?.toLowerCase() ?? (isArchived ? "archived" : "active");
+
+    switch (normalized) {
+      case "active":
+        return { label: "Active", variant: "secondary" as const };
+      case "archived":
+        return { label: "Archived", variant: "outline" as const };
+      case "inactive":
+        return { label: "Inactive", variant: "destructive" as const };
+      default:
+        return { label: "Unknown", variant: "outline" as const };
+    }
   };
 
   return (
@@ -171,7 +234,9 @@ const StudentClassrooms = () => {
         {/* Classrooms Grid */}
         {!isLoading && classrooms && classrooms.length > 0 && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {classrooms.map((classroom) => (
+            {classrooms.map((classroom) => {
+              const statusBadge = getStatusBadge(classroom.status, classroom.is_archived);
+              return (
               <Card
                 key={classroom.id}
                 className="group hover:shadow-lg transition-all"
@@ -189,8 +254,8 @@ const StudentClassrooms = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">
-                        Active
+                      <Badge variant={statusBadge.variant} className="text-xs">
+                        {statusBadge.label}
                       </Badge>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -251,7 +316,8 @@ const StudentClassrooms = () => {
                   </Button>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

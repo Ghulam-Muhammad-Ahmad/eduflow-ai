@@ -51,18 +51,6 @@ import { Button } from "@/components/ui/button";
 
 **Avoid:** Component that fetches and renders in one place.
 
-```tsx
-function StudentList() {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    fetch("/api/students").then(r => r.json()).then(setData).finally(() => setLoading(false));
-  }, []);
-  if (loading) return <Spinner />;
-  return <ul>{data.map(s => <li key={s.id}>{s.name}</li>)}</ul>;
-}
-```
-
 **Prefer:** Hook for data; presentational component for UI.
 
 ```tsx

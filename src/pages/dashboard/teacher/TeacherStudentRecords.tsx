@@ -269,13 +269,16 @@ const TeacherStudentRecords = () => {
                     {filteredStudents.map((student) => {
                       return (
                         <TableRow
-                          key={student.student_id + student.classroom_id}
+                          key={`${student.student_id}-${student.classroom_id}`}
                           className="align-middle cursor-pointer"
                           onClick={() => setSelectedStudent(student)}
                           role="button"
                           tabIndex={0}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") setSelectedStudent(student);
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSelectedStudent(student);
+                            }
                           }}
                         >
                           <TableCell>

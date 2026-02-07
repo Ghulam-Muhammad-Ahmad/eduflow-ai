@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -31,12 +32,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
 const TeacherAssignments = () => {
   const router = useRouter();
   const { assignments, isLoading, publishAssignment, deleteAssignment } = useAssignments();
   const { classrooms } = useClassrooms();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; title: string } | null>(null);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -186,11 +199,19 @@ const TeacherAssignments = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            router.push(`/dashboard/teacher/assignments/${assignment.id}`)
+                          }
+                        >
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            router.push(`/dashboard/teacher/assignments/${assignment.id}/edit`)
+                          }
+                        >
                           <Edit className="w-4 h-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
@@ -205,7 +226,10 @@ const TeacherAssignments = () => {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => deleteAssignment.mutate(assignment.id)}
+                          onClick={() => {
+                            setAssignmentToDelete({ id: assignment.id, title: assignment.title });
+                            setDeleteDialogOpen(true);
+                          }}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Delete
@@ -252,6 +276,35 @@ const TeacherAssignments = () => {
           </div>
         )}
       </div>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete assignment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{assignmentToDelete?.title}</span>? This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setAssignmentToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!assignmentToDelete) return;
+                deleteAssignment.mutate(assignmentToDelete.id);
+                setDeleteDialogOpen(false);
+                setAssignmentToDelete(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteAssignment.isPending}
+            >
+              {deleteAssignment.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

@@ -20,37 +20,49 @@ const StudentQuizResults = () => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (Array.isArray(quizId) || Array.isArray(attemptId)) {
+      setError("Invalid quiz results link.");
+      setLoading(false);
+      return;
+    }
+
     if (quizId && attemptId) {
-      loadData();
+      loadData(quizId, attemptId);
     }
   }, [quizId, attemptId]);
 
-  const loadData = async () => {
-    if (!quizId || !attemptId) return;
+  const loadData = async (quizIdValue: string, attemptIdValue: string) => {
+    setError(null);
 
     try {
       setLoading(true);
 
       // Load quiz and questions
-      const quizData = await fetchQuizWithQuestions(quizId);
+      const quizData = await fetchQuizWithQuestions(quizIdValue);
       if (quizData) {
         setQuiz(quizData.quiz);
         setQuestions(quizData.questions);
+      } else {
+        setQuiz(null);
       }
 
       // Load attempt
       const { data: attemptData, error } = await supabase
         .from("quiz_attempts")
         .select("*")
-        .eq("id", attemptId)
+        .eq("id", attemptIdValue)
         .single();
 
       if (error) throw error;
       setAttempt(attemptData as QuizAttempt);
     } catch (error) {
       console.error("Error loading quiz results:", error);
+      setError("Failed to load quiz results. Please try again.");
+      setQuiz(null);
+      setAttempt(null);
     } finally {
       setLoading(false);
     }
@@ -80,7 +92,7 @@ const StudentQuizResults = () => {
     }
   };
 
-  if (loading || !quiz || !attempt) {
+  if (loading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-64">
@@ -90,10 +102,36 @@ const StudentQuizResults = () => {
     );
   }
 
+  if (error) {
+    return (
+      <DashboardLayout role="student">
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <p>{error}</p>
+          {typeof quizId === "string" && typeof attemptId === "string" && (
+            <Button onClick={() => loadData(quizId, attemptId)}>Retry</Button>
+          )}
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!quiz || !attempt) {
+    return (
+      <DashboardLayout role="student">
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <p>Results not found.</p>
+          <Button onClick={() => router.push("/dashboard/student/quizzes")}>
+            Back to Quizzes
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   const score = attempt.score || 0;
   const passingScore = quiz.passing_score || 70;
   const totalQuestions = questions.length;
-  const correctAnswers = attempt.answers.filter((ans) => ans.is_correct).length;
+  const correctAnswers = (attempt.answers || []).filter((ans) => ans.is_correct).length;
 
   return (
     <DashboardLayout role="student">
@@ -335,7 +373,9 @@ const StudentQuizResults = () => {
             Back to Quizzes
           </Button>
 
-          {quiz.max_attempts && attempt.attempt_number < quiz.max_attempts && (
+          {(quiz.max_attempts === null ||
+            quiz.max_attempts === 0 ||
+            attempt.attempt_number < quiz.max_attempts) && (
             <Button onClick={() => router.push(`/dashboard/student/quizzes/${quizId}/take`)}>
               Retake Quiz
             </Button>

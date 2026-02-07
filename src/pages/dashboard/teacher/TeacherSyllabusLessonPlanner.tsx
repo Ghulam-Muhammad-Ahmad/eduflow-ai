@@ -149,6 +149,11 @@ export default function TeacherSyllabusLessonPlanner() {
   const uploadDocumentToCenter = useCallback(
     async (file: File) => {
       if (!user?.id) return;
+      const maxFileSizeBytes = 10 * 1024 * 1024;
+      if (file.size > maxFileSizeBytes) {
+        toast.error("File is too large. Maximum size is 10MB.");
+        return;
+      }
       setUploadingDoc(true);
       try {
         const { data: existingDocs } = await supabase
@@ -179,7 +184,7 @@ export default function TeacherSyllabusLessonPlanner() {
           .single();
         if (insertError) throw insertError;
         toast.success("Document uploaded to Doc Center");
-        const list = await refreshDocuments();
+        await refreshDocuments();
         setUploadDocOpen(false);
         if (inserted?.id) {
           setContentFromDocument(inserted.id);
@@ -210,7 +215,6 @@ export default function TeacherSyllabusLessonPlanner() {
 
   const canProceedFromStep1 = contentText.trim().length > 0;
   const canProceedFromStep2 = subject.trim().length > 0;
-  const canProceedFromStep3 = true;
   const canGenerate = canProceedFromStep1 && canProceedFromStep2;
 
   const goNext = useCallback(() => {
@@ -271,8 +275,8 @@ export default function TeacherSyllabusLessonPlanner() {
   }, [generate]);
 
   return (
-    <DashboardLayout role="teacher">
-      <div className=" mx-auto space-y-6">
+    <DashboardLayout>
+      <div className="mx-auto space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Lesson Planner</h1>
@@ -551,7 +555,9 @@ export default function TeacherSyllabusLessonPlanner() {
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3 text-sm">
                 <div className="flex gap-2">
                   <span className="text-muted-foreground w-28 shrink-0">Content</span>
-                  <span className="line-clamp-2">{contentText.slice(0, 120)}…</span>
+                  <span className="line-clamp-2">
+                    {contentText.length > 120 ? `${contentText.slice(0, 120)}…` : contentText}
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <span className="text-muted-foreground w-28 shrink-0">Subject</span>

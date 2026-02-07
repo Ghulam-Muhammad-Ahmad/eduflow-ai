@@ -88,8 +88,10 @@ const StudentQuizzes = () => {
     // Only process scheduled and active quizzes
     if (quiz.status !== "active" && quiz.status !== "scheduled") return null;
 
-    const now = new Date();
-    
+   // Only process scheduled and active quizzes
+   if (quiz.status !== "active" && quiz.status !== "scheduled") return null;
+
+   // Check if quiz is upcoming (not yet available based on available_from date)    
     // Check if quiz is upcoming (not yet available based on available_from date)
     if (quiz.available_from && isFuture(new Date(quiz.available_from))) {
       return { label: "Upcoming", variant: "secondary" as const };
@@ -131,7 +133,14 @@ const StudentQuizzes = () => {
           ? Math.max(...completedAttempts.map((a) => a.score || 0))
           : null,
       bestAttempt: bestAttempt, // The attempt with the highest score
-      lastAttempt: quizAttempts.length > 0 ? quizAttempts[0] : null, // Most recent attempt
+      lastAttempt:
+        quizAttempts.length > 0
+          ? quizAttempts.reduce((latest, current) => {
+              const latestTime = new Date(latest.updated_at || latest.created_at).getTime();
+              const currentTime = new Date(current.updated_at || current.created_at).getTime();
+              return currentTime > latestTime ? current : latest;
+            })
+          : null, // Most recent attempt
     };
   };
 
@@ -270,7 +279,7 @@ const StudentQuizzes = () => {
   };
 
   return (
-    <DashboardLayout role="student">
+    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>

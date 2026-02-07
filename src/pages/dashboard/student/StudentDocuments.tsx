@@ -80,11 +80,17 @@ const getFileIcon = (fileType: string) => {
 };
 
 const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return "0 Bytes";
+  const safeBytes = Math.max(0, bytes);
+  if (safeBytes === 0) return "0 Bytes";
   const k = 1024;
   const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  const i = Math.floor(Math.log(safeBytes) / Math.log(k));
+  const clampedIndex = Math.max(0, Math.min(i, sizes.length - 1));
+  return (
+    parseFloat((safeBytes / Math.pow(k, clampedIndex)).toFixed(1)) +
+    " " +
+    sizes[clampedIndex]
+  );
 };
 
 const formatDate = (dateString: string) => {
@@ -194,6 +200,26 @@ const StudentDocuments = () => {
       setUploading(true);
 
       try {
+        // Enforce storage limit
+        const { data: sizeData, error: sizeError } = await supabase
+          .from("documents")
+          .select("file_size")
+          .eq("user_id", user.id);
+
+        if (sizeError) throw sizeError;
+
+        const currentUsedBytes = sizeData?.reduce((acc, doc) => acc + (doc.file_size || 0), 0) || 0;
+        const incomingBytes = acceptedFiles.reduce((acc, f) => acc + f.size, 0);
+
+        if (currentUsedBytes + incomingBytes > storageLimit) {
+          toast.error(
+            `Storage limit exceeded. Remaining: ${formatFileSize(
+              Math.max(0, storageLimit - currentUsedBytes)
+            )}. Attempted: ${formatFileSize(incomingBytes)}.`
+          );
+          return;
+        }
+
         const folderQuery = supabase
           .from("documents")
           .select("name")
@@ -207,7 +233,9 @@ const StudentDocuments = () => {
           const displayName = getUniqueDocumentName(file.name, existingNamesList);
           existingNamesList.push(displayName);
 
-          const fileExt = file.name.split(".").pop();
+          const fileExt = file.name.includes(".") ? file.name.split(".").pop() : undefined;
+          const fileType =
+            file.type || (fileExt ? `application/${fileExt}` : "application/octet-stream");
           const fileName = `${user.id}/${Date.now()}_${file.name}`;
 
           const { error: uploadError } = await supabase.storage
@@ -222,7 +250,7 @@ const StudentDocuments = () => {
             name: displayName,
             file_path: fileName,
             file_size: file.size,
-            file_type: file.type || `application/${fileExt}`,
+            file_type: fileType,
           });
 
           if (insertError) throw insertError;
@@ -462,6 +490,7 @@ const StudentDocuments = () => {
                             e.stopPropagation();
                             openPreview(doc);
                           }}
+                          aria-label="Preview document"
                           title="Preview"
                         >
                           <Eye className="w-4 h-4" />
@@ -475,6 +504,7 @@ const StudentDocuments = () => {
                           e.stopPropagation();
                           openMoveDialog(doc);
                         }}
+                        aria-label="Move to folder"
                         title="Move to folder"
                       >
                         <FolderInput className="w-4 h-4" />
@@ -487,6 +517,7 @@ const StudentDocuments = () => {
                           e.stopPropagation();
                           openRenameDialog(doc);
                         }}
+                        aria-label="Rename document"
                         title="Rename"
                       >
                         <Pencil className="w-4 h-4" />
@@ -499,6 +530,7 @@ const StudentDocuments = () => {
                           e.stopPropagation();
                           downloadDocument(doc);
                         }}
+                        aria-label="Download document"
                       >
                         <Download className="w-4 h-4" />
                       </Button>
@@ -511,6 +543,7 @@ const StudentDocuments = () => {
                           setDocumentToDelete(doc);
                           setDeleteDialogOpen(true);
                         }}
+                        aria-label="Delete document"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -573,6 +606,7 @@ const StudentDocuments = () => {
                           e.stopPropagation();
                           openPreview(doc);
                         }}
+                        aria-label="Preview document"
                         title="Preview"
                       >
                         <Eye className="w-4 h-4" />
@@ -586,6 +620,7 @@ const StudentDocuments = () => {
                         e.stopPropagation();
                         openMoveDialog(doc);
                       }}
+                      aria-label="Move to folder"
                       title="Move to folder"
                     >
                       <FolderInput className="w-4 h-4" />
@@ -598,6 +633,7 @@ const StudentDocuments = () => {
                         e.stopPropagation();
                         openRenameDialog(doc);
                       }}
+                      aria-label="Rename document"
                       title="Rename"
                     >
                       <Pencil className="w-4 h-4" />
@@ -610,6 +646,7 @@ const StudentDocuments = () => {
                         e.stopPropagation();
                         downloadDocument(doc);
                       }}
+                      aria-label="Download document"
                     >
                       <Download className="w-4 h-4" />
                     </Button>
@@ -622,6 +659,7 @@ const StudentDocuments = () => {
                         setDocumentToDelete(doc);
                         setDeleteDialogOpen(true);
                       }}
+                      aria-label="Delete document"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

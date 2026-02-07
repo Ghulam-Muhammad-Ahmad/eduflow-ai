@@ -74,6 +74,8 @@ interface AIGenerateRequest {
   systemInstruction?: string;
   model?: string;
   userId: string;
+  /** For checker task: max points so the model can suggest a grade within range */
+  pointsPossible?: number;
 }
 
 export default async function handler(
@@ -91,6 +93,7 @@ export default async function handler(
       systemInstruction,
       model,
       userId,
+      pointsPossible,
     }: AIGenerateRequest = req.body;
 
     if (!taskType || !prompt || !userId) {
@@ -99,11 +102,18 @@ export default async function handler(
 
     const selectedModel = model || "gpt-4";
 
-    const result = await generateWithOpenAI(prompt, systemInstruction, selectedModel);
+    const maxPoints = typeof pointsPossible === "number" && pointsPossible > 0 ? pointsPossible : 100;
+    const isCheckerWithGrade = taskType === "checker" && maxPoints > 0;
+    const checkerSystem = isCheckerWithGrade
+      ? (systemInstruction || "You are an expert teacher providing constructive feedback.") +
+        ` Respond with ONLY a single JSON object (no markdown, no code block) with exactly: "suggested_grade" (number from 0 to ${maxPoints}), "feedback" (string with your full feedback).`
+      : systemInstruction;
+
+    const result = await generateWithOpenAI(prompt, checkerSystem, selectedModel);
     const totalTokens = result.inputTokens + result.outputTokens;
     const cost = calculateCost(selectedModel, result.inputTokens, result.outputTokens);
 
-    return res.status(200).json({
+    const payload: Record<string, unknown> = {
       content: result.content,
       provider: "openai",
       model: selectedModel,
@@ -112,7 +122,20 @@ export default async function handler(
       outputTokens: result.outputTokens,
       cost,
       success: true,
-    });
+    };
+    if (isCheckerWithGrade) {
+      try {
+        const raw = result.content.trim().replace(/^```json?\s*|\s*```$/g, "");
+        const parsed = JSON.parse(raw) as { suggested_grade?: number; feedback?: string };
+        if (typeof parsed.suggested_grade === "number" && typeof parsed.feedback === "string") {
+          payload.suggested_grade = parsed.suggested_grade;
+          payload.feedback = parsed.feedback;
+        }
+      } catch {
+        // leave content only
+      }
+    }
+    return res.status(200).json(payload);
   } catch (error: any) {
     console.error("AI generation error:", error);
     return res.status(500).json({

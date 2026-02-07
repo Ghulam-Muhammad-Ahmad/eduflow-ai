@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
+import { toast } from "sonner";
 
 const TeacherDashboard = () => {
   const router = useRouter();
@@ -67,18 +68,22 @@ const TeacherDashboard = () => {
     { name: "Physics Lecture Slides.pptx", updated: "Updated 3 days ago", size: "5.2 MB", icon: "📊" },
   ];
 
+  const loadQuizzes = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const quizzes = await fetchTeacherQuizzes(user.id);
+      // Get the 3 most recent quizzes
+      setRecentQuizzes(quizzes.slice(0, 3));
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to load quizzes");
+    }
+  }, [fetchTeacherQuizzes, user?.id]);
+
   useEffect(() => {
     if (user?.id) {
       loadQuizzes();
     }
-  }, [user]);
-
-  const loadQuizzes = async () => {
-    if (!user?.id) return;
-    const quizzes = await fetchTeacherQuizzes(user.id);
-    // Get the 3 most recent quizzes
-    setRecentQuizzes(quizzes.slice(0, 3));
-  };
+  }, [user, loadQuizzes]);
 
   const quickActions = [
     { icon: ClipboardCheck, label: "Create Assignment", color: "text-primary", path: "/dashboard/teacher/assignments" },

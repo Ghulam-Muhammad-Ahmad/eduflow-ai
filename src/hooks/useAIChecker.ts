@@ -51,6 +51,7 @@ function parseFeedbackData(json: Json): AIFeedback['feedback_data'] {
         }))
       : [],
     overall_feedback: coerceString(json.overall_feedback),
+    suggested_grade: typeof json.suggested_grade === 'number' ? json.suggested_grade : undefined,
   };
 }
 function parseRubricSuggestions(json: Json): Array<{ criterion: string; score: number; max_score: number; feedback: string }> | undefined {
@@ -75,6 +76,7 @@ export interface AIFeedback {
     content_analysis: string;
     suggestions: Array<{ type: string; text: string; priority: 'high' | 'medium' | 'low' }>;
     overall_feedback: string;
+    suggested_grade?: number;
   };
   rubric_suggestions?: Array<{ criterion: string; score: number; max_score: number; feedback: string }>;
   consistency_hash?: string;
@@ -110,7 +112,8 @@ export const useAIChecker = () => {
     submissionId: string,
     submissionText: string,
     assignmentDescription: string,
-    rubric?: string
+    rubric?: string,
+    pointsPossible: number = 100
   ): Promise<AIGenerateResult | null> => {
     if (!user?.id) return null;
 
@@ -120,11 +123,12 @@ export const useAIChecker = () => {
         submissionText,
         assignmentDescription,
         rubric,
-        user.id
+        user.id,
+        pointsPossible
       );
 
       if (result.success) {
-        await saveAIFeedback(submissionId, result.content, rubric);
+        await saveAIFeedback(submissionId, result.content, rubric, result.suggested_grade);
       }
 
       return result;
@@ -147,6 +151,7 @@ export const useAIChecker = () => {
       text: string;
       assignmentDescription: string;
       rubric?: string;
+      hasFile?: boolean;
     }>
   ): Promise<Array<{ submissionId: string; result: AIGenerateResult | null }>> => {
     if (!user?.id) return [];
@@ -192,12 +197,16 @@ export const useAIChecker = () => {
   const saveAIFeedback = async (
     submissionId: string,
     feedbackText: string,
-    rubric?: string
+    rubric?: string,
+    suggestedGrade?: number
   ) => {
     if (!user?.id) return null;
 
     try {
       const feedbackData = parseFeedback(feedbackText);
+      if (typeof suggestedGrade === 'number') {
+        feedbackData.suggested_grade = suggestedGrade;
+      }
       const consistencyHash = calculateConsistencyHash(feedbackData);
 
       const { data, error } = await supabase
@@ -266,6 +275,59 @@ export const useAIChecker = () => {
     }
   };
 
+  // Apply grade and feedback to submission and mark AI feedback as accepted
+  const applyGradeAndFeedback = async (
+    submissionId: string,
+    grade: number,
+    feedback: string,
+    aiFeedbackId: string,
+    options?: { pointsPossible?: number }
+  ): Promise<boolean> => {
+    const maxPoints = options?.pointsPossible ?? 100;
+    if (grade < 0 || grade > maxPoints) {
+      toast({
+        title: 'Invalid grade',
+        description: `Grade must be between 0 and ${maxPoints}`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+    try {
+      const { error: subError } = await supabase
+        .from('submissions')
+        .update({
+          grade,
+          feedback: feedback.trim() || null,
+          graded_at: new Date().toISOString(),
+          status: 'graded',
+        })
+        .eq('id', submissionId);
+
+      if (subError) throw subError;
+
+      await supabase
+        .from('ai_feedback')
+        .update({
+          accepted: true,
+          modified_feedback: feedback.trim() || null,
+        })
+        .eq('id', aiFeedbackId);
+
+      toast({
+        title: 'Success',
+        description: 'Grade and feedback applied to submission',
+      });
+      return true;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to apply grade',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   const parseFeedback = (text: string): any => {
     return {
       overall_feedback: text,
@@ -290,5 +352,6 @@ export const useAIChecker = () => {
     gradeBatchSubmissions,
     fetchAIFeedback,
     acceptAIFeedback,
+    applyGradeAndFeedback,
   };
 };

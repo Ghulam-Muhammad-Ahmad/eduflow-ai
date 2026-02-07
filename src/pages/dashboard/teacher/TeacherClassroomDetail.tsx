@@ -40,7 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 const TeacherClassroomDetail = () => {
   const router = useRouter();
   const { classroomId } = router.query as { classroomId: string };
-  const { classrooms, removeStudent } = useClassrooms();
+  const { classrooms, isLoading: classroomsLoading, removeStudent } = useClassrooms();
   const { data: roster, isLoading: rosterLoading } = useClassroomRoster(classroomId || null);
   const { assignments } = useAssignments(classroomId);
   const { toast } = useToast();
@@ -53,7 +53,7 @@ const TeacherClassroomDetail = () => {
 
   const classroom = classrooms?.find((c) => c.id === classroomId);
 
-  if (!classroom && !rosterLoading) {
+  if (!classroom && !rosterLoading && !classroomsLoading) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-16">
@@ -72,13 +72,33 @@ const TeacherClassroomDetail = () => {
   }
 
   const copyJoinCode = async (code: string) => {
-    await navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    toast({
-      title: "Code copied!",
-      description: "Share this code with your students.",
-    });
-    setTimeout(() => setCopiedCode(false), 2000);
+    if (!navigator?.clipboard?.writeText) {
+      setCopiedCode(false);
+      toast({
+        title: "Copy failed",
+        description: "Clipboard not supported. Please copy the code manually.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(true);
+      toast({
+        title: "Code copied!",
+        description: "Share this code with your students.",
+      });
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy join code:", error);
+      setCopiedCode(false);
+      toast({
+        title: "Copy failed",
+        description: "Unable to copy the code. Please copy it manually.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveStudent = (enrollmentId: string, studentName: string) => {
@@ -93,25 +113,42 @@ const TeacherClassroomDetail = () => {
 
   const copyInviteLink = async () => {
     if (!inviteLink) return;
-    await navigator.clipboard.writeText(inviteLink);
-    setCopiedInvite(true);
-    toast({
-      title: "Invite link copied!",
-      description: "Share this link to let students join your class.",
-    });
-    setTimeout(() => setCopiedInvite(false), 2000);
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopiedInvite(true);
+      toast({
+        title: "Invite link copied!",
+        description: "Share this link to let students join your class.",
+      });
+      setTimeout(() => setCopiedInvite(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy invite link:", error);
+      toast({
+        title: "Copy failed",
+        description: "Unable to copy the invite link. Please copy it manually.",
+        variant: "destructive",
+      });
+    }
   };
 
   const confirmRemoveStudent = async () => {
     if (!studentToRemove || !classroomId) return;
-    
-    await removeStudent.mutateAsync({
-      enrollmentId: studentToRemove.enrollmentId,
-      classroomId: classroomId,
-    });
-    
-    setRemoveStudentDialogOpen(false);
-    setStudentToRemove(null);
+
+    try {
+      await removeStudent.mutateAsync({
+        enrollmentId: studentToRemove.enrollmentId,
+        classroomId: classroomId,
+      });
+
+      setRemoveStudentDialogOpen(false);
+      setStudentToRemove(null);
+    } catch (error: any) {
+      toast({
+        title: "Remove failed",
+        description: error?.message || "Unable to remove student. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Filter students based on search query
@@ -324,7 +361,7 @@ const TeacherClassroomDetail = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                        className="opacity-60 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() => handleRemoveStudent(enrollment.id, studentName)}
                       >
                         <UserMinus className="w-4 h-4" />

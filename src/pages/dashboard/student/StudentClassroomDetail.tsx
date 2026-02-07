@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms } from "@/hooks/useClassrooms";
@@ -25,8 +25,10 @@ interface DocumentType {
 
 const StudentClassroomDetail = () => {
   const router = useRouter();
-  const { classroomId } = router.query as { classroomId: string };
-  const { classrooms } = useClassrooms();
+  const classroomId = Array.isArray(router.query.classroomId)
+    ? router.query.classroomId[0]
+    : router.query.classroomId;
+  const { classrooms, isLoading: classroomsLoading } = useClassrooms();
   const { user } = useAuth();
   const { data: assignments } = useStudentAssignments(classroomId);
   const { fetchClassroomQuizzes } = useQuizzes();
@@ -134,7 +136,7 @@ const StudentClassroomDetail = () => {
     return () => {
       cancelled = true;
     };
-  }, [classroomId]); // Removed fetchClassroomQuizzes from dependencies to prevent loops
+  }, [classroomId, fetchClassroomQuizzes]);
 
   const downloadDocument = async (doc: DocumentType) => {
     try {
@@ -157,7 +159,7 @@ const StudentClassroomDetail = () => {
     }
   };
 
-  if (!classroom && !documentsLoading && !quizzesLoading) {
+  if (classroomId && !classroom && !classroomsLoading && !documentsLoading && !quizzesLoading) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-16">
@@ -357,7 +359,13 @@ const StudentClassroomDetail = () => {
                   <div
                     key={assignment.id}
                     className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/dashboard/student/assignments`)}
+                    onClick={() => {
+                      if (!assignment?.id) {
+                        router.push(`/dashboard/student/assignments`);
+                        return;
+                      }
+                      router.push(`/dashboard/student/assignments/${assignment.id}`);
+                    }}
                   >
                     <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
                       <ClipboardList className="w-6 h-6 text-muted-foreground" />
@@ -403,7 +411,13 @@ const StudentClassroomDetail = () => {
                   <div
                     key={quiz.id}
                     className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/dashboard/student/quizzes`)}
+                    onClick={() => {
+                      if (!quiz?.id) {
+                        router.push(`/dashboard/student/quizzes`);
+                        return;
+                      }
+                      router.push(`/dashboard/student/quizzes/${quiz.id}`);
+                    }}
                   >
                     <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
                       <HelpCircle className="w-6 h-6 text-muted-foreground" />

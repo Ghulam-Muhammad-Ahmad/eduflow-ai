@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,6 +24,8 @@ import { Progress } from "@/components/ui/progress";
 const StudentQuizTake = () => {
   const router = useRouter();
   const { quizId, attemptId } = router.query;
+  const quizIdValue = Array.isArray(quizId) ? quizId[0] : quizId;
+  const attemptIdValue = Array.isArray(attemptId) ? attemptId[0] : attemptId;
   const { user } = useAuth();
   const {
     fetchQuizWithQuestions,
@@ -43,9 +45,11 @@ const StudentQuizTake = () => {
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(Date.now());
+  const autoSubmitRef = useRef<() => Promise<void> | void>(() => {});
+  const submitHandlerRef = useRef<(auto: boolean) => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
-    if (quizId) {
+    if (quizIdValue) {
       loadQuiz();
     }
 
@@ -54,7 +58,17 @@ const StudentQuizTake = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [quizId]);
+  }, [quizIdValue]);
+
+  const handleAutoSubmit = useCallback(() => {
+    if (attempt) {
+      submitHandlerRef.current(true);
+    }
+  }, [attempt]);
+
+  useEffect(() => {
+    autoSubmitRef.current = handleAutoSubmit;
+  }, [handleAutoSubmit]);
 
   useEffect(() => {
     // Start timer if quiz has time limit and attempt is in progress
@@ -73,14 +87,19 @@ const StudentQuizTake = () => {
       }
 
       timerRef.current = setInterval(() => {
+        let nextRemaining: number | null = null;
         setTimeRemaining((prev) => {
           if (prev === null || prev <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            handleAutoSubmit();
+            nextRemaining = 0;
             return 0;
           }
-          return prev - 1;
+          nextRemaining = prev - 1;
+          return nextRemaining;
         });
+        if (nextRemaining === 0) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          autoSubmitRef.current();
+        }
       }, 1000);
     }
 
@@ -91,21 +110,34 @@ const StudentQuizTake = () => {
     };
   }, [quiz, attempt]);
 
+  // Redirect to results when attempt is no longer in progress (must run before any early return)
+  useEffect(() => {
+    if (!attempt || attempt.status === "in_progress") return;
+    if (quizIdValue && attempt.id) {
+      router.push(`/dashboard/student/quizzes/${quizIdValue}/results/${attempt.id}`);
+    }
+  }, [attempt?.status, attempt?.id, quizIdValue, router]);
+
   const loadQuiz = async () => {
-    if (!quizId) return;
-    const data = await fetchQuizWithQuestions(quizId);
+    if (!quizIdValue) return;
+    const data = await fetchQuizWithQuestions(quizIdValue);
     if (data) {
-      setQuiz(data.quiz);
+      const quiz = data.quiz;
+      if (quiz) setQuiz(quiz);
       // Randomize questions if enabled
       let loadedQuestions = data.questions;
-      if (data.quiz.randomize_questions) {
-        loadedQuestions = [...loadedQuestions].sort(() => Math.random() - 0.5);
+      if (quiz?.randomize_questions) {
+        loadedQuestions = [...loadedQuestions];
+        for (let i = loadedQuestions.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [loadedQuestions[i], loadedQuestions[j]] = [loadedQuestions[j], loadedQuestions[i]];
+        }
       }
       setQuestions(loadedQuestions);
 
       // Start or resume attempt
-      if (attemptId) {
-        await resumeAttempt(attemptId);
+      if (typeof attemptIdValue === "string") {
+        await resumeAttempt(attemptIdValue);
       } else {
         await startAttempt();
       }
@@ -113,12 +145,14 @@ const StudentQuizTake = () => {
   };
 
   const resumeAttempt = async (attemptId: string) => {
-    const existingAttempt = await fetchQuizAttemptById(attemptId);
+    const existingAttempt = (await fetchQuizAttemptById(attemptId)) as QuizAttempt | null;
     if (existingAttempt) {
       // Check if attempt is still in progress
       if (existingAttempt.status !== 'in_progress') {
         // If already submitted, redirect to results
-        router.push(`/dashboard/student/quizzes/${quizId}/results/${attemptId}`);
+        if (quizIdValue) {
+          router.push(`/dashboard/student/quizzes/${quizIdValue}/results/${attemptId}`);
+        }
         return;
       }
 
@@ -149,19 +183,13 @@ const StudentQuizTake = () => {
   };
 
   const startAttempt = async () => {
-    if (!quizId || !user?.id) return;
-    const newAttempt = await startQuizAttempt(quizId, user.id);
+    if (!quizIdValue || !user?.id) return;
+    const newAttempt = await startQuizAttempt(quizIdValue, user.id);
     if (newAttempt) {
       setAttempt(newAttempt);
       startTimeRef.current = Date.now();
     } else {
       router.push("/dashboard/student/quizzes");
-    }
-  };
-
-  const handleAutoSubmit = async () => {
-    if (attempt) {
-      await handleSubmit(true);
     }
   };
 
@@ -221,10 +249,6 @@ const StudentQuizTake = () => {
   const handleSubmit = async (autoSubmit: boolean = false) => {
     if (!attempt) return;
 
-    if (!autoSubmit && !confirm("Are you sure you want to submit? You cannot change your answers after submission.")) {
-      return;
-    }
-
     setSubmitting(true);
 
     const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -235,9 +259,11 @@ const StudentQuizTake = () => {
     setSubmitting(false);
 
     if (success) {
-      router.push(`/dashboard/student/quizzes/${quizId}/results/${attempt.id}`);
+      router.push(`/dashboard/student/quizzes/${quizIdValue}/results/${attempt.id}`);
     }
   };
+
+  submitHandlerRef.current = handleSubmit;
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -256,10 +282,6 @@ const StudentQuizTake = () => {
 
   // Check if attempt is still in progress
   if (attempt.status !== 'in_progress') {
-    // Redirect to results if already submitted
-    if (quizId && attempt.id) {
-      router.push(`/dashboard/student/quizzes/${quizId}/results/${attempt.id}`);
-    }
     return null;
   }
 
@@ -492,7 +514,7 @@ const StudentQuizTake = () => {
             <AlertDialogAction
               onClick={() => {
                 setSubmitDialogOpen(false);
-                handleSubmit(false);
+                handleSubmit();
               }}
             >
               Submit Quiz

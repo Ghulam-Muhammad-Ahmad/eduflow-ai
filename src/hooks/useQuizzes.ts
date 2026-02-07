@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as supabaseClient } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useToast } from '@/hooks/use-toast';
 
 // Types
@@ -36,7 +38,7 @@ export interface Quiz {
   updated_at: string;
   classroom?: {
     name: string;
-    subject?: string;
+    subject?: string | null;
   };
 }
 
@@ -74,7 +76,35 @@ export interface QuizAttempt {
 export const useQuizzes = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const supabase = supabaseClient as any;
+  const supabase: SupabaseClient<Database> = supabaseClient;
+
+  type QuizWithClassroom = Quiz & {
+    classroom?: {
+      name: string;
+      subject?: string | null;
+    };
+  };
+
+  type QuizInsert = Database['public']['Tables']['quizzes']['Insert'];
+  type QuizQuestionInsert = Database['public']['Tables']['quiz_questions']['Insert'];
+  type QuizAttemptInsert = Database['public']['Tables']['quiz_attempts']['Insert'];
+
+  type QuizAttemptWithQuiz = QuizAttempt & {
+    quiz?: QuizWithClassroom;
+  };
+
+  type QuizAttemptWithStudent = QuizAttempt & {
+    student: {
+      display_name: string;
+      email?: string | null;
+    };
+  };
+
+  type StudentProfile = {
+    user_id: string;
+    display_name: string | null;
+    email: string | null;
+  };
 
   // Fetch all quizzes for a teacher
   const fetchTeacherQuizzes = async (teacherId: string) => {
@@ -84,7 +114,8 @@ export const useQuizzes = () => {
         .from('quizzes')
         .select('*, classroom:classrooms(name, subject)')
         .eq('teacher_id', teacherId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .returns<QuizWithClassroom[]>();
 
       if (error) throw error;
       return data || [];
@@ -101,14 +132,15 @@ export const useQuizzes = () => {
   };
 
   // Fetch quizzes for a specific classroom
-  const fetchClassroomQuizzes = async (classroomId: string) => {
+  const fetchClassroomQuizzes = useCallback(async (classroomId: string) => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('quizzes')
         .select('*')
         .eq('classroom_id', classroomId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .returns<Quiz[]>();
 
       if (error) throw error;
       return data || [];
@@ -122,7 +154,7 @@ export const useQuizzes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, toast]);
 
   // Fetch available quizzes for a student
   const fetchStudentQuizzes = async (studentId: string) => {
@@ -134,7 +166,8 @@ export const useQuizzes = () => {
         .from('enrollments')
         .select('classroom_id')
         .eq('student_id', studentId)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .returns<Array<{ classroom_id: string }>>();
 
       if (enrollError) throw enrollError;
 
@@ -151,7 +184,8 @@ export const useQuizzes = () => {
         .select('*, classroom:classrooms(name, subject)')
         .in('classroom_id', classroomIds)
         .in('status', ['scheduled', 'active'])
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .returns<QuizWithClassroom[]>();
 
       if (error) throw error;
       
@@ -189,6 +223,7 @@ export const useQuizzes = () => {
         .from('quizzes')
         .select('*, classroom:classrooms(name, subject)')
         .eq('id', quizId)
+        .returns<QuizWithClassroom>()
         .single();
 
       if (quizError) throw quizError;
@@ -197,11 +232,12 @@ export const useQuizzes = () => {
         .from('quiz_questions')
         .select('*')
         .eq('quiz_id', quizId)
-        .order('order_index', { ascending: true });
+        .order('order_index', { ascending: true })
+        .returns<QuizQuestion[]>();
 
       if (questionsError) throw questionsError;
 
-      return { quiz: quiz as Quiz, questions: questions as QuizQuestion[] };
+      return { quiz, questions };
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -222,16 +258,19 @@ export const useQuizzes = () => {
       // Insert quiz
       const { data: newQuiz, error: quizError } = await supabase
         .from('quizzes')
-        .insert([quiz])
+        .insert([quiz as QuizInsert])
         .select()
+        .returns<Quiz>()
         .single();
 
       if (quizError) throw quizError;
+      if (!newQuiz) throw new Error('Quiz creation failed');
+      const createdQuiz = newQuiz as Quiz;
 
       // Insert questions
-      const questionsWithQuizId = questions.map((q, index) => ({
+      const questionsWithQuizId: QuizQuestionInsert[] = questions.map((q, index) => ({
         ...q,
-        quiz_id: newQuiz.id,
+        quiz_id: createdQuiz.id,
         order_index: index,
       }));
 
@@ -246,7 +285,7 @@ export const useQuizzes = () => {
         description: 'Quiz created successfully',
       });
 
-      return newQuiz as Quiz;
+      return createdQuiz;
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -283,7 +322,7 @@ export const useQuizzes = () => {
         if (deleteError) throw deleteError;
 
         // Insert updated questions
-        const questionsWithQuizId = questions.map((q, index) => ({
+      const questionsWithQuizId: QuizQuestionInsert[] = questions.map((q, index) => ({
           ...q,
           quiz_id: quizId,
           order_index: index,
@@ -440,7 +479,8 @@ export const useQuizzes = () => {
         .eq('quiz_id', quizId)
         .eq('student_id', studentId)
         .order('attempt_number', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .returns<Array<{ attempt_number: number }>>();
 
       if (attemptsError) throw attemptsError;
 
@@ -455,9 +495,10 @@ export const useQuizzes = () => {
             student_id: studentId,
             attempt_number: attemptNumber,
             status: 'in_progress',
-          },
+          } as QuizAttemptInsert,
         ])
         .select()
+        .returns<QuizAttempt>()
         .single();
 
       if (error) throw error;
@@ -467,7 +508,7 @@ export const useQuizzes = () => {
         description: 'Good luck!',
       });
 
-      return attempt as QuizAttempt;
+      return attempt;
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -509,6 +550,7 @@ export const useQuizzes = () => {
       );
 
       if (scoreError) throw scoreError;
+      if (!scoreData) throw new Error('Score calculation failed');
 
       // Update with score
       const { error: updateError } = await supabase
@@ -555,10 +597,12 @@ export const useQuizzes = () => {
         query = query.eq('quiz_id', quizId);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .returns<QuizAttemptWithQuiz[]>();
 
       if (error) throw error;
-      return data as QuizAttempt[];
+      return data;
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -581,7 +625,8 @@ export const useQuizzes = () => {
         .from('quiz_attempts')
         .select('*')
         .eq('quiz_id', quizId)
-        .order('submitted_at', { ascending: false, nullsFirst: false });
+        .order('submitted_at', { ascending: false, nullsFirst: false })
+        .returns<QuizAttempt[]>();
 
       if (attemptsError) throw attemptsError;
       if (!attemptsData || attemptsData.length === 0) return [];
@@ -593,12 +638,13 @@ export const useQuizzes = () => {
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('user_id, display_name, email')
-        .in('user_id', studentIds);
+        .in('user_id', studentIds)
+        .returns<StudentProfile[]>();
 
       if (profilesError) throw profilesError;
 
       // Combine attempts with profile data
-      const attemptsWithProfiles = attemptsData.map(attempt => ({
+      const attemptsWithProfiles: QuizAttemptWithStudent[] = attemptsData.map((attempt) => ({
         ...attempt,
         student: profilesData?.find(p => p.user_id === attempt.student_id) || {
           display_name: 'Unknown Student',
@@ -606,7 +652,7 @@ export const useQuizzes = () => {
         },
       }));
 
-      return attemptsWithProfiles as QuizAttempt[];
+      return attemptsWithProfiles;
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -632,12 +678,14 @@ export const useQuizzes = () => {
         .from('quiz_attempts')
         .select('answers')
         .eq('id', attemptId)
+        .returns<Pick<QuizAttempt, 'answers'>>()
         .single();
 
       if (fetchError) throw fetchError;
+      if (!attempt) throw new Error('Attempt not found');
 
       // Update answers with grades
-      const updatedAnswers = (attempt.answers as QuizAttempt['answers']).map((answer) => {
+      const updatedAnswers = attempt.answers.map((answer) => {
         const graded = gradedAnswers.find((g) => g.question_id === answer.question_id);
         if (graded) {
           return {
@@ -666,6 +714,7 @@ export const useQuizzes = () => {
       );
 
       if (scoreError) throw scoreError;
+      if (!scoreData) throw new Error('Score calculation failed');
 
       // Update with new score
       const { error: finalUpdateError } = await supabase
@@ -705,10 +754,11 @@ export const useQuizzes = () => {
         .from('quiz_attempts')
         .select('*')
         .eq('id', attemptId)
+        .returns<QuizAttempt>()
         .single();
 
       if (error) throw error;
-      return data as QuizAttempt;
+      return data;
     } catch (error: any) {
       toast({
         title: 'Error',

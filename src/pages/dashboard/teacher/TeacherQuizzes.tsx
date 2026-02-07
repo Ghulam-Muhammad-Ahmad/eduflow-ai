@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Lock, Unlock, Clock, Users } from "lucide-react";
+import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Lock, Unlock, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
 import { useClassrooms } from "@/hooks/useClassrooms";
@@ -57,21 +57,21 @@ const TeacherQuizzes = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
 
+  const loadQuizzes = useCallback(async () => {
+    if (!user?.id) return;
+    const data = await fetchTeacherQuizzes(user.id);
+    setQuizzes(data);
+  }, [fetchTeacherQuizzes, user?.id]);
+
   useEffect(() => {
     if (user?.id) {
       loadQuizzes();
     }
-  }, [user]);
+  }, [loadQuizzes, user?.id]);
 
   useEffect(() => {
     filterQuizzes();
   }, [quizzes, searchTerm, statusFilter, classroomFilter]);
-
-  const loadQuizzes = async () => {
-    if (!user?.id) return;
-    const data = await fetchTeacherQuizzes(user.id);
-    setQuizzes(data);
-  };
 
   const filterQuizzes = () => {
     let filtered = [...quizzes];
@@ -122,6 +122,20 @@ const TeacherQuizzes = () => {
     }
   };
 
+  const getQuestionCount = (quiz: Quiz) => {
+    const quizWithQuestions = quiz as Quiz & { questions?: unknown[]; questionCount?: number; question_count?: number };
+    if (Array.isArray(quizWithQuestions.questions)) {
+      return quizWithQuestions.questions.length;
+    }
+    if (typeof quizWithQuestions.questionCount === "number") {
+      return quizWithQuestions.questionCount;
+    }
+    if (typeof quizWithQuestions.question_count === "number") {
+      return quizWithQuestions.question_count;
+    }
+    return 0;
+  };
+
   const getStatusBadge = (status: Quiz['status']) => {
     const variants: Record<Quiz['status'], { variant: any; label: string }> = {
       draft: { variant: "secondary", label: "Draft" },
@@ -139,7 +153,7 @@ const TeacherQuizzes = () => {
   };
 
   return (
-    <DashboardLayout role="teacher">
+    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -280,9 +294,8 @@ const TeacherQuizzes = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Users className="h-3 w-3" />
-                        View Results
+                      <div className="text-sm font-medium">
+                        {getQuestionCount(quiz)} question{getQuestionCount(quiz) !== 1 ? "s" : ""}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

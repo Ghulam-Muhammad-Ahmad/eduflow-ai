@@ -175,7 +175,11 @@ export function useTeacherStudentRecords(classroomId: string | null) {
           .select("id, assignment_id, student_id, grade, status, submitted_at, graded_at")
           .in("assignment_id", assignmentIds)
           .in("student_id", studentIds);
-        if (!subError && Array.isArray(subData)) submissions = subData;
+        if (subError) {
+          console.error("submissions query failed:", subError);
+          throw subError;
+        }
+        if (Array.isArray(subData)) submissions = subData;
       }
 
       // 7. Quiz attempts for these quizzes (any student in roster)
@@ -187,7 +191,13 @@ export function useTeacherStudentRecords(classroomId: string | null) {
           .in("quiz_id", quizIds)
           .in("student_id", studentIds)
           .in("status", ["submitted", "graded"]);
-        if (!attemptError && Array.isArray(attemptData)) attempts = attemptData;
+        
+        if (attemptError) {
+          console.error("quiz attempts query failed:", attemptError);
+          attempts = [];
+          throw attemptError;
+        }
+        if (Array.isArray(attemptData)) attempts = attemptData;
       }
 
       // Build classroom name lookup

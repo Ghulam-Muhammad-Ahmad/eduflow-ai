@@ -1,0 +1,40 @@
+import { useQuery } from "@tanstack/react-query";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export const useClassroomStudents = (classroomId: string | null) => {
+  return useQuery({
+    queryKey: ["classroom-students", classroomId],
+    queryFn: async () => {
+      if (!classroomId) return [];
+
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select(
+          `
+          student_id,
+          profiles (
+            id,
+            display_name,
+            email
+          )
+        `
+        )
+        .eq("classroom_id", classroomId)
+        .eq("status", "active");
+
+      if (error) throw error;
+
+      return data.map(enrollment => ({
+        id: enrollment.student_id,
+        display_name: enrollment.profiles?.display_name || enrollment.profiles?.email || "Unknown Student",
+        email: enrollment.profiles?.email || "",
+      }));
+    },
+    enabled: !!classroomId,
+  });
+};
