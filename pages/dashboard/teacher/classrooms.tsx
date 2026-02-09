@@ -1,4 +1,4 @@
 import { withAuth } from "@/lib/withAuth";
-import TeacherClassrooms from "@/pages/dashboard/teacher/TeacherClassrooms";
+import TeacherClassrooms from "@/features/dashboard/teacher/TeacherClassrooms";
 
 export default withAuth(TeacherClassrooms, { allowedRoles: ["teacher"] });

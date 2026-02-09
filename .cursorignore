@@ -16,6 +16,8 @@ out/
 # TypeScript / build cache
 *.tsbuildinfo
 
+.txt
+
 # Git
 .git/
 
@@ -30,3 +32,14 @@ Thumbs.db
 bun.lockb
 pnpm-lock.yaml
 yarn.lock
+
+
+# Supabase noise
+supabase/migrations/**
+supabase/.temp/**
+supabase/.temp/**/*
+supabase/config.toml
+
+src/test/**
+
+src/components/ui/**

@@ -1,4 +1,4 @@
 import { withAuth } from "@/lib/withAuth";
-import StudentQuizzes from "@/pages/dashboard/student/StudentQuizzes";
+import StudentQuizzes from "@/features/dashboard/student/StudentQuizzes";
 
 export default withAuth(StudentQuizzes, { allowedRoles: ["student"] });

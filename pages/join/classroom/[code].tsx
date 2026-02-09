@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import JoinClassroom from "@/pages/JoinClassroom";
+import JoinClassroom from "@/features/JoinClassroom";
 
 export default function JoinClassroomPage() {
   const router = useRouter();
