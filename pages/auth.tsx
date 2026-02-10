@@ -10,13 +10,14 @@ import { Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import Link from "next/link";
+import type { AppRole } from "@/types/auth";
+import { passwordSchema } from "@/lib/validation";
 
-type AppRole = "teacher" | "student";
 type AuthMode = "signin" | "signup" | "forgot-password";
 
 const signUpSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: passwordSchema,
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   role: z.enum(["teacher", "student"]),
@@ -31,14 +32,21 @@ const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
 });
 
+function getDashboardPathForRole(role: AppRole): string {
+  if (role === "student") return "/dashboard/student";
+  if (role === "admin") return "/dashboard/admin";
+  return "/dashboard/teacher";
+}
+
 export default function Auth() {
   const router = useRouter();
-  const { user, signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
+  const { user, role, signIn, signUp, signInWithGoogle, resetPassword, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
+  const [authSuccess, setAuthSuccess] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -51,10 +59,11 @@ export default function Auth() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (user) {
-      router.push("/dashboard/teacher");
+    if (authLoading || !user) return;
+    if (role) {
+      router.push(getDashboardPathForRole(role));
     }
-  }, [user, router]);
+  }, [user, role, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +101,7 @@ export default function Auth() {
         }
 
         toast.success("Signed in successfully!");
-        router.push("/dashboard/teacher");
+        setAuthSuccess(true);
       } else if (mode === "signup") {
         const validation = signUpSchema.safeParse(formData);
 
@@ -120,7 +129,7 @@ export default function Auth() {
         }
 
         toast.success("Account created successfully!");
-        router.push("/dashboard/teacher");
+        setAuthSuccess(true);
       } else if (mode === "forgot-password") {
         const validation = forgotPasswordSchema.safeParse({ email: formData.email });
 
@@ -150,6 +159,18 @@ export default function Auth() {
       setLoading(false);
     }
   };
+
+  // Redirecting after successful sign-in/sign-up (role is loading)
+  if (authSuccess) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4" style={{ backgroundImage: "var(--gradient-hero)" }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <p className="text-muted-foreground">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Email sent confirmation - full screen overlay style
   if (emailSent) {

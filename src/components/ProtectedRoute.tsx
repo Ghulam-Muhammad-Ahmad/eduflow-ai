@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
-
-type AppRole = "teacher" | "student" | "admin";
+import type { AppRole } from "@/types/auth";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -25,7 +24,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       router.replace("/");
       return;
     }
-    if (allowedRoles && !allowedRoles.includes(role)) {
+    if (allowedRoles && role != null && !allowedRoles.includes(role)) {
       switch (role) {
         case "teacher":
           router.replace("/dashboard/teacher");

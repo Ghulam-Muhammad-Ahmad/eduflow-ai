@@ -181,6 +181,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Link
                   key={item.path}
                   href={item.path}
+                  prefetch={false}
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                     isActive
@@ -298,7 +299,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto bg-secondary/30">
+        <main className="flex-1 p-6 overflow-auto bg-secondary/30 min-w-0">
           {children}
         </main>
       </div>

@@ -84,30 +84,27 @@ const StudentQuizzes = () => {
     setFilteredQuizzes(filtered);
   };
 
+  /** Quiz is closed: teacher set status closed or end date (available_until) has passed */
+  const isQuizClosed = (quiz: Quiz) =>
+    quiz.status === "closed" || (!!quiz.available_until && isPast(new Date(quiz.available_until)));
+
   const getQuizStatus = (quiz: Quiz) => {
-    // Only process scheduled and active quizzes
+    if (quiz.status === "draft") return null;
+
+    if (isQuizClosed(quiz)) {
+      return { label: "Closed", variant: "destructive" as const };
+    }
+
     if (quiz.status !== "active" && quiz.status !== "scheduled") return null;
 
-   // Only process scheduled and active quizzes
-   if (quiz.status !== "active" && quiz.status !== "scheduled") return null;
-
-   // Check if quiz is upcoming (not yet available based on available_from date)    
-    // Check if quiz is upcoming (not yet available based on available_from date)
     if (quiz.available_from && isFuture(new Date(quiz.available_from))) {
       return { label: "Upcoming", variant: "secondary" as const };
     }
-    
-    // Check if quiz has expired (available_until date has passed)
-    if (quiz.available_until && isPast(new Date(quiz.available_until))) {
-      return { label: "Expired", variant: "destructive" as const };
-    }
-    
-    // If status is scheduled but no available_from date, treat as upcoming
+
     if (quiz.status === "scheduled") {
       return { label: "Upcoming", variant: "secondary" as const };
     }
-    
-    // Quiz is currently available
+
     return { label: "Available", variant: "live" as const };
   };
 
@@ -167,7 +164,14 @@ const StudentQuizzes = () => {
 
   const availableQuizzes = filteredQuizzes.filter((quiz) => {
     const status = getQuizStatus(quiz);
-    return status?.label === "Available";
+    const attemptInfo = getAttemptInfo(quiz.id);
+    return status?.label === "Available" && attemptInfo.completed === 0;
+  });
+
+  const submittedQuizzes = filteredQuizzes.filter((quiz) => {
+    const status = getQuizStatus(quiz);
+    const attemptInfo = getAttemptInfo(quiz.id);
+    return status?.label === "Available" && attemptInfo.completed > 0;
   });
 
   const upcomingQuizzes = filteredQuizzes.filter((quiz) => {
@@ -175,9 +179,8 @@ const StudentQuizzes = () => {
     return status?.label === "Upcoming";
   });
 
-  const completedQuizzes = filteredQuizzes.filter((quiz) => {
-    const attemptInfo = getAttemptInfo(quiz.id);
-    return attemptInfo.completed > 0;
+  const expiredQuizzes = filteredQuizzes.filter((quiz) => {
+    return isQuizClosed(quiz) || getQuizStatus(quiz)?.label === "Closed";
   });
 
   const QuizCard = ({ quiz }: { quiz: Quiz }) => {
@@ -193,7 +196,20 @@ const StudentQuizzes = () => {
               {quiz.description || "No description"}
             </p>
           </div>
-          {status && <Badge variant={status.variant}>{status.label}</Badge>}
+          {status && (
+              <Badge
+                variant={status.variant}
+                className={
+                  status.label === "Closed"
+                    ? "border-orange-500/50 bg-orange-500/10 text-orange-700 dark:text-orange-400"
+                    : status.label === "Available" && attemptInfo.completed > 0
+                      ? "border-orange-500/50 bg-orange-500/10 text-orange-700 dark:text-orange-400"
+                      : undefined
+                }
+              >
+                {status.label === "Available" && attemptInfo.completed > 0 ? "Submitted" : status.label}
+              </Badge>
+            )}
         </div>
 
         <div className="space-y-2 mb-4">
@@ -222,9 +238,9 @@ const StudentQuizzes = () => {
               <CheckCircle className="h-4 w-4 text-green-500" />
               <span>
                 Best Score: <strong>{attemptInfo.bestScore?.toFixed(1)}%</strong>
-                {quiz.max_attempts && (
+                {quiz.max_attempts != null && quiz.max_attempts > 0 && (
                   <span className="ml-1">
-                    ({attemptInfo.completed}/{quiz.max_attempts} {quiz.max_attempts === 1 ? 'attempt' : 'attempts'})
+                    ({Math.min(attemptInfo.completed, quiz.max_attempts)}/{quiz.max_attempts} {quiz.max_attempts === 1 ? 'attempt' : 'attempts'})
                   </span>
                 )}
               </span>
@@ -270,7 +286,7 @@ const StudentQuizzes = () => {
             </>
           ) : (
             <Button variant="outline" className="flex-1" disabled>
-              {status?.label === "Upcoming" ? "Not Yet Available" : "Expired"}
+              {status?.label === "Upcoming" ? "Not Yet Available" : "Closed"}
             </Button>
           )}
         </div>
@@ -328,8 +344,11 @@ const StudentQuizzes = () => {
             <TabsTrigger value="upcoming">
               Upcoming ({upcomingQuizzes.length})
             </TabsTrigger>
-            <TabsTrigger value="completed">
-              Completed ({completedQuizzes.length})
+            <TabsTrigger value="submitted">
+              Submitted ({submittedQuizzes.length})
+            </TabsTrigger>
+            <TabsTrigger value="expired">
+              Closed ({expiredQuizzes.length})
             </TabsTrigger>
           </TabsList>
 
@@ -365,14 +384,28 @@ const StudentQuizzes = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="completed">
-            {completedQuizzes.length === 0 ? (
+          <TabsContent value="submitted">
+            {submittedQuizzes.length === 0 ? (
               <Card className="p-8 text-center">
-                <p className="text-muted-foreground">No completed quizzes yet</p>
+                <p className="text-muted-foreground">No submitted quizzes</p>
               </Card>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedQuizzes.map((quiz) => (
+                {submittedQuizzes.map((quiz) => (
+                  <QuizCard key={quiz.id} quiz={quiz} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="expired">
+            {expiredQuizzes.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No closed quizzes</p>
+              </Card>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {expiredQuizzes.map((quiz) => (
                   <QuizCard key={quiz.id} quiz={quiz} />
                 ))}
               </div>

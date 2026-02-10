@@ -28,13 +28,18 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { ArrowLeft, Download, Clock, Target, Users, TrendingUp, Check, X, Edit } from "lucide-react";
+import { ArrowLeft, Download, Clock, Target, Users, TrendingUp, Check, X, Edit, Sparkles } from "lucide-react";
 import { useQuizzes, Quiz, QuizAttempt, QuizQuestion } from "@/hooks/useQuizzes";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { suggestShortAnswerGrade } from "@/services/aiService";
 import { format } from "date-fns";
 
 const TeacherQuizResults = () => {
   const router = useRouter();
   const { quizId } = router.query;
+  const { user } = useAuth();
+  const { toast } = useToast();
   const { fetchQuizWithQuestions, fetchQuizAttempts, gradeShortAnswers, loading } = useQuizzes();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -45,6 +50,7 @@ const TeacherQuizResults = () => {
   const [gradingAnswers, setGradingAnswers] = useState<Array<{ question_id: string; points_earned: number; is_correct: boolean }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [gradingError, setGradingError] = useState<string | null>(null);
+  const [suggestingWithAI, setSuggestingWithAI] = useState(false);
 
   const quizIdString = typeof quizId === "string" ? quizId : null;
   const isInvalidQuizId = Array.isArray(quizId);
@@ -171,6 +177,69 @@ const TeacherQuizResults = () => {
           : ans
       )
     );
+  };
+
+  const handleSuggestWithAI = async () => {
+    if (!selectedAttempt || !user?.id) return;
+    setGradingError(null);
+    setSuggestingWithAI(true);
+    try {
+      const shortAnswerEntries = selectedAttempt.answers.filter((ans) => {
+        const q = questions.find((x) => x.id === ans.question_id);
+        return q?.question_type === "short_answer";
+      });
+      const updates: Array<{ question_id: string; points_earned: number; is_correct: boolean }> = [];
+      for (const answer of shortAnswerEntries) {
+        const question = questions.find((q) => q.id === answer.question_id);
+        if (!question) continue;
+        const result = await suggestShortAnswerGrade(
+          question.question_text,
+          answer.answer,
+          question.points,
+          user.id,
+          question.correct_answer ?? undefined
+        );
+        if (result.success && typeof result.suggested_grade === "number") {
+          const points = Math.min(
+            question.points,
+            Math.max(0, Math.round(result.suggested_grade * 2) / 2)
+          );
+          const isCorrect = points >= question.points;
+          updates.push({
+            question_id: answer.question_id,
+            points_earned: points,
+            is_correct: isCorrect,
+          });
+        }
+      }
+      if (updates.length > 0) {
+        setGradingAnswers((prev) =>
+          prev.map((ans) => {
+            const u = updates.find((x) => x.question_id === ans.question_id);
+            return u ? { ...ans, ...u } : ans;
+          })
+        );
+        toast({
+          title: "AI suggestions applied",
+          description: "Review and adjust grades as needed before saving.",
+        });
+      } else {
+        toast({
+          title: "No suggestions",
+          description: "AI could not suggest grades. Try grading manually.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("AI suggest grades error:", err);
+      toast({
+        title: "AI suggestion failed",
+        description: err instanceof Error ? err.message : "Could not get AI suggestions",
+        variant: "destructive",
+      });
+    } finally {
+      setSuggestingWithAI(false);
+    }
   };
 
   const handleExportResults = () => {
@@ -642,11 +711,21 @@ const TeacherQuizResults = () => {
                 );
               })}
 
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setGradingDialogOpen(false)}>
-                Cancel
+            <div className="flex justify-between pt-4">
+              <Button
+                variant="outline"
+                onClick={handleSuggestWithAI}
+                disabled={suggestingWithAI || !user?.id}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                {suggestingWithAI ? "Suggesting…" : "Suggest with AI"}
               </Button>
-              <Button onClick={handleGrade}>Save Grades</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setGradingDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleGrade}>Save Grades</Button>
+              </div>
             </div>
           </div>
         </DialogContent>

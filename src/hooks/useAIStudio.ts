@@ -201,46 +201,82 @@ export const useAIStudio = () => {
     }
   };
 
-  // Differentiation assistant - modify content for different learning levels
+  // Differentiation assistant - modify content for different learning levels (text only, legacy)
   const differentiateContent = async (
     originalContent: string,
     targetLevel: 'below_grade' | 'at_grade' | 'above_grade',
     subject: string,
     gradeLevel: string
   ): Promise<AIGenerateResult | null> => {
+    return smartTutorContent({
+      pastedText: originalContent,
+      targetLevel,
+      subject,
+      gradeLevel,
+    });
+  };
+
+  // Smart Tutor: adapt content from pasted text or uploaded PDF (file sent to OpenAI, not parsed to text)
+  const smartTutorContent = async (payload: {
+    pastedText?: string;
+    pdfBase64?: string;
+    targetLevel: 'below_grade' | 'at_grade' | 'above_grade';
+    subject: string;
+    gradeLevel: string;
+  }): Promise<AIGenerateResult | null> => {
     if (!user?.id) return null;
+    if (!payload.pastedText && !payload.pdfBase64) return null;
 
     setLoading(true);
     try {
-      const levelDescriptions = {
-        below_grade: 'simplified for students working below grade level',
-        at_grade: 'appropriate for students at grade level',
-        above_grade: 'challenging for students working above grade level',
-      };
-
-      const prompt = `Modify this ${subject} content for ${gradeLevel} grade students, making it ${levelDescriptions[targetLevel]}:\n\n${originalContent}\n\nMaintain the core concepts but adjust complexity, vocabulary, and depth appropriately.`;
-      
-      const result = await generateAI({
-        taskType: 'differentiation',
-        prompt,
-        systemInstruction: 'You are an expert in differentiated instruction. Modify content appropriately for different learning levels while maintaining educational value.',
-        userId: user.id,
+      const response = await fetch('/api/ai/smart-tutor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pastedText: payload.pastedText || undefined,
+          pdfBase64: payload.pdfBase64 || undefined,
+          targetLevel: payload.targetLevel,
+          subject: payload.subject,
+          gradeLevel: payload.gradeLevel,
+        }),
       });
-      
-      if (result.success) {
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Smart tutor request failed');
+      }
+
+      if (data.success && data.content) {
         await saveGeneratedContent({
           content_type: 'worksheet',
-          title: `Differentiated Content (${targetLevel})`,
-          content: { text: result.content, original: originalContent },
-          metadata: { targetLevel, subject, gradeLevel },
+          title: `Smart Tutor (${payload.targetLevel})`,
+          content: {
+            text: data.content,
+            original: payload.pastedText ? payload.pastedText : '[PDF document]',
+          },
+          metadata: {
+            targetLevel: payload.targetLevel,
+            subject: payload.subject,
+            gradeLevel: payload.gradeLevel,
+            source: payload.pdfBase64 ? 'pdf' : 'paste',
+          },
         });
+        return {
+          content: data.content,
+          provider: 'openai',
+          model: data.model || 'gpt-4o',
+          tokens: 0,
+          cost: 0,
+          success: true,
+        };
       }
-      
-      return result;
-    } catch (error: any) {
+
+      return null;
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to differentiate content',
+        description: error instanceof Error ? error.message : 'Failed to adapt content',
         variant: 'destructive',
       });
       return null;
@@ -349,6 +385,7 @@ export const useAIStudio = () => {
     createRubric,
     createQuizQuestions,
     differentiateContent,
+    smartTutorContent,
     saveGeneratedContent,
     fetchGeneratedContent,
     deleteGeneratedContent,

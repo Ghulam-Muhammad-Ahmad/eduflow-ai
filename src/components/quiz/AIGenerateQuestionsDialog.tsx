@@ -77,7 +77,7 @@ export function AIGenerateQuestionsDialog({
               }));
               
               // Check if at least one option is marked as correct
-              const hasCorrectAnswer = options.some(opt => opt.is_correct);
+              const hasCorrectAnswer = options.some((opt: { is_correct: boolean }) => opt.is_correct);
               if (!hasCorrectAnswer && options.length > 0) {
                 // If no option is marked as correct, mark the first one (shouldn't happen with proper AI prompt)
                 console.warn(`Question "${q.question_text}" had no correct answer marked. Marking first option as correct.`);

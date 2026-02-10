@@ -11,9 +11,9 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import Link from "next/link";
 import {
   Search,
-  Filter,
   Grid3X3,
   List,
   Upload,
@@ -31,6 +31,10 @@ import {
   Pencil,
   Eye,
   FolderInput,
+  Tag,
+  Plus,
+  ChevronRight,
+  Home,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -101,6 +105,11 @@ const formatDate = (dateString: string) => {
   });
 };
 
+const TAG_COLORS = [
+  "#64748b", "#ef4444", "#f97316", "#eab308", "#22c55e",
+  "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899", "#a855f7",
+] as const;
+
 /** Returns a display name that doesn't collide with existing names (adds (1), (2), ... before extension). */
 function getUniqueDocumentName(originalName: string, existingNames: string[]): string {
   const lastDot = originalName.lastIndexOf(".");
@@ -144,6 +153,16 @@ const TeacherDocuments = () => {
   const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
   const storageLimit = 100 * 1024 * 1024; // 100 MB
+  // Tags: edit tags on document
+  const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
+  const [documentToTag, setDocumentToTag] = useState<DocumentType | null>(null);
+  const [selectedTagIdsForDoc, setSelectedTagIdsForDoc] = useState<string[]>([]);
+  const [tagsSaving, setTagsSaving] = useState(false);
+  // Create new tag (global or from dialog)
+  const [newTagDialogOpen, setNewTagDialogOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState<string>(TAG_COLORS[0]);
+  const [createTagLoading, setCreateTagLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -556,6 +575,108 @@ const TeacherDocuments = () => {
     }
   };
 
+  const openTagsDialog = (doc: DocumentType) => {
+    setDocumentToTag(doc);
+    setSelectedTagIdsForDoc(doc.tags?.map((t) => t.id) ?? []);
+    setTagsDialogOpen(true);
+  };
+
+  const toggleTagForDoc = (tagId: string) => {
+    setSelectedTagIdsForDoc((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const handleSaveDocumentTags = async () => {
+    if (!documentToTag || !user) return;
+    setTagsSaving(true);
+    try {
+      const currentIds = documentToTag.tags?.map((t) => t.id) ?? [];
+      const toAdd = selectedTagIdsForDoc.filter((id) => !currentIds.includes(id));
+      const toRemove = currentIds.filter((id) => !selectedTagIdsForDoc.includes(id));
+
+      if (toRemove.length > 0) {
+        const { error: delError } = await supabase
+          .from("document_tags")
+          .delete()
+          .eq("document_id", documentToTag.id)
+          .in("tag_id", toRemove);
+        if (delError) throw delError;
+      }
+      if (toAdd.length > 0) {
+        const rows = toAdd.map((tag_id) => ({ document_id: documentToTag.id, tag_id }));
+        const { error: insError } = await supabase.from("document_tags").insert(rows);
+        if (insError) throw insError;
+      }
+
+      toast.success("Tags updated");
+      setTagsDialogOpen(false);
+      setDocumentToTag(null);
+      fetchData();
+    } catch (error) {
+      console.error("Error updating tags:", error);
+      toast.error("Failed to update tags");
+    } finally {
+      setTagsSaving(false);
+    }
+  };
+
+  const createTag = async (name?: string, color?: string) => {
+    const tagName = (name ?? newTagName).trim();
+    const tagColor = color ?? newTagColor;
+    if (!user || !tagName) return;
+    setCreateTagLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("tags")
+        .insert({ user_id: user.id, name: tagName, color: tagColor })
+        .select("id, name, color")
+        .single();
+      if (error) throw error;
+      setTags((prev) => [...prev, { id: data.id, name: data.name, color: data.color }]);
+      setNewTagDialogOpen(false);
+      setNewTagName("");
+      setNewTagColor(TAG_COLORS[0]);
+      toast.success("Tag created");
+      fetchData();
+      return data.id;
+    } catch (error) {
+      console.error("Error creating tag:", error);
+      toast.error("Failed to create tag");
+      return null;
+    } finally {
+      setCreateTagLoading(false);
+    }
+  };
+
+  const handleCreateTagAndAddToDoc = async () => {
+    const tagName = newTagName.trim();
+    if (!tagName) return;
+    const newId = await createTag(tagName, newTagColor);
+    if (newId && documentToTag) {
+      setSelectedTagIdsForDoc((prev) => [...prev, newId]);
+      setNewTagName("");
+      setNewTagColor(TAG_COLORS[0]);
+    }
+  };
+
+  const deleteTag = async (tagId: string) => {
+    if (!user) return;
+    const tag = tags.find((t) => t.id === tagId);
+    if (!tag || !window.confirm(`Delete tag "${tag.name}"? It will be removed from all documents.`)) return;
+    try {
+      const { error } = await supabase.from("tags").delete().eq("id", tagId);
+      if (error) throw error;
+      setTags((prev) => prev.filter((t) => t.id !== tagId));
+      setSelectedTag(selectedTag === tagId ? null : selectedTag);
+      toast.success("Tag deleted");
+      fetchData();
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+      toast.error("Failed to delete tag");
+    }
+  };
+
   // Filter documents
   const filteredDocuments = documents.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -566,9 +687,19 @@ const TeacherDocuments = () => {
     return matchesSearch && matchesFolder && matchesTag;
   });
 
-  const defaultFolders = [
-    { name: "Default Folder", icon: Folder },
+  const currentFolder = selectedFolder ? folders.find((f) => f.id === selectedFolder) : null;
+  const currentTag = selectedTag ? tags.find((t) => t.id === selectedTag) : null;
+  const breadcrumbSegments = [
+    { label: "Dashboard", href: "/dashboard/teacher" },
+    { label: "Documents", href: "/dashboard/teacher/documents" },
+    ...(currentFolder ? [{ label: currentFolder.name, href: null }] : []),
+    ...(currentTag ? [{ label: `Tag: ${currentTag.name}`, href: null }] : []),
   ];
+  const listTitle = currentTag
+    ? `Documents tagged "${currentTag.name}"`
+    : currentFolder
+      ? currentFolder.name
+      : "All documents";
 
   const storagePercentage = (storageUsed / storageLimit) * 100;
 
@@ -578,89 +709,96 @@ const TeacherDocuments = () => {
         {/* Left Sidebar - Folders */}
         <div className="w-64 flex-shrink-0 flex flex-col">
 
-          <div className="flex-1 overflow-auto">
-            <div className="mb-4">
+          <div className="flex-1 overflow-auto space-y-6">
+            <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  My Information
+                  Folders
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-7 w-7 rounded-md"
                   onClick={() => setNewFolderDialogOpen(true)}
+                  aria-label="New folder"
                 >
                   <FolderPlus className="w-4 h-4" />
                 </Button>
               </div>
-
-              <div className="space-y-1">
+              <nav className="space-y-0.5" aria-label="Folder navigation">
                 <button
                   onClick={() => setSelectedFolder(null)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                     selectedFolder === null
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-secondary"
                   }`}
                 >
-                  <Folder className="w-4 h-4 text-primary" />
-                  <span className="text-sm">All Documents</span>
+                  <Folder className="w-4 h-4 shrink-0 text-primary" />
+                  <span className="text-sm truncate">All documents</span>
                 </button>
-
                 {folders.map((folder) => (
                   <button
                     key={folder.id}
                     onClick={() => setSelectedFolder(folder.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                       selectedFolder === folder.id
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary/10 text-primary font-medium"
                         : "text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    <Folder className="w-4 h-4 text-primary" />
-                    <span className="text-sm">{folder.name}</span>
+                    <Folder className="w-4 h-4 shrink-0 text-primary" />
+                    <span className="text-sm truncate">{folder.name}</span>
                   </button>
                 ))}
-
-                {folders.length === 0 &&
-                  defaultFolders.map((folder, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setNewFolderName(folder.name);
-                        setNewFolderDialogOpen(true);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-muted-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Folder className="w-4 h-4 text-primary" />
-                      <span className="text-sm">{folder.name}</span>
-                    </button>
-                  ))}
-              </div>
+                {folders.length === 0 && (
+                  <p className="text-xs text-muted-foreground px-3 py-2">
+                    No folders yet. Create one to organize.
+                  </p>
+                )}
+              </nav>
             </div>
 
-            {tags.length > 0 && (
-              <div className="mb-4">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Tags
                 </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-md"
+                  onClick={() => {
+                    setNewTagName("");
+                    setNewTagColor(TAG_COLORS[0]);
+                    setNewTagDialogOpen(true);
+                  }}
+                  aria-label="Create tag"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              {tags.length === 0 ? (
+                <p className="text-xs text-muted-foreground px-3 py-2">
+                  No tags yet. Create one to label documents.
+                </p>
+              ) : (
                 <div className="flex flex-wrap gap-2">
                   {tags.map((tag) => (
                     <Badge
                       key={tag.id}
                       variant={selectedTag === tag.id ? "default" : "secondary"}
-                      className="cursor-pointer"
+                      className="cursor-pointer shrink-0 transition-colors"
+                      style={selectedTag !== tag.id ? { borderColor: tag.color, color: tag.color } : undefined}
                       onClick={() => setSelectedTag(selectedTag === tag.id ? null : tag.id)}
                     >
                       {tag.name}
-                      {selectedTag === tag.id && (
-                        <X className="w-3 h-3 ml-1" />
-                      )}
+                      {selectedTag === tag.id && <X className="w-3 h-3 ml-1" />}
                     </Badge>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Storage Usage */}
@@ -678,33 +816,44 @@ const TeacherDocuments = () => {
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-sm">
-              <button className="text-muted-foreground hover:text-foreground">🏠</button>
-              <span className="text-muted-foreground">/</span>
-              <span className="font-medium">My Documents</span>
-            </div>
-            <div className="flex items-center gap-3">
+          {/* Breadcrumb + toolbar */}
+          <nav aria-label="Breadcrumb" className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+            <ol className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
+              {breadcrumbSegments.map((seg, i) => (
+                <li key={i} className="flex items-center gap-1.5">
+                  {i > 0 && <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground/70" />}
+                  {seg.href ? (
+                    <Link
+                      href={seg.href}
+                      className="hover:text-foreground transition-colors flex items-center gap-1"
+                    >
+                      {i === 0 ? <Home className="w-4 h-4" /> : null}
+                      {seg.label}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-foreground">{seg.label}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+            <div className="flex items-center gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
-                  placeholder="Filter files..."
-                  className="pl-10 w-48"
+                  placeholder="Search documents..."
+                  className="pl-9 w-44 sm:w-52"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search documents"
                 />
               </div>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Filter className="w-4 h-4" />
-                Filter
-              </Button>
-              <div className="flex border rounded-lg overflow-hidden">
+              <div className="flex border border-border rounded-lg overflow-hidden bg-muted/30">
                 <Button
                   variant={viewMode === "grid" ? "secondary" : "ghost"}
                   size="icon"
                   className="rounded-none h-9 w-9"
                   onClick={() => setViewMode("grid")}
+                  aria-label="Grid view"
                 >
                   <Grid3X3 className="w-4 h-4" />
                 </Button>
@@ -713,12 +862,13 @@ const TeacherDocuments = () => {
                   size="icon"
                   className="rounded-none h-9 w-9"
                   onClick={() => setViewMode("list")}
+                  aria-label="List view"
                 >
                   <List className="w-4 h-4" />
                 </Button>
               </div>
             </div>
-          </div>
+          </nav>
 
           {/* Upload Drop Zone */}
           <div
@@ -733,29 +883,36 @@ const TeacherDocuments = () => {
             <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
             <p className="font-medium mb-1">
               {uploading
-                ? "Uploading..."
+                ? (currentFolder ? `Uploading to ${currentFolder.name}…` : "Uploading…")
                 : isDragActive
-                ? "Drop files here..."
-                : "Click to upload or drag and drop"}
+                  ? "Drop files here"
+                  : "Click to upload or drag and drop"}
             </p>
             <p className="text-sm text-muted-foreground">
-              SVG, PNG, JPG or PDF (max. 10MB)
+              {currentFolder ? `Files will be added to "${currentFolder.name}". ` : ""}
+              PDF, Word, Excel, images (max 10MB each)
             </p>
           </div>
 
-          {/* Recent Files */}
-          <div className="flex-1 overflow-auto">
-            <h3 className="font-semibold mb-4">Recent Files</h3>
+          {/* Document list */}
+          <div className="flex-1 overflow-auto min-h-0">
+            <h2 className="font-semibold text-foreground mb-4">{listTitle}</h2>
 
             {loading ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-12" role="status" aria-label="Loading documents">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
               </div>
             ) : filteredDocuments.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="text-center py-12 text-muted-foreground rounded-lg border border-dashed border-border bg-muted/20">
                 <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No documents found</p>
-                <p className="text-sm">Upload your first document to get started</p>
+                <p className="font-medium text-foreground">
+                  {documents.length === 0 ? "No documents yet" : "No documents match your filters"}
+                </p>
+                <p className="text-sm mt-1">
+                  {documents.length === 0
+                    ? "Upload a file above or create a folder to get started."
+                    : "Try a different search, folder, or tag."}
+                </p>
               </div>
             ) : viewMode === "grid" ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -787,6 +944,10 @@ const TeacherDocuments = () => {
                                 Preview
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
+                              <Tag className="w-4 h-4 mr-2" />
+                              Edit tags
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openRenameDialog(doc)}>
                               <Pencil className="w-4 h-4 mr-2" />
                               Rename
@@ -830,14 +991,21 @@ const TeacherDocuments = () => {
                       <p className="text-xs text-muted-foreground mb-3">
                         {formatFileSize(doc.file_size)}
                       </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(doc.created_at)}
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {formatDate(doc.updated_at)}
                         </span>
                         {doc.tags && doc.tags.length > 0 && (
-                          <Badge variant="secondary" className="text-xs">
-                            {doc.tags[0].name}
-                          </Badge>
+                          <div className="flex flex-wrap gap-1 justify-end min-w-0">
+                            {doc.tags.slice(0, 3).map((t) => (
+                              <Badge key={t.id} variant="secondary" className="text-xs shrink-0" style={{ borderColor: t.color, color: t.color }}>
+                                {t.name}
+                              </Badge>
+                            ))}
+                            {doc.tags.length > 3 && (
+                              <span className="text-xs text-muted-foreground">+{doc.tags.length - 3}</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -853,7 +1021,7 @@ const TeacherDocuments = () => {
                       key={doc.id}
                       className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow group"
                     >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
                         <FileIcon className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -871,15 +1039,22 @@ const TeacherDocuments = () => {
                           {doc.name}
                         </h4>
                         <p className="text-xs text-muted-foreground">
-                          {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                          {formatFileSize(doc.file_size)} • {formatDate(doc.updated_at)}
                         </p>
                       </div>
                       {doc.tags && doc.tags.length > 0 && (
-                        <Badge variant="secondary">{doc.tags[0].name}</Badge>
+                        <div className="flex flex-wrap gap-1 shrink-0 max-w-[40%] justify-end">
+                          {doc.tags.slice(0, 2).map((t) => (
+                            <Badge key={t.id} variant="secondary" className="text-xs" style={{ borderColor: t.color, color: t.color }}>
+                              {t.name}
+                            </Badge>
+                          ))}
+                          {doc.tags.length > 2 && <span className="text-xs text-muted-foreground">+{doc.tags.length - 2}</span>}
+                        </div>
                       )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -890,6 +1065,10 @@ const TeacherDocuments = () => {
                               Preview
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
+                            <Tag className="w-4 h-4 mr-2" />
+                            Edit tags
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openRenameDialog(doc)}>
                             <Pencil className="w-4 h-4 mr-2" />
                             Rename
@@ -1176,6 +1355,142 @@ const TeacherDocuments = () => {
               {selectedClassrooms.length > 0
                 ? `Share with ${selectedClassrooms.length} class${selectedClassrooms.length > 1 ? "es" : ""}`
                 : "Remove all shares"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit tags for document */}
+      <Dialog open={tagsDialogOpen} onOpenChange={(open) => !open && setDocumentToTag(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="w-5 h-5" />
+              Edit tags
+            </DialogTitle>
+            <DialogDescription>
+              Assign tags to &quot;{documentToTag?.name}&quot;
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {tags.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Create your first tag below.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <label
+                    key={tag.id}
+                    className="inline-flex items-center gap-2 cursor-pointer rounded-full border px-3 py-1.5 text-sm transition-colors hover:bg-secondary/50 has-[:checked]:ring-2 has-[:checked]:ring-primary"
+                    style={{ borderColor: tag.color }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTagIdsForDoc.includes(tag.id)}
+                      onChange={() => toggleTagForDoc(tag.id)}
+                      className="sr-only peer"
+                    />
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                    <span>{tag.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="border-t pt-4 space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">Create new tag and add to this document</Label>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  placeholder="Tag name"
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateTagAndAddToDoc()}
+                  className="flex-1 min-w-[120px]"
+                />
+                <div className="flex gap-1">
+                  {TAG_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewTagColor(c)}
+                      className={`w-6 h-6 rounded-full border-2 transition-transform ${newTagColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"}`}
+                      style={{ backgroundColor: c }}
+                      aria-label={`Color ${c}`}
+                    />
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateTagAndAddToDoc}
+                  disabled={!newTagName.trim() || createTagLoading}
+                >
+                  {createTagLoading ? "…" : "Create & add"}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setTagsDialogOpen(false); setDocumentToTag(null); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDocumentTags} disabled={tagsSaving}>
+              {tagsSaving ? "Saving…" : "Save tags"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create tag (standalone) */}
+      <Dialog
+        open={newTagDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNewTagName("");
+            setNewTagColor(TAG_COLORS[0]);
+          }
+          setNewTagDialogOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Create tag</DialogTitle>
+            <DialogDescription>
+              Add a tag to organize and filter documents later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="new-tag-name">Name</Label>
+              <Input
+                id="new-tag-name"
+                placeholder="e.g. Syllabus, Answer key"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createTag()}
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label className="text-sm">Color</Label>
+              <div className="flex gap-2 flex-wrap mt-1.5">
+                {TAG_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewTagColor(c)}
+                    className={`w-8 h-8 rounded-full border-2 transition-transform ${newTagColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"}`}
+                    style={{ backgroundColor: c }}
+                    aria-label={`Color ${c}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewTagDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => createTag()} disabled={!newTagName.trim() || createTagLoading}>
+              {createTagLoading ? "Creating…" : "Create tag"}
             </Button>
           </DialogFooter>
         </DialogContent>

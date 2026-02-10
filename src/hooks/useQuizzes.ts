@@ -85,6 +85,11 @@ export const useQuizzes = () => {
     };
   };
 
+  /** Used by teacher quiz list: includes question count via quiz_questions relation */
+  type QuizWithClassroomAndQuestions = QuizWithClassroom & {
+    quiz_questions?: { id: string }[];
+  };
+
   type QuizInsert = Database['public']['Tables']['quizzes']['Insert'];
   type QuizQuestionInsert = Database['public']['Tables']['quiz_questions']['Insert'];
   type QuizAttemptInsert = Database['public']['Tables']['quiz_attempts']['Insert'];
@@ -106,16 +111,16 @@ export const useQuizzes = () => {
     email: string | null;
   };
 
-  // Fetch all quizzes for a teacher
-  const fetchTeacherQuizzes = async (teacherId: string) => {
+  // Fetch all quizzes for a teacher (stable ref to avoid infinite fetch loops)
+  const fetchTeacherQuizzes = useCallback(async (teacherId: string) => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('quizzes')
-        .select('*, classroom:classrooms(name, subject)')
+        .select('*, classroom:classrooms(name, subject), quiz_questions(id)')
         .eq('teacher_id', teacherId)
         .order('created_at', { ascending: false })
-        .returns<QuizWithClassroom[]>();
+        .returns<QuizWithClassroomAndQuestions[]>();
 
       if (error) throw error;
       return data || [];
@@ -129,7 +134,7 @@ export const useQuizzes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   // Fetch quizzes for a specific classroom
   const fetchClassroomQuizzes = useCallback(async (classroomId: string) => {
@@ -183,25 +188,14 @@ export const useQuizzes = () => {
         .from('quizzes')
         .select('*, classroom:classrooms(name, subject)')
         .in('classroom_id', classroomIds)
-        .in('status', ['scheduled', 'active'])
+        .in('status', ['scheduled', 'active', 'closed'])
         .order('created_at', { ascending: false })
         .returns<QuizWithClassroom[]>();
 
       if (error) throw error;
-      
-      // Filter quizzes based on availability dates
-      const now = new Date();
-      const filteredData = (data || []).filter((quiz) => {
-        // Filter out expired quizzes (available_until is in the past)
-        if (quiz.available_until && new Date(quiz.available_until) <= now) {
-          return false;
-        }
-        
-        // Include the quiz if it's available now or in the future
-        return true;
-      });
-      
-      return filteredData;
+
+      // Return all quizzes (scheduled/active) including expired — students can see them and view past results
+      return data || [];
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -214,8 +208,8 @@ export const useQuizzes = () => {
     }
   };
 
-  // Fetch a single quiz with questions
-  const fetchQuizWithQuestions = async (quizId: string) => {
+  // Fetch a single quiz with questions (stable ref for useEffect deps)
+  const fetchQuizWithQuestions = useCallback(async (quizId: string) => {
     try {
       setLoading(true);
       
@@ -248,7 +242,7 @@ export const useQuizzes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   // Create a new quiz
   const createQuiz = async (quiz: Partial<Quiz>, questions: QuizQuestion[]) => {
@@ -415,9 +409,10 @@ export const useQuizzes = () => {
   const closeQuiz = async (quizId: string) => {
     try {
       setLoading(true);
+      const now = new Date().toISOString();
       const { error } = await supabase
         .from('quizzes')
-        .update({ status: 'closed' })
+        .update({ status: 'closed', available_until: now })
         .eq('id', quizId);
 
       if (error) throw error;
@@ -456,94 +451,99 @@ export const useQuizzes = () => {
     }
   };
 
-  // Start a quiz attempt
-  const startQuizAttempt = async (quizId: string, studentId: string) => {
+  // Start a quiz attempt (atomic RPC prevents race: only one attempt created when max_attempts=1).
+  // Returns { attempt, alreadyInProgress? } so caller can redirect to existing attempt when already in progress.
+  const startQuizAttempt = async (
+    quizId: string,
+    studentId: string
+  ): Promise<{ attempt: QuizAttempt | null; alreadyInProgress?: boolean }> => {
     try {
       setLoading(true);
 
-      // Check if can attempt
-      const canAttempt = await checkCanAttemptQuiz(quizId, studentId);
-      if (!canAttempt.can_attempt) {
-        toast({
-          title: 'Cannot Start Quiz',
-          description: canAttempt.reason || 'You cannot attempt this quiz',
-          variant: 'destructive',
-        });
-        return null;
-      }
-
-      // Get attempt number
-      const { data: attempts, error: attemptsError } = await supabase
-        .from('quiz_attempts')
-        .select('attempt_number')
-        .eq('quiz_id', quizId)
-        .eq('student_id', studentId)
-        .order('attempt_number', { ascending: false })
-        .limit(1)
-        .returns<Array<{ attempt_number: number }>>();
-
-      if (attemptsError) throw attemptsError;
-
-      const attemptNumber = attempts && attempts.length > 0 ? attempts[0].attempt_number + 1 : 1;
-
-      // Create attempt
-      const { data: attempt, error } = await supabase
-        .from('quiz_attempts')
-        .insert([
-          {
-            quiz_id: quizId,
-            student_id: studentId,
-            attempt_number: attemptNumber,
-            status: 'in_progress',
-          } as QuizAttemptInsert,
-        ])
-        .select()
+      const { data, error } = await supabase
+        .rpc('start_quiz_attempt', {
+          _quiz_id: quizId,
+          _student_id: studentId,
+        })
         .returns<QuizAttempt>()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        const isAlreadyInProgress = /already in progress/i.test(error.message);
+        if (!isAlreadyInProgress) {
+          toast({
+            title: 'Cannot Start Quiz',
+            description: error.message || 'You cannot attempt this quiz',
+            variant: 'destructive',
+          });
+        }
+        return { attempt: null, alreadyInProgress: isAlreadyInProgress };
+      }
 
       toast({
         title: 'Quiz Started',
         description: 'Good luck!',
       });
 
-      return attempt;
+      return { attempt: data };
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to start quiz',
+        description: error?.message || 'Failed to start quiz',
         variant: 'destructive',
       });
-      return null;
+      return { attempt: null };
     } finally {
       setLoading(false);
     }
   };
 
-  // Submit quiz attempt
+  // Submit quiz attempt (idempotent: only in_progress rows are updated).
+  // When hasShortAnswer is true, status stays 'submitted' until teacher manually grades; then gradeShortAnswers sets 'graded'.
   const submitQuizAttempt = async (
     attemptId: string,
     answers: QuizAttempt['answers'],
-    timeSpentSeconds: number
+    timeSpentSeconds: number,
+    options?: { hasShortAnswer?: boolean }
   ) => {
     try {
       setLoading(true);
+      const hasShortAnswer = options?.hasShortAnswer === true;
 
-      const { error } = await supabase
+      const { data: updatedRow, error } = await supabase
         .from('quiz_attempts')
         .update({
           answers,
           submitted_at: new Date().toISOString(),
           time_spent_seconds: timeSpentSeconds,
           status: 'submitted',
-          auto_graded_at: new Date().toISOString(),
+          auto_graded_at: hasShortAnswer ? null : new Date().toISOString(),
         })
-        .eq('id', attemptId);
+        .eq('id', attemptId)
+        .eq('status', 'in_progress')
+        .select('id')
+        .maybeSingle();
 
       if (error) throw error;
 
-      // Calculate score
+      // Already submitted (e.g. double-click or timer + manual): still succeed so caller can redirect to results
+      if (!updatedRow) {
+        toast({
+          title: 'Already Submitted',
+          description: 'Your quiz was already submitted. Redirecting to results.',
+        });
+        return true;
+      }
+
+      if (hasShortAnswer) {
+        toast({
+          title: 'Quiz Submitted',
+          description: 'Your teacher will grade short answer questions. Results will appear after grading.',
+        });
+        return true;
+      }
+
+      // Calculate score for auto-gradable quizzes
       const { data: scoreData, error: scoreError } = await supabase.rpc(
         'calculate_quiz_score',
         { attempt_id: attemptId }
@@ -560,6 +560,7 @@ export const useQuizzes = () => {
           points_earned: scoreData.points_earned,
           points_possible: scoreData.points_possible,
           status: 'graded',
+          auto_graded_at: new Date().toISOString(),
         })
         .eq('id', attemptId);
 
@@ -615,8 +616,8 @@ export const useQuizzes = () => {
     }
   };
 
-  // Fetch quiz attempts for a teacher (all attempts for their quizzes)
-  const fetchQuizAttempts = async (quizId: string) => {
+  // Fetch quiz attempts for a teacher (stable ref for useEffect deps)
+  const fetchQuizAttempts = useCallback(async (quizId: string) => {
     try {
       setLoading(true);
       
@@ -663,7 +664,7 @@ export const useQuizzes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   // Grade short answer questions
   const gradeShortAnswers = async (
@@ -716,13 +717,14 @@ export const useQuizzes = () => {
       if (scoreError) throw scoreError;
       if (!scoreData) throw new Error('Score calculation failed');
 
-      // Update with new score
+      // Update with new score and mark as graded (manual grading complete)
       const { error: finalUpdateError } = await supabase
         .from('quiz_attempts')
         .update({
           score: scoreData.score,
           points_earned: scoreData.points_earned,
           points_possible: scoreData.points_possible,
+          status: 'graded',
         })
         .eq('id', attemptId);
 

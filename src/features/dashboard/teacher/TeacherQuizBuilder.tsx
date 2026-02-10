@@ -184,6 +184,18 @@ const TeacherQuizBuilder = () => {
     return counts;
   }, [questions]);
 
+  const hasShortAnswer = useMemo(
+    () => questions.some((q) => q.question_type === "short_answer"),
+    [questions]
+  );
+
+  useEffect(() => {
+    if (hasShortAnswer) {
+      setShowCorrectAnswers(false);
+      setShowResultsImmediately(false);
+    }
+  }, [hasShortAnswer]);
+
   const loadQuiz = useCallback(async () => {
     if (!quizId) return;
     setLoadingQuiz(true);
@@ -401,8 +413,8 @@ const TeacherQuizBuilder = () => {
         passing_score: passingScore,
         max_attempts: maxAttempts,
         randomize_questions: randomizeQuestions,
-        show_correct_answers: showCorrectAnswers,
-        show_results_immediately: showResultsImmediately,
+        show_correct_answers: hasShortAnswer ? false : showCorrectAnswers,
+        show_results_immediately: hasShortAnswer ? false : showResultsImmediately,
         status: publish ? "active" : "draft",
         published_at: publish ? new Date().toISOString() : null,
       };
@@ -1134,11 +1146,17 @@ const TeacherQuizBuilder = () => {
                           <div>
                             <p className="text-sm font-medium">Show correct answers</p>
                             <p className="text-xs text-muted-foreground">
-                              Let students see correct answers after submission
+                              {hasShortAnswer
+                                ? "Disabled when quiz has short answer questions (requires manual grading)"
+                                : "Let students see correct answers after submission"}
                             </p>
                           </div>
                         </div>
-                        <Switch checked={showCorrectAnswers} onCheckedChange={setShowCorrectAnswers} />
+                        <Switch
+                          checked={showCorrectAnswers}
+                          onCheckedChange={setShowCorrectAnswers}
+                          disabled={hasShortAnswer}
+                        />
                       </div>
                       <div className="flex items-center justify-between rounded-xl border p-4 transition-colors hover:bg-muted/20">
                         <div className="flex items-center gap-3">
@@ -1148,13 +1166,16 @@ const TeacherQuizBuilder = () => {
                           <div>
                             <p className="text-sm font-medium">Show results immediately</p>
                             <p className="text-xs text-muted-foreground">
-                              Display score right after submission
+                              {hasShortAnswer
+                                ? "Disabled when quiz has short answer questions (requires manual grading)"
+                                : "Display score right after submission"}
                             </p>
                           </div>
                         </div>
                         <Switch
                           checked={showResultsImmediately}
                           onCheckedChange={setShowResultsImmediately}
+                          disabled={hasShortAnswer}
                         />
                       </div>
                     </div>

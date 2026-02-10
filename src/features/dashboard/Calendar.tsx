@@ -33,13 +33,13 @@ import {
   Trash2,
   BookOpen,
 } from "lucide-react";
-import { usePlannerCalendar } from "@/hooks/usePlannerCalendar";
+import usePlannerCalendar from "@/hooks/usePlannerCalendar";
+import type { PlannerEvent } from "@/hooks/usePlannerCalendar";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths } from "date-fns";
-import enUS from "date-fns/locale/en-US";
-import type { PlannerEvent } from "@/hooks/usePlannerCalendar";
+import { enUS } from "date-fns/locale/en-US";
 import type { CalendarEventSuggestion } from "@/services/aiService";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -285,7 +285,7 @@ export default function Calendar() {
   const updateSuggestion = useCallback((index: number, field: keyof CalendarEventSuggestion, value: string | boolean) => {
     setEditingSuggestions((prev) => {
       const next = [...prev];
-      (next[index] as Record<string, unknown>)[field] = value;
+      next[index] = { ...next[index], [field]: value };
       return next;
     });
   }, []);
@@ -316,8 +316,8 @@ export default function Calendar() {
   }, []);
 
   return (
-    <DashboardLayout role="teacher">
-      <div className="space-y-2">
+    <DashboardLayout>
+      <div className="space-y-2 w-full min-w-0 max-w-full overflow-hidden">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {isNearLimit() && (
             <Badge variant="destructive">
@@ -353,22 +353,22 @@ export default function Calendar() {
         </Card>
 
         {/* Calendar + Add event */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="p-4 w-full min-w-0 overflow-hidden">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
             <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <CalendarIcon className="h-5 w-5 text-primary" />
+              <CalendarIcon className="h-5 w-5 text-primary shrink-0" />
               Calendar
             </h2>
             <Button
               onClick={() => { setSelectedSlot(null); setManualStart(""); setManualEnd(""); setManualTitle(""); setManualDescription(""); setAddEventOpen(true); }}
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
             >
               <CalendarPlus className="h-4 w-4" />
               Add event
             </Button>
           </div>
-          <div className="h-[800px] min-h-[400px] relative">
-            <div className="teacher-calendar-wrapper rounded-lg bg-card overflow-hidden h-full">
+          <div className="relative w-full min-w-0 h-[min(800px,calc(100vh-14rem))] min-h-[320px]">
+            <div className="teacher-calendar-wrapper rounded-lg bg-card overflow-hidden h-full w-full min-w-0 absolute inset-0">
               {loading && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 rounded-lg">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -388,7 +388,7 @@ export default function Calendar() {
                   selectable
                   popup
                   views={["month"]}
-                  style={{ height: "100%", minHeight: 800 }}
+                  style={{ height: "100%", minHeight: 0 }}
                   eventPropGetter={() => ({
                     style: {
                       backgroundColor: "hsl(var(--primary))",

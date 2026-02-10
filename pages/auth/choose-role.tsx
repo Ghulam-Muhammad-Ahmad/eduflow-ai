@@ -5,8 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Users, BookOpen, Sparkles, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
-
-type AppRole = "teacher" | "student";
+import type { AppRole } from "@/types/auth";
 
 export default function ChooseRole() {
   const router = useRouter();

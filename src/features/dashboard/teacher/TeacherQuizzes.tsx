@@ -41,7 +41,7 @@ import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Lock, Unlock, Clock } fr
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
 import { useClassrooms } from "@/hooks/useClassrooms";
-import { format } from "date-fns";
+import { format, isPast, isFuture } from "date-fns";
 
 const TeacherQuizzes = () => {
   const router = useRouter();
@@ -73,6 +73,19 @@ const TeacherQuizzes = () => {
     filterQuizzes();
   }, [quizzes, searchTerm, statusFilter, classroomFilter]);
 
+  /** Quiz is closed: either teacher set status closed or end date (available_until) has passed */
+  const isQuizClosed = (quiz: Quiz) =>
+    quiz.status === "closed" || (!!quiz.available_until && isPast(new Date(quiz.available_until)));
+
+  /** Display status derived from DB status + available_from / available_until */
+  type DisplayStatus = "draft" | "scheduled" | "upcoming" | "active" | "closed";
+  const getDisplayStatus = (quiz: Quiz): DisplayStatus => {
+    if (quiz.status === "draft") return "draft";
+    if (isQuizClosed(quiz)) return "closed";
+    if (quiz.available_from && isFuture(new Date(quiz.available_from))) return "upcoming";
+    return quiz.status === "scheduled" ? "scheduled" : "active";
+  };
+
   const filterQuizzes = () => {
     let filtered = [...quizzes];
 
@@ -85,9 +98,9 @@ const TeacherQuizzes = () => {
       );
     }
 
-    // Status filter
+    // Status filter: use display status so "Active" = in window, "Closed" = status closed or end date passed
     if (statusFilter !== "all") {
-      filtered = filtered.filter((quiz) => quiz.status === statusFilter);
+      filtered = filtered.filter((quiz) => getDisplayStatus(quiz) === statusFilter);
     }
 
     // Classroom filter
@@ -123,28 +136,38 @@ const TeacherQuizzes = () => {
   };
 
   const getQuestionCount = (quiz: Quiz) => {
-    const quizWithQuestions = quiz as Quiz & { questions?: unknown[]; questionCount?: number; question_count?: number };
-    if (Array.isArray(quizWithQuestions.questions)) {
-      return quizWithQuestions.questions.length;
+    const extended = quiz as Quiz & {
+      quiz_questions?: { id: string }[];
+      questions?: unknown[];
+      questionCount?: number;
+      question_count?: number;
+    };
+    if (Array.isArray(extended.quiz_questions)) {
+      return extended.quiz_questions.length;
     }
-    if (typeof quizWithQuestions.questionCount === "number") {
-      return quizWithQuestions.questionCount;
+    if (Array.isArray(extended.questions)) {
+      return extended.questions.length;
     }
-    if (typeof quizWithQuestions.question_count === "number") {
-      return quizWithQuestions.question_count;
+    if (typeof extended.questionCount === "number") {
+      return extended.questionCount;
+    }
+    if (typeof extended.question_count === "number") {
+      return extended.question_count;
     }
     return 0;
   };
 
-  const getStatusBadge = (status: Quiz['status']) => {
-    const variants: Record<Quiz['status'], { variant: any; label: string }> = {
+  const getStatusBadge = (quiz: Quiz) => {
+    const displayStatus = getDisplayStatus(quiz);
+    const variants: Record<DisplayStatus, { variant: "secondary" | "default" | "live" | "neutral"; label: string; className?: string }> = {
       draft: { variant: "secondary", label: "Draft" },
       scheduled: { variant: "default", label: "Scheduled" },
+      upcoming: { variant: "secondary", label: "Upcoming" },
       active: { variant: "live", label: "Active" },
-      closed: { variant: "neutral", label: "Closed" },
+      closed: { variant: "neutral", label: "Closed", className: "border-orange-500/50 bg-orange-500/10 text-orange-700 dark:text-orange-400" },
     };
-    const config = variants[status];
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const config = variants[displayStatus];
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
   const formatDate = (dateString?: string) => {
@@ -192,6 +215,7 @@ const TeacherQuizzes = () => {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
                 <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="upcoming">Upcoming</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="closed">Closed</SelectItem>
               </SelectContent>
@@ -273,7 +297,7 @@ const TeacherQuizzes = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>{getStatusBadge(quiz.status)}</TableCell>
+                    <TableCell>{getStatusBadge(quiz)}</TableCell>
                     <TableCell>
                       <div className="text-sm">
                         {quiz.available_from && (

@@ -32,6 +32,7 @@ const StudentQuizTake = () => {
     startQuizAttempt,
     submitQuizAttempt,
     fetchQuizAttemptById,
+    fetchStudentAttempts,
     loading,
   } = useQuizzes();
 
@@ -47,6 +48,7 @@ const StudentQuizTake = () => {
   const startTimeRef = useRef<number>(Date.now());
   const autoSubmitRef = useRef<() => Promise<void> | void>(() => {});
   const submitHandlerRef = useRef<(auto: boolean) => Promise<void>>(() => Promise.resolve());
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (quizIdValue) {
@@ -184,10 +186,20 @@ const StudentQuizTake = () => {
 
   const startAttempt = async () => {
     if (!quizIdValue || !user?.id) return;
-    const newAttempt = await startQuizAttempt(quizIdValue, user.id);
-    if (newAttempt) {
-      setAttempt(newAttempt);
+    const result = await startQuizAttempt(quizIdValue, user.id);
+    if (result.attempt) {
+      setAttempt(result.attempt);
       startTimeRef.current = Date.now();
+      router.replace(`/dashboard/student/quizzes/${quizIdValue}/take/${result.attempt.id}`);
+    } else if (result.alreadyInProgress) {
+      const attempts = await fetchStudentAttempts(user.id, quizIdValue);
+      const inProgress = attempts.find((a) => a.status === "in_progress");
+      if (inProgress) {
+        router.replace(`/dashboard/student/quizzes/${quizIdValue}/take/${inProgress.id}`);
+        await resumeAttempt(inProgress.id);
+      } else {
+        router.push("/dashboard/student/quizzes");
+      }
     } else {
       router.push("/dashboard/student/quizzes");
     }
@@ -248,18 +260,25 @@ const StudentQuizTake = () => {
 
   const handleSubmit = async (autoSubmit: boolean = false) => {
     if (!attempt) return;
-
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
 
-    const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
-    const processedAnswers = calculateScore();
+    try {
+      const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const processedAnswers = calculateScore();
 
-    const success = await submitQuizAttempt(attempt.id, processedAnswers, timeSpent);
+      const hasShortAnswer = questions.some((q) => q.question_type === "short_answer");
+      const success = await submitQuizAttempt(attempt.id, processedAnswers, timeSpent, {
+        hasShortAnswer,
+      });
 
-    setSubmitting(false);
-
-    if (success) {
-      router.push(`/dashboard/student/quizzes/${quizIdValue}/results/${attempt.id}`);
+      if (success) {
+        router.push(`/dashboard/student/quizzes/${quizIdValue}/results/${attempt.id}`);
+      }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -372,6 +391,7 @@ const StudentQuizTake = () => {
           {/* Multiple Choice */}
           {currentQuestion.question_type === "multiple_choice" && (
             <RadioGroup
+              key={currentQuestion.id}
               value={answers[currentQuestion.id!] as string}
               onValueChange={(value) => handleAnswerChange(currentQuestion.id!, value)}
             >
@@ -394,19 +414,20 @@ const StudentQuizTake = () => {
           {/* True/False */}
           {currentQuestion.question_type === "true_false" && (
             <RadioGroup
+              key={currentQuestion.id}
               value={answers[currentQuestion.id!] as string}
               onValueChange={(value) => handleAnswerChange(currentQuestion.id!, value)}
             >
               <div className="space-y-3">
                 <div className="flex items-center space-x-3 p-4 rounded-lg border hover:bg-accent transition-colors cursor-pointer">
-                  <RadioGroupItem value="true" id="true" />
-                  <Label htmlFor="true" className="flex-1 cursor-pointer">
+                  <RadioGroupItem value="true" id={`tf-true-${currentQuestion.id}`} />
+                  <Label htmlFor={`tf-true-${currentQuestion.id}`} className="flex-1 cursor-pointer">
                     True
                   </Label>
                 </div>
                 <div className="flex items-center space-x-3 p-4 rounded-lg border hover:bg-accent transition-colors cursor-pointer">
-                  <RadioGroupItem value="false" id="false" />
-                  <Label htmlFor="false" className="flex-1 cursor-pointer">
+                  <RadioGroupItem value="false" id={`tf-false-${currentQuestion.id}`} />
+                  <Label htmlFor={`tf-false-${currentQuestion.id}`} className="flex-1 cursor-pointer">
                     False
                   </Label>
                 </div>
@@ -512,7 +533,9 @@ const StudentQuizTake = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Review Answers</AlertDialogCancel>
             <AlertDialogAction
+              disabled={submitting}
               onClick={() => {
+                if (submitting) return;
                 setSubmitDialogOpen(false);
                 handleSubmit();
               }}

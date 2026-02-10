@@ -846,6 +846,10 @@ export type Database = {
         Args: { _quiz_id: string; _student_id: string }
         Returns: { can_attempt: boolean; reason: string | null }
       }
+      start_quiz_attempt: {
+        Args: { _quiz_id: string; _student_id: string }
+        Returns: Database['public']['Tables']['quiz_attempts']['Row'][]
+      }
       generate_join_code: { Args: never; Returns: string }
       get_classroom_by_join_code: {
         Args: { code: string }

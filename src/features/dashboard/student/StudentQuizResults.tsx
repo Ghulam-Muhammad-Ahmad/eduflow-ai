@@ -132,6 +132,7 @@ const StudentQuizResults = () => {
   const passingScore = quiz.passing_score || 70;
   const totalQuestions = questions.length;
   const correctAnswers = (attempt.answers || []).filter((ans) => ans.is_correct).length;
+  const isPendingGrading = attempt.status === "submitted";
 
   return (
     <DashboardLayout role="student">
@@ -148,11 +149,44 @@ const StudentQuizResults = () => {
             </Button>
             <div>
               <h1 className="text-3xl font-bold text-foreground">{quiz.title}</h1>
-              <p className="text-muted-foreground mt-1">Quiz Results</p>
+              <p className="text-muted-foreground mt-1">
+                {isPendingGrading ? "Quiz Submitted" : "Quiz Results"}
+              </p>
             </div>
           </div>
         </div>
 
+        {isPendingGrading ? (
+          <Card className="p-8">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/10 mb-4">
+                <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h2 className="text-xl font-semibold">Pending Manual Grading</h2>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                This quiz contains short answer questions. Your teacher will grade them and your
+                score and results will appear here once grading is complete.
+              </p>
+              <div className="flex justify-center gap-6 pt-4 text-sm text-muted-foreground">
+                <span>
+                  Time taken:{" "}
+                  {attempt.time_spent_seconds
+                    ? formatTime(attempt.time_spent_seconds)
+                    : "N/A"}
+                </span>
+                <span>Attempt #{attempt.attempt_number}</span>
+              </div>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => router.push("/dashboard/student/quizzes")}
+              >
+                Back to Quizzes
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <>
         {/* Score Summary */}
         <Card className="p-8">
           <div className="text-center space-y-4">
@@ -381,6 +415,8 @@ const StudentQuizResults = () => {
             </Button>
           )}
         </div>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

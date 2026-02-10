@@ -1,8 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-
-type AppRole = "teacher" | "student" | "admin";
+import type { AppRole } from "@/types/auth";
 
 interface WithAuthOptions {
   allowedRoles?: AppRole[];

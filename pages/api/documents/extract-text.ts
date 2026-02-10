@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { getAuthUser } from "@/integrations/supabase/server";
 
 /**
- * POST body: { documentId: string, userId: string }
+ * POST body: { documentId: string }
  * Returns extracted text from a PDF or DOCX in Doc Center.
+ * User is derived from session; document must belong to that user.
  * Requires SUPABASE_SERVICE_ROLE_KEY for server-side storage access.
  */
 export default async function handler(
@@ -14,9 +16,14 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { documentId, userId } = req.body || {};
-  if (!documentId || !userId) {
-    return res.status(400).json({ error: "documentId and userId required" });
+  const { user, error: authError } = await getAuthUser(req, res);
+  if (authError || !user) {
+    return res.status(401).json({ error: authError?.message ?? "Unauthorized" });
+  }
+
+  const { documentId } = req.body || {};
+  if (!documentId) {
+    return res.status(400).json({ error: "documentId required" });
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -39,7 +46,7 @@ export default async function handler(
     if (docError || !doc) {
       return res.status(404).json({ error: "Document not found" });
     }
-    if (doc.user_id !== userId) {
+    if (doc.user_id !== user.id) {
       return res.status(403).json({ error: "Not allowed to access this document" });
     }
 

@@ -230,33 +230,48 @@ export function useTeacherStudentRecords(classroomId: string | null) {
           });
 
         const quizGrades: QuizGrade[] = [];
-        const seenQuiz = new Set<string>();
-        attempts
-          .filter(
-            (at) =>
-              at.student_id === enrollment.student_id &&
-              quizzesList.some((q) => q.id === at.quiz_id && q.classroom_id === enrollment.classroom_id)
-          )
-          .sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime())
-          .forEach((at) => {
-            const quiz = quizzesList.find((q) => q.id === at.quiz_id);
-            if (!quiz || seenQuiz.has(quiz.id)) return;
-            seenQuiz.add(quiz.id);
-            quizGrades.push({
-              quiz_id: at.quiz_id,
-              title: quiz.title,
-              attempt_number: at.attempt_number,
-              score: at.score,
-              points_earned: at.points_earned,
-              points_possible: at.points_possible,
-              status: at.status,
-              submitted_at: at.submitted_at,
-              classroom_name: quiz.classroom_name,
-            });
+        const studentQuizAttempts = attempts.filter(
+          (at) =>
+            at.student_id === enrollment.student_id &&
+            quizzesList.some((q) => q.id === at.quiz_id && q.classroom_id === enrollment.classroom_id)
+        );
+        studentQuizAttempts.forEach((at) => {
+          const quiz = quizzesList.find((q) => q.id === at.quiz_id);
+          if (!quiz) return;
+          quizGrades.push({
+            quiz_id: at.quiz_id,
+            title: quiz.title,
+            attempt_number: at.attempt_number,
+            score: at.score,
+            points_earned: at.points_earned,
+            points_possible: at.points_possible,
+            status: at.status,
+            submitted_at: at.submitted_at,
+            classroom_name: quiz.classroom_name,
           });
+        });
 
         const gradedAssignments = assignmentGrades.filter((g) => g.grade != null);
-        const gradedQuizzes = quizGrades.filter((g) => g.score != null);
+        const gradedAttemptsByQuiz = new Map<string, QuizGrade[]>();
+        quizGrades.forEach((g) => {
+          if (g.score != null || (g.points_earned != null && (g.points_possible ?? 0) > 0)) {
+            const list = gradedAttemptsByQuiz.get(g.quiz_id) ?? [];
+            list.push(g);
+            gradedAttemptsByQuiz.set(g.quiz_id, list);
+          }
+        });
+        const gradedQuizzesCount = gradedAttemptsByQuiz.size;
+        const bestScoresPerQuiz = [...gradedAttemptsByQuiz.values()].map((attemptsForQuiz) => {
+          const withScore = attemptsForQuiz
+            .map((g) => ({
+              g,
+              value: g.score ?? (g.points_possible && g.points_earned != null
+                ? (g.points_earned / g.points_possible) * 100
+                : 0),
+            }))
+            .filter((x) => x.g.score != null || (x.g.points_earned != null && (x.g.points_possible ?? 0) > 0));
+          return withScore.length ? Math.max(...withScore.map((x) => x.value)) : 0;
+        });
 
         const assignmentAvg =
           gradedAssignments.length > 0
@@ -268,15 +283,15 @@ export function useTeacherStudentRecords(classroomId: string | null) {
             : null;
 
         const quizAvg =
-          gradedQuizzes.length > 0
-            ? gradedQuizzes.reduce((sum, g) => sum + (g.score ?? 0), 0) / gradedQuizzes.length
+          bestScoresPerQuiz.length > 0
+            ? bestScoresPerQuiz.reduce((sum, s) => sum + s, 0) / bestScoresPerQuiz.length
             : null;
 
-        const totalGraded = gradedAssignments.length + gradedQuizzes.length;
+        const totalGraded = gradedAssignments.length + gradedQuizzesCount;
         const overallAvg =
           totalGraded > 0
             ? ((assignmentAvg ?? 0) * gradedAssignments.length +
-                (quizAvg ?? 0) * gradedQuizzes.length) /
+                (quizAvg ?? 0) * gradedQuizzesCount) /
               totalGraded
             : null;
 
@@ -296,7 +311,7 @@ export function useTeacherStudentRecords(classroomId: string | null) {
           totalAssignments: assignmentGrades.length,
           totalQuizzes: quizzesList.filter((q) => q.classroom_id === enrollment.classroom_id).length,
           gradedAssignments: gradedAssignments.length,
-          gradedQuizzes: quizGrades.length,
+          gradedQuizzes: gradedQuizzesCount,
         };
       });
 

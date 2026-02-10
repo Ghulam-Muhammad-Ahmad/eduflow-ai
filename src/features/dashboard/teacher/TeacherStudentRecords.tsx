@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useTeacherStudentRecords, type StudentRecord } from "@/hooks/useTeacherStudentRecords";
 import { Button } from "@/components/ui/button";
@@ -25,15 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { generateClassroomPDF, generateStudentPDF } from "@/lib/pdfReports";
+import { generateClassroomPDF } from "@/lib/pdfReports";
 import {
   FileDown,
   FileText,
@@ -47,11 +41,15 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 const TeacherStudentRecords = () => {
+  const router = useRouter();
   const [classroomId, setClassroomId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<StudentRecord | null>(null);
   const { data, isLoading, error } = useTeacherStudentRecords(classroomId);
   const { toast } = useToast();
+
+  const goToStudentRecord = (student: StudentRecord) => {
+    router.push(`/dashboard/teacher/student-records/${student.student_id}?classroomId=${student.classroom_id}`);
+  };
 
   const classrooms = data?.classrooms ?? [];
   const students = data?.students ?? [];
@@ -88,27 +86,6 @@ const TeacherStudentRecords = () => {
       toast({
         title: "PDF exported",
         description: `Grade report for ${classroomName} has been downloaded.`,
-      });
-    } catch (e) {
-      toast({
-        title: "Export failed",
-        description: e instanceof Error ? e.message : "Could not generate PDF",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleExportStudentPDF = (student: StudentRecord) => {
-    try {
-      const doc = generateStudentPDF(
-        student,
-        format(new Date(), "PPpp")
-      );
-      const name = (student.display_name || "Student").replace(/\s+/g, "-");
-      doc.save(`student-report-${name}-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({
-        title: "PDF exported",
-        description: `Report for ${student.display_name || "Student"} has been downloaded.`,
       });
     } catch (e) {
       toast({
@@ -271,13 +248,13 @@ const TeacherStudentRecords = () => {
                         <TableRow
                           key={`${student.student_id}-${student.classroom_id}`}
                           className="align-middle cursor-pointer"
-                          onClick={() => setSelectedStudent(student)}
+                          onClick={() => goToStudentRecord(student)}
                           role="button"
                           tabIndex={0}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              setSelectedStudent(student);
+                              goToStudentRecord(student);
                             }
                           }}
                         >
@@ -311,7 +288,7 @@ const TeacherStudentRecords = () => {
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedStudent(student);
+                                  goToStudentRecord(student);
                                 }}
                               >
                                 <FileText className="w-4 h-4 mr-2" />
@@ -328,178 +305,6 @@ const TeacherStudentRecords = () => {
             )}
           </CardContent>
         </Card>
-
-        <Dialog open={!!selectedStudent} onOpenChange={(open) => !open && setSelectedStudent(null)}>
-          <DialogContent className="max-w-5xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3">
-                <Users className="w-5 h-5 text-medium-slate-blue" />
-                {selectedStudent?.display_name || "Student"} — Report
-              </DialogTitle>
-              <DialogDescription>
-                {selectedStudent?.classroom_name}
-                {selectedStudent?.email ? ` • ${selectedStudent.email}` : ""} • Joined{" "}
-                {selectedStudent?.joined_at ? format(new Date(selectedStudent.joined_at), "MMMM d, yyyy") : "—"}
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedStudent && (
-              <div className="space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Card className="border-muted/60">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-muted-foreground">Assignments avg.</p>
-                        <p className="font-semibold">{formatPct(selectedStudent.assignmentAvg)}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-muted/60">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-muted-foreground">Quizzes avg.</p>
-                        <p className="font-semibold">{formatPct(selectedStudent.quizAvg)}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-muted/60">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-muted-foreground">Overall</p>
-                        <p className="font-semibold">{formatPct(selectedStudent.overallAvg)}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-muted/60">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-muted-foreground">Graded</p>
-                        <p className="font-semibold">
-                          {selectedStudent.gradedAssignments}/{selectedStudent.totalAssignments} ·{" "}
-                          {selectedStudent.gradedQuizzes}/{selectedStudent.totalQuizzes}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleExportStudentPDF(selectedStudent)}
-                    >
-                      <FileDown className="w-4 h-4 mr-2" />
-                      Export PDF
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid lg:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <ClipboardList className="w-4 h-4" />
-                        Assignments
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedStudent.assignmentGrades.length} total
-                      </p>
-                    </div>
-                    <div className="rounded-md border overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead>Title</TableHead>
-                            <TableHead className="text-right">Grade</TableHead>
-                            <TableHead className="text-right">Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedStudent.assignmentGrades.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={3} className="text-muted-foreground">
-                                No assignments in this class.
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            selectedStudent.assignmentGrades.map((g) => {
-                              const pct =
-                                g.grade != null && (g.points_possible ?? null) != null && (g.points_possible ?? 0) > 0
-                                  ? Math.round((g.grade / (g.points_possible ?? 1)) * 100)
-                                  : null;
-                              const gradeLabel =
-                                g.grade != null
-                                  ? `${g.grade}${g.points_possible != null ? `/${g.points_possible}` : ""}${pct != null ? ` (${pct}%)` : ""}`
-                                  : "—";
-                              return (
-                                <TableRow key={g.assignment_id}>
-                                  <TableCell className="max-w-[360px] truncate" title={g.title}>
-                                    {g.title}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono whitespace-nowrap">
-                                    {gradeLabel}
-                                  </TableCell>
-                                  <TableCell className="text-right whitespace-nowrap">
-                                    <span className="text-xs text-muted-foreground">
-                                      {g.status === "not_submitted" ? "Not submitted" : g.status}
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <ListChecks className="w-4 h-4" />
-                        Quizzes
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedStudent.quizGrades.length} graded attempt(s)
-                      </p>
-                    </div>
-                    <div className="rounded-md border overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead>Title</TableHead>
-                            <TableHead className="text-right">Score</TableHead>
-                            <TableHead className="text-right">Attempt</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedStudent.quizGrades.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={3} className="text-muted-foreground">
-                                No quiz attempts yet.
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            selectedStudent.quizGrades.map((g) => (
-                              <TableRow key={`${g.quiz_id}-${g.attempt_number}`}>
-                                <TableCell className="max-w-[360px] truncate" title={g.title}>
-                                  {g.title}
-                                </TableCell>
-                                <TableCell className="text-right font-mono whitespace-nowrap">
-                                  {g.score != null
-                                    ? `${Math.round(g.score)}%`
-                                    : g.points_earned != null
-                                      ? `${g.points_earned}/${g.points_possible}`
-                                      : "—"}
-                                </TableCell>
-                                <TableCell className="text-right whitespace-nowrap">
-                                  #{g.attempt_number}
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );

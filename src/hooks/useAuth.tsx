@@ -2,8 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-type AppRole = "teacher" | "student" | "admin";
+import type { AppRole } from "@/types/auth";
 
 interface UserProfile {
   display_name: string | null;

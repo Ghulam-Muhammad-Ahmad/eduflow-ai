@@ -46,7 +46,7 @@ export function useSyllabusLessonPlanner() {
         const res = await fetch('/api/documents/extract-text', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ documentId, userId: user.id }),
+          body: JSON.stringify({ documentId }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to extract text');

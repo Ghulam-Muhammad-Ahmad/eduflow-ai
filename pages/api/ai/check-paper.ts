@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { getAuthUser } from "@/integrations/supabase/server";
 
 const MAX_PDF_BASE64_MB = 20;
 const MAX_PDF_BYTES = MAX_PDF_BASE64_MB * 1024 * 1024;
@@ -181,11 +182,13 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, instructions, pastedText, pdfBase64, rubricCategories } = req.body || {};
-
-  if (!userId) {
-    return res.status(400).json({ error: "userId required" });
+  const { user, error: authError } = await getAuthUser(req, res);
+  if (authError || !user) {
+    return res.status(401).json({ error: authError?.message ?? "Unauthorized" });
   }
+  const userId = user.id;
+
+  const { instructions, pastedText, pdfBase64, rubricCategories } = req.body || {};
 
   if (!pastedText && !pdfBase64) {
     return res.status(400).json({

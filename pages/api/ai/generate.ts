@@ -1,18 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import OpenAI from "openai";
-
-type AITaskType =
-  | "content_generation"
-  | "checker"
-  | "lesson_planning"
-  | "study_materials"
-  | "rubric_generation"
-  | "quiz_questions"
-  | "differentiation"
-  | "concept_explanation"
-  | "practice_questions"
-  | "flashcards"
-  | "study_plan";
+import { getAuthUser } from "@/integrations/supabase/server";
+import type { AITaskType } from "@/types/ai";
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -73,7 +62,6 @@ interface AIGenerateRequest {
   prompt: string;
   systemInstruction?: string;
   model?: string;
-  userId: string;
   /** For checker task: max points so the model can suggest a grade within range */
   pointsPossible?: number;
 }
@@ -87,16 +75,20 @@ export default async function handler(
   }
 
   try {
+    const { user, error: authError } = await getAuthUser(req, res);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError?.message ?? "Unauthorized" });
+    }
+
     const {
       taskType,
       prompt,
       systemInstruction,
       model,
-      userId,
       pointsPossible,
     }: AIGenerateRequest = req.body;
 
-    if (!taskType || !prompt || !userId) {
+    if (!taskType || !prompt) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 

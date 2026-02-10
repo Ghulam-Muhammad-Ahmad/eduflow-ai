@@ -1,19 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { AITaskType } from '@/types/ai';
 
 // AI Provider Types - OpenAI only
 export type AIProvider = 'openai';
-export type AITaskType = 
-  | 'content_generation'
-  | 'checker'
-  | 'lesson_planning'
-  | 'study_materials'
-  | 'rubric_generation'
-  | 'quiz_questions'
-  | 'differentiation'
-  | 'concept_explanation'
-  | 'practice_questions'
-  | 'flashcards'
-  | 'study_plan';
+export type { AITaskType } from '@/types/ai';
 
 // Check if user can make AI request
 export const checkAIUsageLimit = async (userId: string) => {
@@ -112,6 +102,7 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
     }
     const response = await fetch('/api/ai/generate', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -239,6 +230,28 @@ export const gradeSubmission = async (
     taskType: 'checker',
     prompt,
     systemInstruction: 'You are an expert teacher providing constructive feedback. Be specific, encouraging, and focus on learning improvement.',
+    userId,
+    pointsPossible,
+  });
+};
+
+/** Suggest a grade for a single short-answer quiz question. Returns suggested_grade (0 to pointsPossible) and feedback. */
+export const suggestShortAnswerGrade = async (
+  questionText: string,
+  studentAnswer: string | string[],
+  pointsPossible: number,
+  userId: string,
+  correctAnswer?: string | null
+) => {
+  const studentAnswerStr = Array.isArray(studentAnswer) ? studentAnswer.join(', ') : String(studentAnswer ?? '');
+  const refSection = correctAnswer
+    ? `\nReference or model answer (use to compare, but grade on merit): ${correctAnswer}`
+    : '';
+  const prompt = `Grade this short-answer quiz response.\n\nQuestion: ${questionText}${refSection}\n\nStudent's answer: ${studentAnswerStr}\n\nGive a suggested grade from 0 to ${pointsPossible} (whole number or half points) and brief feedback. Consider correctness, completeness, and clarity.`;
+  return generateAI({
+    taskType: 'checker',
+    prompt,
+    systemInstruction: 'You are an expert teacher grading short-answer questions. Be fair and consistent. Respond with suggested_grade (number 0 to max points) and feedback (string).',
     userId,
     pointsPossible,
   });

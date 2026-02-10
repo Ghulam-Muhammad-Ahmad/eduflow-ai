@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import OpenAI from "openai";
+import { getAuthUser } from "@/integrations/supabase/server";
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -41,7 +42,6 @@ Rules:
 
 export interface LessonPlanFromSyllabusBody {
   text: string;
-  userId: string;
   subject: string;
   gradeLevel?: string;
   curriculum?: string;
@@ -62,10 +62,17 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const { user, error: authError } = await getAuthUser(req, res);
+  if (authError || !user) {
+    return res.status(401).json({
+      success: false,
+      error: authError?.message ?? "Unauthorized",
+    });
+  }
+
   const body = req.body as LessonPlanFromSyllabusBody;
   const {
     text,
-    userId,
     subject,
     gradeLevel,
     curriculum,
@@ -78,10 +85,10 @@ export default async function handler(
     editPrompt,
   } = body;
 
-  if (!text?.trim() || !userId || !subject?.trim()) {
+  if (!text?.trim() || !subject?.trim()) {
     return res.status(400).json({
       success: false,
-      error: "text, userId, and subject are required",
+      error: "text and subject are required",
     });
   }
 
