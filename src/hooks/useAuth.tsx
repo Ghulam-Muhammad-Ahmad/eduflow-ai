@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import type { AppRole } from "@/types/auth";
 
 interface UserProfile {
@@ -170,7 +169,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c33afbad-741d-479c-95b3-1a38165830f0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'useAuth.tsx:101',message:'signUp response',data:{hasUser:Boolean(data.user),hasSession:Boolean(data.session),userId:data.user?.id ?? null,sessionUserId:data.session?.user?.id ?? null,errorMessage:error?.message ?? null},timestamp:Date.now()})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/c33afbad-741d-479c-95b3-1a38165830f0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'useAuth.tsx:101',message:'signUp response',data:{hasUser:Boolean(data.user),hasSession:Boolean(data.session),userId:data.user?.id ?? null,sessionUserId:data.session?.user?.id ?? null,errorMessage:(error as { message?: string } | null)?.message ?? null},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
 
       if (data.user) {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -6,7 +7,6 @@ import {
   generateContent,
   generateRubric,
   generateQuizQuestions,
-  generateAI,
   type AIGenerateResult,
 } from '@/services/aiService';
 
@@ -339,12 +339,13 @@ export const useAIStudio = () => {
 
   // Delete generated content
   const deleteGeneratedContent = async (id: string) => {
+    if (!user?.id) return false;
     try {
       const { error } = await supabase
         .from('ai_generated_content')
         .delete()
         .eq('id', id)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
       

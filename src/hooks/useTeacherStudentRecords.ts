@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -301,7 +302,7 @@ export function useTeacherStudentRecords(classroomId: string | null) {
           email: null,
           avatar_url: profile && typeof profile === "object" && "avatar_url" in profile ? (profile.avatar_url as string | null) : null,
           classroom_id: enrollment.classroom_id,
-          classroom_name: enrollment.classroom_id ? (classroomNameById.get(enrollment.classroom_id) ?? "") : "",
+          classroom_name: classroomName,
           joined_at: enrollment.joined_at,
           assignmentGrades,
           quizGrades,

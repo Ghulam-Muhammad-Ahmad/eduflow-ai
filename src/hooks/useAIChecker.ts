@@ -6,7 +6,7 @@ import { gradeSubmission } from '@/services/aiService';
 import type { AIGenerateResult } from '@/services/aiService';
 
 // Utility Types and Functions for Safe Data Handling
-type Json = any; // for Supabase raw output, you may want to use 'unknown' and add runtime logic
+type Json = Record<string, unknown>; // for Supabase raw output
 
 function isRecord(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
@@ -28,24 +28,24 @@ function parseFeedbackData(json: Json): AIFeedback['feedback_data'] {
   };
   return {
     grammar_errors: Array.isArray(json.grammar_errors)
-      ? json.grammar_errors.map((e: any) => ({
+      ? json.grammar_errors.map((e: Record<string, unknown>) => ({
           text: coerceString(e?.text),
           suggestion: coerceString(e?.suggestion),
           position: typeof e?.position === 'number' ? e.position : undefined,
         }))
       : [],
     spelling_errors: Array.isArray(json.spelling_errors)
-      ? json.spelling_errors.map((e: any) => ({
+      ? json.spelling_errors.map((e: Record<string, unknown>) => ({
           word: coerceString(e?.word),
           suggestion: coerceString(e?.suggestion),
         }))
       : [],
     content_analysis: coerceString(json.content_analysis),
     suggestions: Array.isArray(json.suggestions)
-      ? json.suggestions.map((e: any) => ({
+      ? json.suggestions.map((e: Record<string, unknown>) => ({
           type: coerceString(e?.type),
           text: coerceString(e?.text),
-          priority: ['high', 'medium', 'low'].includes(e?.priority)
+          priority: (typeof e?.priority === 'string' && (e.priority === 'high' || e.priority === 'medium' || e.priority === 'low'))
             ? e.priority
             : 'medium',
         }))
@@ -54,10 +54,10 @@ function parseFeedbackData(json: Json): AIFeedback['feedback_data'] {
     suggested_grade: typeof json.suggested_grade === 'number' ? json.suggested_grade : undefined,
   };
 }
-function parseRubricSuggestions(json: Json): Array<{ criterion: string; score: number; max_score: number; feedback: string }> | undefined {
+function parseRubricSuggestions(json: unknown): Array<{ criterion: string; score: number; max_score: number; feedback: string }> | undefined {
   if (!Array.isArray(json)) return undefined;
   return json
-    .filter(isRecord)
+    .filter((r): r is Record<string, unknown> => isRecord(r))
     .map((r) => ({
       criterion: coerceString(r.criterion),
       score: coerceNumber(r.score),
@@ -87,12 +87,12 @@ export interface AIFeedback {
 }
 
 // Reconstruct AIFeedback from raw DB (Json) record
-function convertDbToAIFeedback(data: any): AIFeedback {
+function convertDbToAIFeedback(data: Record<string, unknown>): AIFeedback {
   return {
     id: coerceString(data.id),
     submission_id: coerceString(data.submission_id),
     user_id: coerceString(data.user_id),
-    feedback_data: parseFeedbackData(data.feedback_data),
+    feedback_data: isRecord(data.feedback_data) ? parseFeedbackData(data.feedback_data) : { grammar_errors: [], spelling_errors: [], content_analysis: '', suggestions: [], overall_feedback: '', suggested_grade: undefined },
     rubric_suggestions: parseRubricSuggestions(data.rubric_suggestions),
     consistency_hash: typeof data.consistency_hash === 'string' ? data.consistency_hash : undefined,
     accepted: !!data.accepted,
@@ -132,10 +132,10 @@ export const useAIChecker = () => {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to check submission',
+        description: error instanceof Error ? error.message : 'Failed to check submission',
         variant: 'destructive',
       });
       return null;
@@ -181,10 +181,10 @@ export const useAIChecker = () => {
       });
 
       return results;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to check submissions',
+        description: error instanceof Error ? error.message : 'Failed to check submissions',
         variant: 'destructive',
       });
       return results;
@@ -222,7 +222,7 @@ export const useAIChecker = () => {
 
       if (error) throw error;
       return data ? convertDbToAIFeedback(data) : null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving AI feedback:', error);
       return null;
     }
@@ -241,7 +241,7 @@ export const useAIChecker = () => {
 
       if (error) throw error;
       return data ? convertDbToAIFeedback(data) : null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching AI feedback:', error);
       return null;
     }
@@ -265,10 +265,10 @@ export const useAIChecker = () => {
         description: 'Feedback accepted',
       });
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to accept feedback',
+        description: error instanceof Error ? error.message : 'Failed to accept feedback',
         variant: 'destructive',
       });
       return false;
@@ -318,10 +318,10 @@ export const useAIChecker = () => {
         description: 'Grade and feedback applied to submission',
       });
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to apply grade',
+        description: error instanceof Error ? error.message : 'Failed to apply grade',
         variant: 'destructive',
       });
       return false;
@@ -338,10 +338,10 @@ export const useAIChecker = () => {
     };
   };
 
-  const calculateConsistencyHash = (feedbackData: any): string => {
+  const calculateConsistencyHash = (feedbackData: AIFeedback['feedback_data']): string => {
     const errorTypes = [
-      ...(feedbackData.grammar_errors || []).map((e: any) => e.type || 'grammar'),
-      ...(feedbackData.spelling_errors || []).map((e: any) => 'spelling'),
+      ...(feedbackData.grammar_errors || []).map(() => 'grammar'),
+      ...(feedbackData.spelling_errors || []).map(() => 'spelling'),
     ].sort().join(',');
     return btoa(errorTypes).substring(0, 16);
   };

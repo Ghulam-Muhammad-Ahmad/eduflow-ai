@@ -19,6 +19,11 @@ export interface SourceDocument {
   updated_at: string;
 }
 
+/** Input for creating a source document: same as DB but with file instead of file_path/file_type/file_size */
+export type CreateSourceDocumentInput = Omit<SourceDocument, "id" | "created_at" | "updated_at" | "file_path" | "file_type" | "file_size" | "teacher_id"> & {
+  file: File;
+};
+
 export const useSourceDocuments = () => {
   return useQuery({
     queryKey: ["source-documents"],
@@ -38,7 +43,7 @@ export const useCreateSourceDocument = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (doc: Omit<SourceDocument, "id" | "created_at" | "updated_at">) => {
+    mutationFn: async (doc: CreateSourceDocumentInput) => {
       // First upload file to storage
       const fileExtension = doc.file.name.split('.').pop();
       const fileName = `source-docs/${Date.now()}.${fileExtension}`;

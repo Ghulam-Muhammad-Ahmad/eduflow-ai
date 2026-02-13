@@ -92,7 +92,7 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
       }
     }
 
-    let payload: {
+    const payload: {
       pastedText?: string;
       pdfBase64?: string;
       targetLevel: "below_grade" | "at_grade" | "above_grade";

@@ -33,7 +33,7 @@ const StudentClassroomDetail = () => {
   const { data: assignments } = useStudentAssignments(classroomId);
   const { fetchClassroomQuizzes } = useQuizzes();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
-  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [quizzes, setQuizzes] = useState<{ id: string; title?: string; available_until?: string | null; status?: string }[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(true);
   const [quizzesLoading, setQuizzesLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -186,7 +186,7 @@ const StudentClassroomDetail = () => {
   ) || [];
 
   const filteredQuizzes = quizzes.filter((q) =>
-    q.title.toLowerCase().includes(searchQuery.toLowerCase())
+    (q.title ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -355,7 +355,7 @@ const StudentClassroomDetail = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredAssignments.map((assignment: any) => (
+                {filteredAssignments.map((assignment: { id?: string; title?: string; due_date?: string | null; mySubmission?: unknown }) => (
                   <div
                     key={assignment.id}
                     className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer"
@@ -371,12 +371,12 @@ const StudentClassroomDetail = () => {
                       <ClipboardList className="w-6 h-6 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{assignment.title}</p>
+                      <p className="font-semibold truncate">{assignment.title ?? "Assignment"}</p>
                       <p className="text-sm text-muted-foreground">
                         {assignment.due_date
                           ? `Due: ${format(new Date(assignment.due_date), "MMM d, yyyy")}`
                           : "No due date"}
-                        {assignment.mySubmission && (
+                        {Boolean(assignment.mySubmission) && (
                           <Badge variant="secondary" className="ml-2">Submitted</Badge>
                         )}
                       </p>
@@ -423,12 +423,12 @@ const StudentClassroomDetail = () => {
                       <HelpCircle className="w-6 h-6 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{quiz.title}</p>
+                      <p className="font-semibold truncate">{quiz.title ?? "Quiz"}</p>
                       <p className="text-sm text-muted-foreground">
                         {quiz.available_until
                           ? `Available until: ${format(new Date(quiz.available_until), "MMM d, yyyy")}`
                           : "No end date"}
-                        <Badge variant="outline" className="ml-2">{quiz.status}</Badge>
+                        <Badge variant="outline" className="ml-2">{`${quiz.status ?? "—"}`}</Badge>
                       </p>
                     </div>
                   </div>

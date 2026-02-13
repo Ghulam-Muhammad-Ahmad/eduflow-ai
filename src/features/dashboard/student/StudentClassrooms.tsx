@@ -148,11 +148,11 @@ const StudentClassrooms = () => {
       await leaveClassroom.mutateAsync(classroomToLeave.id);
       setLeaveDialogOpen(false);
       setClassroomToLeave(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to leave classroom:", error);
       toast({
         title: "Failed to leave classroom",
-        description: error?.message || "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -235,7 +235,7 @@ const StudentClassrooms = () => {
         {!isLoading && classrooms && classrooms.length > 0 && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {classrooms.map((classroom) => {
-              const statusBadge = getStatusBadge(classroom.status, classroom.is_archived);
+              const statusBadge = getStatusBadge(undefined, classroom.is_archived ?? false);
               return (
               <Card
                 key={classroom.id}

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -56,8 +57,8 @@ export const useLessonPlanner = () => {
         topic,
         duration,
         learningObjectives,
-        curriculumStandards,
-        user.id
+        user.id,
+        curriculumStandards
       );
 
       if (result.success) {

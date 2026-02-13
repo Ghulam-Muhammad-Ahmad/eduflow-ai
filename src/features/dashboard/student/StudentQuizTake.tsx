@@ -60,6 +60,7 @@ const StudentQuizTake = () => {
         clearInterval(timerRef.current);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizIdValue]);
 
   const handleAutoSubmit = useCallback(() => {
@@ -110,6 +111,7 @@ const StudentQuizTake = () => {
         clearInterval(timerRef.current);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiz, attempt]);
 
   // Redirect to results when attempt is no longer in progress (must run before any early return)
@@ -118,6 +120,7 @@ const StudentQuizTake = () => {
     if (quizIdValue && attempt.id) {
       router.push(`/dashboard/student/quizzes/${quizIdValue}/results/${attempt.id}`);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt?.status, attempt?.id, quizIdValue, router]);
 
   const loadQuiz = async () => {
@@ -128,7 +131,7 @@ const StudentQuizTake = () => {
       if (quiz) setQuiz(quiz);
       // Randomize questions if enabled
       let loadedQuestions = data.questions;
-      if (quiz?.randomize_questions) {
+      if ((quiz as { randomize_questions?: boolean })?.randomize_questions) {
         loadedQuestions = [...loadedQuestions];
         for (let i = loadedQuestions.length - 1; i > 0; i -= 1) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -258,7 +261,7 @@ const StudentQuizTake = () => {
     return processedAnswers;
   };
 
-  const handleSubmit = async (autoSubmit: boolean = false) => {
+  const handleSubmit = async (_autoSubmit: boolean = false) => {
     if (!attempt) return;
     if (submittingRef.current) return;
     submittingRef.current = true;

@@ -2,11 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
-
-type Submission = Tables<"submissions">;
-type SubmissionInsert = TablesInsert<"submissions">;
-
 // Hook for student to manage their submissions
 export const useStudentSubmissions = () => {
   const { user } = useAuth();

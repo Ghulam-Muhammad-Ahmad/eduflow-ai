@@ -35,9 +35,21 @@ import { format, isPast, isWithinInterval, addDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+interface AssignmentWithSubmission {
+  id: string;
+  title?: string;
+  description?: string | null;
+  due_date?: string | null;
+  points_possible?: number | null;
+  classrooms?: { id?: string; name?: string; subject?: string | null } | null;
+  mySubmission?: { grade: number | null; is_late?: boolean | null } | null;
+  assignment_attachments?: { documents?: { id: string; name: string; file_path: string; file_type: string } }[];
+  [key: string]: unknown;
+}
+
 const StudentAssignments = () => {
   const [classroomFilter, setClassroomFilter] = useState<string>("all");
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<AssignmentWithSubmission | null>(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
 
   const { data: assignments, isLoading } = useStudentAssignments(
@@ -45,7 +57,7 @@ const StudentAssignments = () => {
   );
   const { classrooms } = useClassrooms();
 
-  const getAssignmentStatus = (assignment: any) => {
+  const getAssignmentStatus = (assignment: AssignmentWithSubmission) => {
     const hasSubmission = assignment.mySubmission;
     const dueDate = assignment.due_date ? new Date(assignment.due_date) : null;
     const isOverdue = dueDate && isPast(dueDate);
@@ -57,7 +69,7 @@ const StudentAssignments = () => {
         end: addDays(new Date(), 3),
       });
 
-    if (hasSubmission) {
+    if (hasSubmission && assignment.mySubmission) {
       if (assignment.mySubmission.grade !== null) {
         return { status: "graded", label: "Graded", variant: "default" as const };
       }
@@ -85,7 +97,7 @@ const StudentAssignments = () => {
     return status.status === "submitted" || status.status === "graded";
   });
 
-  const openSubmitDialog = (assignment: any) => {
+  const openSubmitDialog = (assignment: AssignmentWithSubmission) => {
     setSelectedAssignment(assignment);
     setSubmitDialogOpen(true);
   };
@@ -109,14 +121,14 @@ const StudentAssignments = () => {
     }
   };
 
-  const getAttachments = (assignment: any) => {
+  const getAttachments = (assignment: AssignmentWithSubmission) => {
     const attachments = assignment?.assignment_attachments ?? [];
     return attachments
-      .map((a: any) => a.documents)
+      .map((a: { documents?: { id: string; name: string; file_path: string; file_type: string } }) => a.documents)
       .filter(Boolean) as { id: string; name: string; file_path: string; file_type: string }[];
   };
 
-  const renderAssignmentCard = (assignment: any) => {
+  const renderAssignmentCard = (assignment: AssignmentWithSubmission) => {
     const status = getAssignmentStatus(assignment);
     const dueDate = assignment.due_date ? new Date(assignment.due_date) : null;
 
@@ -138,7 +150,9 @@ const StudentAssignments = () => {
               </div>
               <CardTitle className="text-lg truncate">{assignment.title}</CardTitle>
               <CardDescription className="truncate">
-                {assignment.classrooms?.name}
+                {assignment.classrooms && typeof assignment.classrooms === "object"
+                  ? (assignment.classrooms as { name?: string }).name ?? ""
+                  : ""}
               </CardDescription>
             </div>
           </div>
@@ -186,13 +200,13 @@ const StudentAssignments = () => {
             )}
             <div className="flex items-center gap-1">
               <FileText className="w-4 h-4" />
-              <span>{assignment.points_possible} pts</span>
+              <span>{assignment.points_possible ?? 0} pts</span>
             </div>
-            {status.status === "graded" && (
+            {status.status === "graded" && assignment.mySubmission && (
               <div className="flex items-center gap-1 text-accent">
                 <CheckCircle className="w-4 h-4" />
                 <span>
-                  {assignment.mySubmission.grade}/{assignment.points_possible}
+                  {assignment.mySubmission.grade}/{assignment.points_possible ?? 0}
                 </span>
               </div>
             )}

@@ -299,7 +299,8 @@ export default async function handler(
       gradeBreakdown: result.gradeBreakdown,
       model: "gpt-4o-mini",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Check paper failed";
     console.error("Check paper error:", error);
     await supabase.rpc("record_ai_interaction", {
       _user_id: userId,
@@ -309,11 +310,11 @@ export default async function handler(
       _tokens_used: 0,
       _cost: 0,
       _success: false,
-      _error_message: error?.message || "Check paper failed",
+      _error_message: errorMessage,
     });
     return res.status(500).json({
       success: false,
-      error: error?.message || "Failed to check paper",
+      error: error instanceof Error ? error.message : "Failed to check paper",
     });
   }
 }

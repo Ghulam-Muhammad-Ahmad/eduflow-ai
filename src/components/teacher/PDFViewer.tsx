@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,13 +56,7 @@ const PDFViewer = ({
     }
   }, [file]);
 
-  useEffect(() => {
-    if (pdfUrl && canvasRef.current) {
-      renderPDF();
-    }
-  }, [pdfUrl, currentPage, scale]);
-
-  const renderPDF = async () => {
+  const renderPDF = useCallback(async () => {
     if (!pdfUrl || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
@@ -70,15 +64,19 @@ const PDFViewer = ({
     if (!ctx) return;
 
     try {
-      const pdf = await (window as any).pdfjsLib.getDocument(pdfUrl).promise;
+      type PDFPage = { getViewport: (opts: { scale: number }) => { width: number; height: number }; render: (opts: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }) => { promise: Promise<void> } };
+      type PDFDoc = { numPages: number; getPage: (n: number) => Promise<PDFPage> };
+      type WinWithPdf = { pdfjsLib: { getDocument: (url: string) => { promise: Promise<PDFDoc> } } };
+      const win = window as unknown as WinWithPdf;
+      const pdf = await win.pdfjsLib.getDocument(pdfUrl).promise;
       setNumPages(pdf.numPages);
-      
+
       const page = await pdf.getPage(currentPage);
       const viewport = page.getViewport({ scale });
-      
+
       canvas.height = viewport.height;
       canvas.width = viewport.width;
-      
+
       await page.render({
         canvasContext: ctx,
         viewport: viewport,
@@ -86,7 +84,13 @@ const PDFViewer = ({
     } catch (error) {
       console.error("Error rendering PDF:", error);
     }
-  };
+  }, [pdfUrl, currentPage, scale]);
+
+  useEffect(() => {
+    if (pdfUrl && canvasRef.current) {
+      renderPDF();
+    }
+  }, [pdfUrl, renderPDF]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (readOnly || !canvasRef.current) return;

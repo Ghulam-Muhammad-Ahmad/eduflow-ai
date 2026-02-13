@@ -38,11 +38,17 @@ const SourceDocuments = ({ selectedSource, onSourceSelect }: {
   const deleteSource = useDeleteSourceDocument();
   
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
+  type FormDocumentType = "rubric" | "answer_key" | "example_paper" | "reference";
+  const [formData, setFormData] = useState<{
+    title: string;
+    description: string;
+    document_type: FormDocumentType;
+    file: File | null;
+  }>({
     title: "",
     description: "",
-    document_type: "rubric" as const,
-    file: null as File | null,
+    document_type: "rubric",
+    file: null,
   });
 
   const handleSubmit = async () => {
@@ -52,12 +58,17 @@ const SourceDocuments = ({ selectedSource, onSourceSelect }: {
     }
 
     try {
-      await createSource.mutateAsync(formData as any);
+      await createSource.mutateAsync({
+        title: formData.title.trim(),
+        description: formData.description || null,
+        document_type: formData.document_type,
+        file: formData.file,
+      });
       toast.success("Source document uploaded successfully");
       setDialogOpen(false);
       resetForm();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to upload source document");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload source document");
     }
   };
 
@@ -75,8 +86,8 @@ const SourceDocuments = ({ selectedSource, onSourceSelect }: {
       try {
         await deleteSource.mutateAsync(id);
         toast.success("Source document deleted successfully");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to delete source document");
+      } catch (error: unknown) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete source document");
       }
     }
   };
@@ -155,7 +166,7 @@ const SourceDocuments = ({ selectedSource, onSourceSelect }: {
                 <Label>Type</Label>
                 <Select 
                   value={formData.document_type} 
-                  onValueChange={(value: any) => setFormData(prev => ({ ...prev, document_type: value }))}
+                  onValueChange={(value: FormDocumentType) => setFormData(prev => ({ ...prev, document_type: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue />

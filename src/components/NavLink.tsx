@@ -12,7 +12,7 @@ interface NavLinkCompatProps {
 }
 
 const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
-  ({ className, activeClassName, pendingClassName, to, children, ...props }, ref) => {
+  ({ className, activeClassName, pendingClassName: _pendingClassName, to, children, ...props }, ref) => {
     const router = useRouter();
     
     // Check for exact match or if current path starts with nav item path (for nested routes)

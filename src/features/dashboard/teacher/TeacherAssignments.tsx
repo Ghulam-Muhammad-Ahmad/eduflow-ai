@@ -47,7 +47,7 @@ import { format } from "date-fns";
 const TeacherAssignments = () => {
   const router = useRouter();
   const { assignments, isLoading, publishAssignment, deleteAssignment } = useAssignments();
-  const { classrooms } = useClassrooms();
+  useClassrooms();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; title: string } | null>(null);
 
@@ -185,7 +185,7 @@ const TeacherAssignments = () => {
                         {assignment.title}
                       </CardTitle>
                       <CardDescription className="truncate">
-                        {(assignment as any).classrooms?.name || "Unknown Classroom"}
+                        {(assignment as { classrooms?: { name?: string } }).classrooms?.name || "Unknown Classroom"}
                       </CardDescription>
                     </div>
                     <DropdownMenu>

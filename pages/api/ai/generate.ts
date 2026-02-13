@@ -128,11 +128,11 @@ export default async function handler(
       }
     }
     return res.status(200).json(payload);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("AI generation error:", error);
     return res.status(500).json({
       success: false,
-      error: error.message || "Failed to generate content",
+      error: error instanceof Error ? error.message : "Failed to generate content",
     });
   }
 }

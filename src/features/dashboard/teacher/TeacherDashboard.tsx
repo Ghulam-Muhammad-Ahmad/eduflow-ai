@@ -74,8 +74,8 @@ const TeacherDashboard = () => {
       const quizzes = await fetchTeacherQuizzes(user.id);
       // Get the 3 most recent quizzes
       setRecentQuizzes(quizzes.slice(0, 3));
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to load quizzes");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to load quizzes");
     }
   }, [fetchTeacherQuizzes, user?.id]);
 

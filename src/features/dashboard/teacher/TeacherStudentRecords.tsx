@@ -52,12 +52,12 @@ const TeacherStudentRecords = () => {
   };
 
   const classrooms = data?.classrooms ?? [];
-  const students = data?.students ?? [];
   const classroomName = classroomId
     ? classrooms.find((c) => c.id === classroomId)?.name ?? "Classroom"
     : "All Classrooms";
 
   const filteredStudents = useMemo(() => {
+    const students = data?.students ?? [];
     if (!searchQuery.trim()) return students;
     const q = searchQuery.toLowerCase();
     return students.filter(
@@ -65,7 +65,7 @@ const TeacherStudentRecords = () => {
         (s.display_name ?? "").toLowerCase().includes(q) ||
         (s.email ?? "").toLowerCase().includes(q)
     );
-  }, [students, searchQuery]);
+  }, [data?.students, searchQuery]);
 
   const handleExportClassroomPDF = () => {
     if (filteredStudents.length === 0) {

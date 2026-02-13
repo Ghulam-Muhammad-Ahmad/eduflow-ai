@@ -20,9 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Settings } from "lucide-react";
+import { Plus, Edit, Trash2, Settings, FileText } from "lucide-react";
 import { useCheckerPresets, useCreateCheckerPreset, useUpdateCheckerPreset, useDeleteCheckerPreset, CheckerPreset } from "@/hooks/useCheckerPresets";
+import { useTeacherDocuments } from "@/hooks/useTeacherDocuments";
 import { toast } from "sonner";
+
+const NO_REF_DOC_VALUE = "__NO_REF_DOC__";
 
 interface RubricCategory {
   name: string;
@@ -35,6 +38,7 @@ const CheckerPresets = ({ selectedPreset, onPresetSelect }: {
   onPresetSelect?: (preset: CheckerPreset) => void;
 }) => {
   const { data: presets, isLoading } = useCheckerPresets();
+  const { data: teacherDocuments } = useTeacherDocuments();
   const createPreset = useCreateCheckerPreset();
   const updatePreset = useUpdateCheckerPreset();
   const deletePreset = useDeleteCheckerPreset();
@@ -45,6 +49,7 @@ const CheckerPresets = ({ selectedPreset, onPresetSelect }: {
     name: "",
     description: "",
     instructions: "",
+    reference_document_id: "" as string,
     rubric_categories: [] as RubricCategory[],
     total_points: 100,
     is_default: false,
@@ -55,6 +60,7 @@ const CheckerPresets = ({ selectedPreset, onPresetSelect }: {
       name: "",
       description: "",
       instructions: "",
+      reference_document_id: "",
       rubric_categories: [],
       total_points: 100,
       is_default: false,
@@ -68,6 +74,7 @@ const CheckerPresets = ({ selectedPreset, onPresetSelect }: {
       name: preset.name,
       description: preset.description || "",
       instructions: preset.instructions,
+      reference_document_id: preset.reference_document_id ?? "",
       rubric_categories: preset.rubric_categories,
       total_points: preset.total_points,
       is_default: preset.is_default,
@@ -87,21 +94,27 @@ const CheckerPresets = ({ selectedPreset, onPresetSelect }: {
     }
 
     try {
+      const payload = {
+        ...formData,
+        reference_document_id: formData.reference_document_id && formData.reference_document_id !== NO_REF_DOC_VALUE
+          ? formData.reference_document_id
+          : null,
+      };
       if (editingPreset) {
         await updatePreset.mutateAsync({
           id: editingPreset.id,
-          ...formData,
+          ...payload,
         });
         toast.success("Preset updated successfully");
       } else {
-        await createPreset.mutateAsync(formData as any);
+        await createPreset.mutateAsync(payload as Omit<CheckerPreset, "id" | "created_at" | "updated_at">);
         toast.success("Preset created successfully");
       }
       
       setDialogOpen(false);
       resetForm();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to save preset");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to save preset");
     }
   };
 
@@ -110,8 +123,8 @@ const CheckerPresets = ({ selectedPreset, onPresetSelect }: {
       try {
         await deletePreset.mutateAsync(id);
         toast.success("Preset deleted successfully");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to delete preset");
+      } catch (error: unknown) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete preset");
       }
     }
   };
@@ -209,6 +222,32 @@ const CheckerPresets = ({ selectedPreset, onPresetSelect }: {
                   rows={4}
                   placeholder="Detailed instructions for the AI checker..."
                 />
+              </div>
+
+              <div>
+                <Label>Reference document (optional)</Label>
+                <Select
+                  value={formData.reference_document_id || NO_REF_DOC_VALUE}
+                  onValueChange={(val) => setFormData(prev => ({ ...prev, reference_document_id: val === NO_REF_DOC_VALUE ? "" : val }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No reference document" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_REF_DOC_VALUE}>No reference document</SelectItem>
+                    {teacherDocuments?.map((doc) => (
+                      <SelectItem key={doc.id} value={doc.id}>
+                        <span className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          {doc.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Choose a document from Document Center to use as reference when this preset is used.
+                </p>
               </div>
 
               <div>

@@ -54,11 +54,11 @@ const TeacherAIStudio = () => {
       }
       await loadHistory();
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error deleting generated content:", error);
       toast({
         title: "Delete failed",
-        description: error?.message || "Could not delete generated content. Please try again.",
+        description: error instanceof Error ? error.message : "Could not delete generated content. Please try again.",
         variant: "destructive",
       });
       return false;

@@ -67,7 +67,7 @@ export default async function handler(
         const pdfParse = (await import("pdf-parse")).default;
         const result = await pdfParse(buffer);
         text = result?.text ?? "";
-      } catch (e) {
+      } catch {
         return res.status(400).json({
           error: "PDF text extraction failed. Try pasting the content manually.",
         });
@@ -82,7 +82,7 @@ export default async function handler(
         const mammoth = await import("mammoth");
         const result = await mammoth.extractRawText({ buffer });
         text = result?.value ?? "";
-      } catch (e) {
+      } catch {
         return res.status(400).json({
           error: "DOCX text extraction failed. Try pasting the content manually.",
         });

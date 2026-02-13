@@ -25,7 +25,7 @@ const ASSIGNMENT_AI_SYSTEM = `You are an educational assistant. Return ONLY vali
 
 const TeacherCreateAssignment = () => {
   const router = useRouter();
-  const { user } = useAuth();
+  useAuth();
   const {
     createAssignment,
     teacherDocuments,
@@ -125,8 +125,8 @@ const TeacherCreateAssignment = () => {
 
       toast.success("Assignment saved as draft");
       router.push("/dashboard/teacher/assignments");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to create assignment");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to create assignment");
     } finally {
       setIsCreating(false);
     }

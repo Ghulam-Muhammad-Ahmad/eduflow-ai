@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Search,
-  Filter,
   Grid3X3,
   List,
   FileText,
@@ -29,7 +29,6 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -265,7 +264,7 @@ const StudentDocuments = () => {
         setUploading(false);
       }
     },
-    [user, selectedFolder, fetchAllData]
+    [user, selectedFolder, fetchAllData, storageLimit]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -884,10 +883,13 @@ const StudentDocuments = () => {
                 }
                 if (isImage) {
                   return (
-                    <img
+                    <Image
                       src={previewUrl}
                       alt={documentToPreview.name}
+                      width={800}
+                      height={600}
                       className="max-w-full max-h-[70vh] object-contain mx-auto rounded border border-border"
+                      unoptimized
                     />
                   );
                 }

@@ -31,7 +31,10 @@ const JoinClassroom = () => {
   const { toast } = useToast();
   const joinClassroom = useJoinClassroom();
 
-  const normalizedCode = useMemo(() => code?.toUpperCase() ?? "", [code]);
+  const normalizedCode = useMemo(() => {
+    const codeStr = typeof code === "string" ? code : Array.isArray(code) ? code[0] : undefined;
+    return (codeStr ?? "").toUpperCase();
+  }, [code]);
 
   const { data: classroom, isLoading, error } = useQuery({
     queryKey: ["classroom-invite", normalizedCode],

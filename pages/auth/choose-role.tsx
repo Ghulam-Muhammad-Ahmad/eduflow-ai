@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
 import { Users, BookOpen, Sparkles, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import type { AppRole } from "@/types/auth";

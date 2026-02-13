@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms } from "@/hooks/useClassrooms";
@@ -307,7 +308,7 @@ const TeacherDocuments = () => {
         setUploading(false);
       }
     },
-    [user, selectedFolder, fetchData]
+    [user, selectedFolder, fetchData, storageLimit]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -660,7 +661,7 @@ const TeacherDocuments = () => {
     }
   };
 
-  const deleteTag = async (tagId: string) => {
+  const _deleteTag = async (tagId: string) => {
     if (!user) return;
     const tag = tags.find((t) => t.id === tagId);
     if (!tag || !window.confirm(`Delete tag "${tag.name}"? It will be removed from all documents.`)) return;
@@ -1137,10 +1138,13 @@ const TeacherDocuments = () => {
                 }
                 if (isImage) {
                   return (
-                    <img
+                    <Image
                       src={previewUrl}
                       alt={documentToPreview.name}
+                      width={800}
+                      height={600}
                       className="max-w-full max-h-[70vh] object-contain mx-auto rounded border border-border"
+                      unoptimized
                     />
                   );
                 }

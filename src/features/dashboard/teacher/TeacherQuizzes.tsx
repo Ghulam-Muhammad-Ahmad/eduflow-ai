@@ -47,7 +47,7 @@ const TeacherQuizzes = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { fetchTeacherQuizzes, deleteQuiz, publishQuiz, closeQuiz, loading } = useQuizzes();
-  const { classrooms = [], isLoading: classroomsLoading } = useClassrooms();
+  const { classrooms = [] } = useClassrooms();
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filteredQuizzes, setFilteredQuizzes] = useState<Quiz[]>([]);
@@ -71,6 +71,7 @@ const TeacherQuizzes = () => {
 
   useEffect(() => {
     filterQuizzes();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizzes, searchTerm, statusFilter, classroomFilter]);
 
   /** Quiz is closed: either teacher set status closed or end date (available_until) has passed */

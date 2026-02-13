@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,7 +43,7 @@ type FlowMode = "assignment" | "paper";
 
 const TeacherAIChecker = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  useAuth();
   const { usage, isNearLimit } = useAIUsage();
   const {
     gradeSubmissionWithAI,
@@ -61,7 +61,7 @@ const TeacherAIChecker = () => {
     isLoading: submissionsLoading,
     refetch: refetchSubmissions,
   } = useAssignmentSubmissions(selectedAssignment || null);
-  const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
+  const [selectedSubmission, setSelectedSubmission] = useState<{ id: string; assignment_id: string; file_path?: string; text_content?: string } | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [aiFeedback, setAIFeedback] = useState<AIFeedback | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
@@ -71,7 +71,7 @@ const TeacherAIChecker = () => {
   const assignment = assignments?.find((a) => a.id === selectedAssignment);
   const pointsPossible = assignment?.points_possible ?? 100;
 
-  const handleGradeSubmission = async (submission: any) => {
+  const handleGradeSubmission = async (submission: { id: string; assignment_id: string; file_path?: string; text_content?: string }) => {
     if (!submission) return;
 
     const assign = assignments?.find((a) => a.id === submission.assignment_id);
@@ -119,8 +119,8 @@ const TeacherAIChecker = () => {
           setFeedbackText(result.feedback ?? result.content ?? "");
         }
       }
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to grade submission");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to grade submission");
     }
   };
 
@@ -131,7 +131,7 @@ const TeacherAIChecker = () => {
     if (!assign) return;
 
     const ungradedSubmissions = submissions.filter(
-      (s: any) => s.status === "submitted" && !s.grade
+      (s: { status?: string; grade?: number | null }) => s.status === "submitted" && !s.grade
     );
 
     if (ungradedSubmissions.length === 0) {
@@ -139,20 +139,23 @@ const TeacherAIChecker = () => {
       return;
     }
 
-    const batchData = ungradedSubmissions.map((s: any) => ({
-      id: s.id,
-      text: s.text_content || "",
-      assignmentDescription: assign.description || assign.title,
-      hasFile: !!s.file_path,
-    }));
+    const batchData = ungradedSubmissions.map((s) => {
+      const sub = s as { id: string; text_content?: string | null; file_path?: string | null };
+      return {
+        id: sub.id,
+        text: sub.text_content ?? "",
+        assignmentDescription: assign.description || assign.title,
+        hasFile: !!sub.file_path,
+      };
+    });
 
     try {
       const results = await gradeBatchSubmissions(batchData);
       toast.success(`Checked ${results.length} submissions`);
       await refetchSubmissions();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        (error as Error)?.message || "Failed to check submissions"
+        error instanceof Error ? error.message : "Failed to check submissions"
       );
     }
   };
@@ -293,21 +296,23 @@ const TeacherAIChecker = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      submissions.map((submission: any) => (
+                      submissions.map((submission) => {
+                        const sub = submission as { id: string; assignment_id?: string; profiles?: { display_name?: string }; submitted_at?: string; status?: string; grade?: number | null };
+                        return (
                         <TableRow key={submission.id}>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Users className="h-4 w-4 text-muted-foreground" />
                               <span>
-                                {submission.profiles?.display_name ??
-                                  (submission.profiles ? "Student" : "Unknown")}
+                                {sub.profiles?.display_name ??
+                                  (sub.profiles ? "Student" : "Unknown")}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
-                            {submission.submitted_at
+                            {sub.submitted_at
                               ? format(
-                                  new Date(submission.submitted_at),
+                                  new Date(sub.submitted_at),
                                   "MMM d, yyyy"
                                 )
                               : "Not submitted"}
@@ -315,21 +320,21 @@ const TeacherAIChecker = () => {
                           <TableCell>
                             <Badge
                               variant={
-                                submission.status === "graded"
+                                sub.status === "graded"
                                   ? "default"
-                                  : submission.status === "submitted"
+                                  : sub.status === "submitted"
                                   ? "secondary"
                                   : "outline"
                               }
                             >
-                              {submission.status}
+                              {sub.status ?? "—"}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {submission.grade !== null &&
-                            submission.grade !== undefined ? (
+                            {sub.grade !== null &&
+                            sub.grade !== undefined ? (
                               <span className="font-semibold">
-                                {submission.grade}
+                                {sub.grade}
                                 {pointsPossible !== 100
                                   ? ` / ${pointsPossible}`
                                   : "%"}
@@ -342,9 +347,9 @@ const TeacherAIChecker = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleGradeSubmission(submission)}
+                              onClick={() => handleGradeSubmission({ id: sub.id, assignment_id: sub.assignment_id ?? "", file_path: (submission as { file_path?: string | null }).file_path ?? undefined, text_content: (submission as { text_content?: string | null }).text_content ?? undefined })}
                               disabled={
-                                loading || submission.status !== "submitted"
+                                loading || sub.status !== "submitted"
                               }
                             >
                               <Brain className="h-4 w-4 mr-2" />
@@ -352,7 +357,7 @@ const TeacherAIChecker = () => {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))
+                      ); })
                     )}
                   </TableBody>
                 </Table>

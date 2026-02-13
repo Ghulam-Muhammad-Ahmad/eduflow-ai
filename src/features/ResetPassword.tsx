@@ -43,7 +43,7 @@ const ResetPassword = () => {
 
     // Listen for auth state changes (when user clicks the reset link)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event, _session) => {
         if (event === "PASSWORD_RECOVERY") {
           setIsValidSession(true);
         }
@@ -108,7 +108,7 @@ const ResetPassword = () => {
         <div className="max-w-md w-full mx-auto">
           {/* Back Link */}
           <button
-            onClick={() => navigate("/auth")}
+            onClick={() => router.push("/auth")}
             className="flex items-center gap-2 text-muted-foreground hover:text-primary mb-8 transition-colors duration-200"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -141,7 +141,7 @@ const ResetPassword = () => {
                 variant="default"
                 className="w-full"
                 size="lg"
-                onClick={() => navigate("/auth")}
+                onClick={() => router.push("/auth")}
               >
                 Request New Reset Link
               </Button>

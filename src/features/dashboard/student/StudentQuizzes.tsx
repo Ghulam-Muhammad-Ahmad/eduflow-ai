@@ -46,10 +46,12 @@ const StudentQuizzes = () => {
       loadQuizzes();
       loadAttempts();
     }
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     filterQuizzes();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizzes, searchTerm, classroomFilter]);
 
   const loadQuizzes = async () => {

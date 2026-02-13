@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 const AdminDashboard = () => {
-  const { user } = useAuth();
+  useAuth();
 
   const stats = [
     {

@@ -1,9 +1,8 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { StudentRecord, AssignmentGrade, QuizGrade } from "@/hooks/useTeacherStudentRecords";
+import type { StudentRecord } from "@/hooks/useTeacherStudentRecords";
 import { format } from "date-fns";
 
-const FONT_SIZE = 10;
 const HEADER_COLOR: [number, number, number] = [99, 102, 241]; // medium-slate-blue-ish
 const ROW_ALT: [number, number, number] = [248, 250, 252];
 
@@ -17,7 +16,8 @@ function addHeader(doc: jsPDF, title: string, subtitle?: string) {
     doc.text(subtitle, 14, 30);
   }
   doc.setDrawColor(226, 232, 240);
-  doc.line(14, 35, doc.getPageWidth() - 14, 35);
+  const pdfDoc = doc as unknown as { getPageWidth: () => number };
+  doc.line(14, 35, pdfDoc.getPageWidth() - 14, 35);
 }
 
 function formatGrade(grade: number | null, pointsPossible: number | null): string {
@@ -72,16 +72,17 @@ export function generateClassroomPDF(
     tableLineWidth: 0.1,
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 50;
-  if (finalY > doc.getPageHeight() - 25) {
-    doc.addPage([doc.getPageWidth(), doc.getPageHeight()], "landscape");
+  const pdfDoc = doc as unknown as { getPageWidth: () => number; getPageHeight: () => number; lastAutoTable?: { finalY?: number } };
+  const finalY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 50;
+  if (finalY > pdfDoc.getPageHeight() - 25) {
+    doc.addPage([pdfDoc.getPageWidth(), pdfDoc.getPageHeight()], "landscape");
   }
 
   // Per-student detail tables (condensed)
   let startY = finalY + 15;
-  students.forEach((s, idx) => {
-    if (startY > doc.getPageHeight() - 60) {
-      doc.addPage([doc.getPageWidth(), doc.getPageHeight()], "landscape");
+  students.forEach((s, _idx) => {
+    if (startY > pdfDoc.getPageHeight() - 60) {
+      doc.addPage([pdfDoc.getPageWidth(), pdfDoc.getPageHeight()], "landscape");
       startY = 20;
     }
     doc.setFontSize(12);
@@ -108,7 +109,7 @@ export function generateClassroomPDF(
       tableLineColor: [226, 232, 240],
       tableLineWidth: 0.1,
     });
-    startY = (doc as any).lastAutoTable?.finalY + 6;
+    startY = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? startY) + 6;
 
     const qHead = [["Quiz", "Score", "Attempt", "Submitted"]];
     const qRows: string[][] = s.quizGrades.map((g) => [
@@ -129,7 +130,7 @@ export function generateClassroomPDF(
       tableLineColor: [226, 232, 240],
       tableLineWidth: 0.1,
     });
-    startY = (doc as any).lastAutoTable?.finalY + 12;
+    startY = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? startY) + 12;
   });
 
   return doc;
@@ -188,7 +189,7 @@ export function generateStudentPDF(
     tableLineColor: [226, 232, 240],
     tableLineWidth: 0.1,
   });
-  startY = (doc as any).lastAutoTable?.finalY + 14;
+  startY = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? startY) + 14;
 
   doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);

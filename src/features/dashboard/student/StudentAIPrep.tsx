@@ -8,14 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Brain,
   FileText,
   HelpCircle,
   BookOpen,
@@ -31,7 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 const StudentAIPrep = () => {
-  const { user } = useAuth();
+  useAuth();
   const { usage, isNearLimit } = useAIUsage();
   const {
     generateSummary,
@@ -52,16 +44,18 @@ const StudentAIPrep = () => {
   const [numQuestions, setNumQuestions] = useState(10);
   const [availableTime, setAvailableTime] = useState(10);
   const [result, setResult] = useState<string>("");
-  const [studyMaterials, setStudyMaterials] = useState<any[]>([]);
+  type StudyMaterialItem = { id?: string; title?: string; content?: string; content_type?: string; created_at?: string };
+  const [studyMaterials, setStudyMaterials] = useState<StudyMaterialItem[]>([]);
 
   useEffect(() => {
     loadStudyMaterials();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadStudyMaterials = async () => {
     try {
       const materials = await fetchStudyMaterials();
-      setStudyMaterials(materials);
+      setStudyMaterials(materials as StudyMaterialItem[]);
     } catch (error) {
       console.error("Failed to load study materials:", error);
       toast({
@@ -253,7 +247,7 @@ const StudentAIPrep = () => {
     setNumQuestions(normalized);
   };
 
-  const handleViewMaterial = (material: any) => {
+  const handleViewMaterial = (material: { content?: string; content_type?: string }) => {
     if (!material?.content) {
       toast({
         title: "Unable to open material",
@@ -539,15 +533,15 @@ const StudentAIPrep = () => {
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Saved Study Materials</h3>
             <div className="space-y-2">
-              {studyMaterials.slice(0, 5).map((material) => (
+              {studyMaterials.slice(0, 5).map((material, index) => (
                 <div
-                  key={material.id}
+                  key={material.id ?? index}
                   className="flex items-center justify-between p-3 bg-secondary rounded-lg"
                 >
                   <div>
-                    <p className="font-medium">{material.title}</p>
+                    <p className="font-medium">{material.title ?? "Untitled"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {material.content_type} • {new Date(material.created_at).toLocaleDateString()}
+                      {material.content_type ?? ""} • {material.created_at ? new Date(material.created_at).toLocaleDateString() : ""}
                     </p>
                   </div>
                   <Button

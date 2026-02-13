@@ -12,6 +12,7 @@ export interface CheckerPreset {
   name: string;
   description: string | null;
   instructions: string;
+  reference_document_id: string | null;
   rubric_categories: {
     name: string;
     max_points: number;
@@ -41,7 +42,7 @@ export const useCheckerPresets = () => {
           throw error;
         }
         return data as CheckerPreset[];
-      } catch (err) {
+      } catch {
         // If table doesn't exist, return empty array
         console.log("Checker presets table not found, using empty array");
         return [];
@@ -69,7 +70,7 @@ export const useCreateCheckerPreset = () => {
           throw error;
         }
         return data as CheckerPreset;
-      } catch (err) {
+      } catch {
         throw new Error("Failed to create preset. Table may not exist.");
       }
     },
@@ -99,7 +100,7 @@ export const useUpdateCheckerPreset = () => {
           throw error;
         }
         return data as CheckerPreset;
-      } catch (err) {
+      } catch {
         throw new Error("Failed to update preset. Table may not exist.");
       }
     },
@@ -138,7 +139,7 @@ export const useDeleteCheckerPreset = () => {
           }
           throw error;
         }
-      } catch (err) {
+      } catch {
         throw new Error("Failed to delete preset. Table may not exist.");
       }
     },

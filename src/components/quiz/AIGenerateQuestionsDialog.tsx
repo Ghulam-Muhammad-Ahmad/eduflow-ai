@@ -63,17 +63,19 @@ export function AIGenerateQuestionsDialog({
         const jsonMatch = result.content.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          const newQuestions: QuizQuestion[] = parsed.map((q: any, i: number) => {
+          interface ParsedOption { text?: string; is_correct?: boolean }
+          interface ParsedQuestion { question_text?: string; question?: string; options?: (string | ParsedOption)[]; correct_answer?: string; answer?: string; explanation?: string }
+          const newQuestions: QuizQuestion[] = parsed.map((q: ParsedQuestion, i: number) => {
             // Validate and ensure at least one option is marked as correct for multiple choice
             let options = undefined;
             let correctAnswer = undefined;
             
             if (questionType === "multiple_choice" && q.options && Array.isArray(q.options)) {
               // Ensure options have correct structure
-              options = q.options.map((opt: any) => ({
+              options = q.options.map((opt: string | ParsedOption) => ({
                 id: uuidv4(),
                 text: typeof opt === "string" ? opt : opt.text || opt,
-                is_correct: opt.is_correct ?? false,
+                is_correct: typeof opt === "string" ? false : (opt.is_correct ?? false),
               }));
               
               // Check if at least one option is marked as correct

@@ -29,11 +29,15 @@ export const useClassroomStudents = (classroomId: string | null) => {
 
       if (error) throw error;
 
-      return data.map(enrollment => ({
-        id: enrollment.student_id,
-        display_name: enrollment.profiles?.display_name || enrollment.profiles?.email || "Unknown Student",
-        email: enrollment.profiles?.email || "",
-      }));
+      return data.map(enrollment => {
+        const p = (enrollment as { profiles?: { display_name?: string | null; email?: string | null } | { display_name?: string | null; email?: string | null }[] }).profiles;
+        const s = Array.isArray(p) ? p[0] : p;
+        return {
+          id: enrollment.student_id,
+          display_name: s?.display_name ?? s?.email ?? "Unknown Student",
+          email: s?.email ?? "",
+        };
+      });
     },
     enabled: !!classroomId,
   });

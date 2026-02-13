@@ -211,7 +211,7 @@ export default function TeacherSyllabusLessonPlanner() {
     setDaysAvailable((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
-  }, []);
+  }, [setDaysAvailable]);
 
   const canProceedFromStep1 = contentText.trim().length > 0;
   const canProceedFromStep2 = subject.trim().length > 0;

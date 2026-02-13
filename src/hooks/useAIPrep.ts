@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -6,7 +7,6 @@ import {
   generateStudyMaterials,
   explainConcept,
   generateStudyPlan,
-  generateAI,
 } from '@/services/aiService';
 import type { AIGenerateResult } from '@/services/aiService';
 
@@ -44,10 +44,10 @@ export const useAIPrep = () => {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to generate summary',
+        description: error instanceof Error ? error.message : 'Failed to generate summary',
         variant: 'destructive',
       });
       return null;
@@ -131,7 +131,7 @@ export const useAIPrep = () => {
 
     setLoading(true);
     try {
-      const result = await explainConcept(concept, context, user.id);
+      const result = await explainConcept(concept, user.id, context);
       
       if (result.success) {
         await saveStudyMaterial({

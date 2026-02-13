@@ -148,7 +148,7 @@ const TeacherQuizBuilder = () => {
     updateQuiz,
   } = useQuizzes();
   const { classrooms } = useClassrooms();
-  const { createQuizQuestions, loading: aiLoading } = useAIStudio();
+  const { loading: aiLoading } = useAIStudio();
 
   const [saving, setSaving] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -200,32 +200,32 @@ const TeacherQuizBuilder = () => {
     if (!quizId) return;
     setLoadingQuiz(true);
     try {
-      const data = await fetchQuizWithQuestions(quizId as string);
+      const data = await fetchQuizWithQuestions(quizId as string) as { quiz: Quiz | null; questions: QuizQuestion[] } | null;
       if (!data?.quiz) return;
       const { quiz, questions: loadedQuestions } = data;
-      setTitle(quiz.title);
-      setDescription(quiz.description || "");
-      setInstructions(quiz.instructions || "");
-      setClassroomId(quiz.classroom_id);
-      setTimeLimitMinutes(quiz.time_limit_minutes || undefined);
+      setTitle(quiz.title ?? "");
+      setDescription(quiz.description ?? "");
+      setInstructions(quiz.instructions ?? "");
+      setClassroomId(quiz.classroom_id ?? "");
+      setTimeLimitMinutes(quiz.time_limit_minutes ?? undefined);
       setAvailableFrom(quiz.available_from ? quiz.available_from.slice(0, 16) : "");
       setAvailableUntil(quiz.available_until ? quiz.available_until.slice(0, 16) : "");
-      setPassingScore(quiz.passing_score || 70);
-      setMaxAttempts(quiz.max_attempts || 1);
-      setRandomizeQuestions(quiz.randomize_questions);
-      setShowCorrectAnswers(quiz.show_correct_answers);
-      setShowResultsImmediately(quiz.show_results_immediately);
+      setPassingScore(quiz.passing_score ?? 70);
+      setMaxAttempts(quiz.max_attempts ?? 1);
+      setRandomizeQuestions(quiz.randomize_questions ?? false);
+      setShowCorrectAnswers(quiz.show_correct_answers ?? true);
+      setShowResultsImmediately(quiz.show_results_immediately ?? true);
       setQuestions(
         loadedQuestions.map((question) => ({
           ...question,
           id: question.id ?? uuidv4(),
         }))
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error loading quiz:", error);
       toast({
         title: "Failed to load quiz",
-        description: error?.message || "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
       setTitle("");
@@ -403,20 +403,20 @@ const TeacherQuizBuilder = () => {
     try {
       const quizData: Partial<Quiz> = {
         title,
-        description: description || null,
-        instructions: instructions || null,
-        classroom_id: classroomId,
+        description: description || undefined,
+        instructions: instructions || undefined,
+        classroom_id: classroomId || undefined,
         teacher_id: user?.id,
-        time_limit_minutes: timeLimitMinutes || null,
-        available_from: availableFrom ? new Date(availableFrom).toISOString() : null,
-        available_until: availableUntil ? new Date(availableUntil).toISOString() : null,
-        passing_score: passingScore,
-        max_attempts: maxAttempts,
+        time_limit_minutes: timeLimitMinutes ?? undefined,
+        available_from: availableFrom ? new Date(availableFrom).toISOString() : undefined,
+        available_until: availableUntil ? new Date(availableUntil).toISOString() : undefined,
+        passing_score: passingScore ?? undefined,
+        max_attempts: maxAttempts ?? undefined,
         randomize_questions: randomizeQuestions,
         show_correct_answers: hasShortAnswer ? false : showCorrectAnswers,
         show_results_immediately: hasShortAnswer ? false : showResultsImmediately,
         status: publish ? "active" : "draft",
-        published_at: publish ? new Date().toISOString() : null,
+        published_at: publish ? new Date().toISOString() : undefined,
       };
       let success = false;
       if (quizId) {
@@ -426,10 +426,10 @@ const TeacherQuizBuilder = () => {
         success = !!created;
       }
       if (success) router.push("/dashboard/teacher/quizzes");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Save failed",
-        description: error?.message || String(error),
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
     } finally {

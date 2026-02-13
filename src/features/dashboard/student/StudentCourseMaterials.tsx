@@ -136,7 +136,9 @@ const StudentCourseMaterials = () => {
         const share = shares.find((s) => s.document_id === doc.id);
         return {
           ...doc,
-          classroom: share?.classrooms as any,
+          classroom: share?.classrooms
+            ? { id: (share.classrooms as { id: string }).id, name: (share.classrooms as { name: string }).name, subject: (share.classrooms as { subject?: string | null }).subject ?? null }
+            : undefined,
         };
       }) || [];
 

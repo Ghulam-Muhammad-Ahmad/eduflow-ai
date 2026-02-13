@@ -18,7 +18,7 @@ export function generateLessonPlanPDF(
   doc.setTextColor(100, 116, 139);
   doc.text(`${subject} • ${plan.lessons.length} lessons • ${plan.confidence} coverage`, 14, 30);
   doc.setDrawColor(226, 232, 240);
-  doc.line(14, 35, doc.getPageWidth() - 14, 35);
+  doc.line(14, 35, (doc as unknown as { getPageWidth: () => number }).getPageWidth() - 14, 35);
 
   const head = [["#", "Lesson", "Duration", "Topics", "Notes"]];
   const rows = plan.lessons.map((l) => [
@@ -61,7 +61,7 @@ export function generateLessonPlanPDF(
     if (y > 270) doc.addPage();
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
-    doc.text("Summary: " + plan.summary, 14, y, { maxWidth: doc.getPageWidth() - 28 });
+    doc.text("Summary: " + plan.summary, 14, y, { maxWidth: (doc as unknown as { getPageWidth: () => number }).getPageWidth() - 28 });
   }
   return doc;
 }

@@ -66,7 +66,7 @@ const StudentCheckedPapers = () => {
     enabled: !!user?.id && !!classrooms,
   });
 
-  const handleDownload = async (paper: any) => {
+  const handleDownload = async (paper: { file_path: string }) => {
     const { data, error } = await supabase.storage
       .from("documents")
       .createSignedUrl(paper.file_path, 60);
@@ -138,7 +138,7 @@ const StudentCheckedPapers = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                checkedPapers.map((paper: any) => (
+                checkedPapers.map((paper: { id: string; title: string; file_path: string; classroom?: { name: string }; grade?: string; created_at?: string; profiles?: { display_name?: string | null } }) => (
                   <TableRow key={paper.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -149,22 +149,22 @@ const StudentCheckedPapers = () => {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
-                        <span>{paper.classrooms?.name || "Unknown"}</span>
+                        <span>{paper.classroom?.name ?? "Unknown"}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span>{paper.profiles?.display_name || "Teacher"}</span>
+                      <span>{paper.profiles?.display_name ?? "Teacher"}</span>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-semibold">
-                        {paper.grade}/100
+                        {paper.grade ?? "—"}/100
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Calendar className="h-4 w-4" />
                         <span>
-                          {format(new Date(paper.created_at), "MMM d, yyyy")}
+                          {paper.created_at ? format(new Date(paper.created_at), "MMM d, yyyy") : "—"}
                         </span>
                       </div>
                     </TableCell>

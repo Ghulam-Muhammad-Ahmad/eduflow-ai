@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignmentSubmissions } from "@/hooks/useAssignments";
+import { useQuery } from "@tanstack/react-query";
 import { useAIChecker } from "@/hooks/useAIChecker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,16 +81,26 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: submissions, isLoading } = useAssignmentSubmissions(assignmentId);
+  const { data: assignment } = useQuery({
+    queryKey: ["assignment", assignmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("assignments").select("*, classrooms(id, name)").eq("id", assignmentId).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!assignmentId,
+  });
 
   const [gradeDialogOpen, setGradeDialogOpen] = useState(false);
-  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  type SubmissionItem = { id: string; assignment_id?: string; grade?: number | null; feedback?: string | null; file_path?: string | null; text_content?: string | null; file_name?: string | null; status?: string; submitted_at?: string; is_late?: boolean | null; profiles?: { display_name?: string; avatar_url?: string } };
+  const [selectedSubmission, setSelectedSubmission] = useState<SubmissionItem | null>(null);
   const [grade, setGrade] = useState("");
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { gradeSubmissionWithAI, fetchAIFeedback, loading: aiCheckerLoading } = useAIChecker();
+  const { gradeSubmissionWithAI, fetchAIFeedback } = useAIChecker();
   const [aiFeedback, setAIFeedback] = useState("");
   const [aiGenerating, setAIGenerating] = useState(false);
-  const selectedSubmissionRef = useRef<any>(null);
+  const selectedSubmissionRef = useRef<SubmissionItem | null>(null);
   const gradeDialogOpenRef = useRef(false);
 
   useEffect(() => {
@@ -100,14 +111,12 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
     gradeDialogOpenRef.current = gradeDialogOpen;
   }, [gradeDialogOpen]);
 
-  // Get assignment details from first submission
-  const assignment = submissions?.[0]?.assignments;
 
   const submittedCount = submissions?.filter((s) => s.status === "submitted" || s.status === "graded").length || 0;
   const gradedCount = submissions?.filter((s) => s.status === "graded").length || 0;
   const totalStudents = submissions?.length || 0;
 
-  const openGradeDialog = async (submission: any) => {
+  const openGradeDialog = async (submission: SubmissionItem) => {
     const currentId = submission.id;
     setSelectedSubmission(submission);
     setGrade(submission.grade?.toString() || "");
@@ -155,8 +164,8 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
       } else {
         toast.error(result?.error || "Failed to generate AI feedback");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to generate AI feedback");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to generate AI feedback");
     } finally {
       setAIGenerating(false);
     }
@@ -201,7 +210,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
     }
   };
 
-  const downloadSubmission = async (submission: any) => {
+  const downloadSubmission = async (submission: { file_path?: string; file_name?: string }) => {
     if (!submission.file_path) {
       toast.error("No file to download");
       return;
@@ -227,7 +236,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
     }
   };
 
-  const getStatusBadge = (submission: any) => {
+  const getStatusBadge = (submission: { status?: string; is_late?: boolean }) => {
     if (submission.status === "graded") {
       return <Badge className="bg-accent">Graded</Badge>;
     }
@@ -398,13 +407,13 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
                 </TableHeader>
                 <TableBody>
                   {submissions.map((submission) => {
-                    const studentName = (submission.profiles as any)?.display_name || "Student";
+                    const studentName = (submission.profiles as { display_name?: string } | null)?.display_name || "Student";
                     return (
                       <TableRow key={submission.id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-8 w-8">
-                              <AvatarImage src={(submission.profiles as any)?.avatar_url} />
+                              <AvatarImage src={(submission.profiles as { avatar_url?: string } | null)?.avatar_url} />
                               <AvatarFallback>
                                 {studentName[0]?.toUpperCase() || "S"}
                               </AvatarFallback>
@@ -417,7 +426,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
                             ? format(new Date(submission.submitted_at), "MMM d, h:mm a")
                             : "-"}
                         </TableCell>
-                        <TableCell>{getStatusBadge(submission)}</TableCell>
+                        <TableCell>{getStatusBadge({ status: submission.status, is_late: submission.is_late ?? undefined })}</TableCell>
                         <TableCell>
                           {submission.grade !== null ? (
                             <span className="font-semibold">
@@ -433,7 +442,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => downloadSubmission(submission)}
+                                onClick={() => downloadSubmission({ file_path: submission.file_path ?? undefined, file_name: submission.file_name ?? undefined })}
                               >
                                 <Download className="w-4 h-4" />
                               </Button>
@@ -441,7 +450,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
                             {submission.status === "submitted" || submission.status === "graded" ? (
                               <Button
                                 size="sm"
-                                onClick={() => openGradeDialog(submission)}
+                                onClick={() => openGradeDialog(submission as SubmissionItem)}
                               >
                                 {submission.status === "graded" ? "Edit Grade" : "Grade"}
                               </Button>
@@ -463,7 +472,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
             <DialogHeader>
               <DialogTitle>Grade Submission</DialogTitle>
               <DialogDescription>
-                {(selectedSubmission?.profiles as any)?.display_name || "Student"}&apos;s submission
+                {(selectedSubmission?.profiles as { display_name?: string } | undefined)?.display_name || "Student"}&apos;s submission
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -488,7 +497,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => downloadSubmission(selectedSubmission)}
+                      onClick={() => selectedSubmission && downloadSubmission({ file_path: selectedSubmission.file_path ?? undefined, file_name: selectedSubmission.file_name ?? undefined })}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Download

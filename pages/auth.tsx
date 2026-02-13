@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import Link from "next/link";
 import type { AppRole } from "@/types/auth";
 import { passwordSchema } from "@/lib/validation";
 

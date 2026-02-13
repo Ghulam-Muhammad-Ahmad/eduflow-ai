@@ -92,7 +92,7 @@ const DifferentiationAssistant = ({ onContentGenerated }: DifferentiationAssista
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <Label>Target Level</Label>
-              <Select value={targetLevel} onValueChange={(v: any) => setTargetLevel(v)}>
+              <Select value={targetLevel} onValueChange={(v: "below_grade" | "at_grade" | "above_grade") => setTargetLevel(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

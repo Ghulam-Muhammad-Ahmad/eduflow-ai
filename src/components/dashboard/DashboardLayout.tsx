@@ -31,6 +31,7 @@ import {
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  role?: string;
 }
 
 const roleConfig = {
@@ -70,7 +71,7 @@ const roleConfig = {
   },
 };
 
-const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
   const { user, role, profile, signOut } = useAuth();
   const { usage, loading: usageLoading } = useAIUsage();
   const router = useRouter();

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from '@/integrations/supabase/client';
 import type { AITaskType } from '@/types/ai';
 
@@ -8,13 +9,12 @@ export type { AITaskType } from '@/types/ai';
 // Check if user can make AI request
 export const checkAIUsageLimit = async (userId: string) => {
   try {
-    const { data, error } = await supabase.rpc('can_make_ai_request', {
+    const { data, error } = await (supabase.rpc as (name: string, args: { _user_id: string }) => ReturnType<typeof supabase.rpc>)('can_make_ai_request', {
       _user_id: userId,
     });
-    
     if (error) throw error;
-    return data as { can_request: boolean; reason?: string; current_usage: number; limit: number; remaining?: number };
-  } catch (error: any) {
+    return (typeof data === 'object' && data !== null && 'can_request' in data ? data : { can_request: false, reason: 'Unknown', current_usage: 0, limit: 0 }) as { can_request: boolean; reason?: string; current_usage: number; limit: number; remaining?: number };
+  } catch (error: unknown) {
     console.error('Error checking AI usage limit:', error);
     return { can_request: false, reason: 'Failed to check usage limit', current_usage: 0, limit: 0 };
   }
@@ -32,7 +32,7 @@ const recordInteraction = async (
   errorMessage?: string
 ) => {
   try {
-    await supabase.rpc('record_ai_interaction', {
+    await (supabase.rpc as (name: string, args: Record<string, unknown>) => ReturnType<typeof supabase.rpc>)('record_ai_interaction', {
       _user_id: userId,
       _interaction_type: interactionType,
       _provider: provider,
@@ -338,8 +338,8 @@ export const generateLessonPlan = async (
   topic: string,
   duration: number,
   learningObjectives: string[],
-  curriculumStandards?: string[],
-  userId: string
+  userId: string,
+  curriculumStandards?: string[]
 ) => {
   const standardsSection = curriculumStandards 
     ? `\n\nAlign with these standards:\n${curriculumStandards.join('\n')}`
@@ -378,8 +378,8 @@ export const generateStudyMaterials = async (
 
 export const explainConcept = async (
   concept: string,
-  context?: string,
-  userId: string
+  userId: string,
+  context?: string
 ) => {
   const contextSection = context ? `\n\nContext: ${context}` : '';
   const prompt = `Explain this concept in simple, clear terms: ${concept}${contextSection}\n\nProvide:\n1. Simple definition\n2. Key points\n3. Examples\n4. Common misconceptions`;

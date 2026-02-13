@@ -25,13 +25,13 @@ interface SubmitAssignmentDialogProps {
   onOpenChange: (open: boolean) => void;
   assignment: {
     id: string;
-    title: string;
+    title?: string;
     description?: string | null;
     instructions?: string | null;
     due_date?: string | null;
     points_possible?: number | null;
-    classrooms?: { name: string } | null;
-    assignment_attachments?: Array<{ document_id: string; documents: AttachedDoc | null }> | null;
+    classrooms?: { name?: string } | null;
+    assignment_attachments?: Array<{ document_id?: string; documents?: AttachedDoc | null }> | null;
   };
 }
 
@@ -45,7 +45,7 @@ const SubmitAssignmentDialog = ({
   const [activeTab, setActiveTab] = useState<"text" | "file">("text");
 
   const { submitAssignment, submitWithFile } = useStudentSubmissions();
-  const { data: existingSubmission, isLoading: loadingSubmission } = useSubmission(assignment.id);
+  const { data: existingSubmission } = useSubmission(assignment.id);
 
   const isLate = assignment.due_date
     ? new Date() > new Date(assignment.due_date)

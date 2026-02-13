@@ -142,19 +142,20 @@ const TeacherClassroomDetail = () => {
 
       setRemoveStudentDialogOpen(false);
       setStudentToRemove(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Remove failed",
-        description: error?.message || "Unable to remove student. Please try again.",
+        description: error instanceof Error ? error.message : "Unable to remove student. Please try again.",
         variant: "destructive",
       });
     }
   };
 
+  type ProfileLike = { display_name?: string; email?: string; avatar_url?: string };
   // Filter students based on search query
   const filteredRoster = roster?.filter((enrollment) => {
-    const studentName = (enrollment.profiles as any)?.display_name || "Student";
-    const studentEmail = (enrollment.profiles as any)?.email || "";
+    const studentName = (enrollment.profiles as ProfileLike | null)?.display_name || "Student";
+    const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "";
     const query = searchQuery.toLowerCase();
     return studentName.toLowerCase().includes(query) || studentEmail.toLowerCase().includes(query);
   });
@@ -336,9 +337,9 @@ const TeacherClassroomDetail = () => {
             {!rosterLoading && filteredRoster && filteredRoster.length > 0 && (
               <div className="space-y-2">
                 {filteredRoster.map((enrollment) => {
-                  const studentName = (enrollment.profiles as any)?.display_name || "Student";
-                  const studentEmail = (enrollment.profiles as any)?.email || "Email unavailable";
-                  const avatarUrl = (enrollment.profiles as any)?.avatar_url;
+                  const studentName = (enrollment.profiles as ProfileLike | null)?.display_name || "Student";
+                  const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "Email unavailable";
+                  const avatarUrl = (enrollment.profiles as ProfileLike | null)?.avatar_url;
                   
                   return (
                     <div

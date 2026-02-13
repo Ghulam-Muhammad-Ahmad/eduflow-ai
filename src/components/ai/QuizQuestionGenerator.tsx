@@ -93,7 +93,7 @@ const QuizQuestionGenerator = ({ onContentGenerated }: QuizQuestionGeneratorProp
             </div>
             <div>
               <Label>Question Type</Label>
-              <Select value={questionType} onValueChange={(v: any) => setQuestionType(v)}>
+              <Select value={questionType} onValueChange={(v: "multiple_choice" | "true_false" | "short_answer") => setQuestionType(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

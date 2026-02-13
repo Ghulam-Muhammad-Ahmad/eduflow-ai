@@ -133,10 +133,10 @@ const TeacherClassrooms = () => {
       setSubject("");
       setDescription("");
       setCreateDialogOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Failed to create classroom",
-        description: error?.message || "Please try again in a moment.",
+        description: error instanceof Error ? error.message : "Please try again in a moment.",
         variant: "destructive",
       });
     }
@@ -460,14 +460,14 @@ const TeacherClassrooms = () => {
               {!rosterLoading && roster && roster.length > 0 && (
                 <div className="space-y-3 max-h-80 overflow-y-auto">
                   {roster.map((enrollment) => {
-                    const studentName = (enrollment.profiles as any)?.display_name || "Student";
+                    const studentName = (enrollment.profiles as { display_name?: string; avatar_url?: string } | null)?.display_name || "Student";
                     return (
                       <div
                         key={enrollment.id}
                         className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 group"
                       >
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={(enrollment.profiles as any)?.avatar_url} />
+                          <AvatarImage src={(enrollment.profiles as { avatar_url?: string } | null)?.avatar_url} />
                           <AvatarFallback>
                             {(studentName[0] || "S").toUpperCase()}
                           </AvatarFallback>
@@ -516,10 +516,10 @@ const TeacherClassrooms = () => {
                   if (!classroomToArchive) return;
                   try {
                     await archiveClassroom.mutateAsync(classroomToArchive.id);
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     toast({
                       title: "Archive failed",
-                      description: error?.message || "Unable to archive classroom.",
+                      description: error instanceof Error ? error.message : "Unable to archive classroom.",
                       variant: "destructive",
                     });
                   } finally {

@@ -27,17 +27,16 @@ import {
   Loader2,
   Download,
   Save,
-  Users,
-  CheckCircle,
   AlertCircle,
   Settings,
   Plus,
 } from "lucide-react";
+import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import { useClassroomStudents } from "@/hooks/useClassroomStudents";
-import { useCheckerPresets, CheckerPreset } from "@/hooks/useCheckerPresets";
-import { useSourceDocuments, SourceDocument } from "@/hooks/useSourceDocuments";
+import { useCheckerPresets } from "@/hooks/useCheckerPresets";
+import { useTeacherDocuments } from "@/hooks/useTeacherDocuments";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
 
@@ -52,16 +51,39 @@ interface CheckResult {
   mistakes: string[];
   gradeBreakdown?: { category: string; points: number; maxPoints: number; feedback: string }[];
   model: string;
+  /** Rubric categories used for this run (for aligning breakdown display) */
+  usedRubricCategories?: { name: string; max_points: number; description: string | null }[];
 }
 
 const NO_REF_DOC_VALUE = "__NO_REF_DOC__";
 const ALL_STUDENTS_VALUE = "__ALL_STUDENTS__";
 
+/** Align API gradeBreakdown with preset rubric (order and category names) for display */
+function alignBreakdownWithPreset(
+  gradeBreakdown: { category: string; points: number; maxPoints: number; feedback: string }[] | undefined,
+  usedRubricCategories: { name: string; max_points: number; description: string | null }[] | undefined
+): { category: string; points: number; maxPoints: number; feedback: string }[] {
+  if (!gradeBreakdown?.length) return [];
+  if (!usedRubricCategories?.length) return gradeBreakdown;
+  return usedRubricCategories.map((presetCat, index) => {
+    const apiRow = gradeBreakdown[index] ?? gradeBreakdown.find(
+      (r) => r.category.trim().toLowerCase() === presetCat.name.trim().toLowerCase()
+    );
+    return {
+      category: presetCat.name,
+      points: apiRow?.points ?? 0,
+      maxPoints: apiRow?.maxPoints ?? presetCat.max_points,
+      feedback: apiRow?.feedback ?? "—",
+    };
+  });
+}
+
 const CheckPaperFlow = () => {
+  const router = useRouter();
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
   const { data: presets } = useCheckerPresets();
-  const { data: sources } = useSourceDocuments();
+  const { data: teacherDocuments } = useTeacherDocuments();
 
   const [inputMode, setInputMode] = useState<"upload" | "paste">("upload");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -86,8 +108,16 @@ const CheckPaperFlow = () => {
     selectedPreset && selectedPreset !== "custom"
       ? presets?.find((p) => p.id === selectedPreset)
       : undefined;
-  // If selectedSource is NO_REF_DOC_VALUE, don't set a currentSource
-  const currentSource = sources?.find((s) => s.id === selectedSource);
+  // Effective reference: from preset or run-time selection (Document Center)
+  const effectiveReferenceDocumentId =
+    currentPreset?.reference_document_id ?? (selectedSource !== NO_REF_DOC_VALUE ? selectedSource : undefined);
+  const currentSource = effectiveReferenceDocumentId
+    ? teacherDocuments?.find((d) => d.id === effectiveReferenceDocumentId)
+    : undefined;
+  const showRunTimeSource = !currentPreset?.reference_document_id;
+  const showRunTimeInstructions = !currentPreset?.instructions?.trim();
+  const effectiveInstructionsForDisplay =
+    (currentPreset?.instructions?.trim() || instructions.trim()) || "General paper check";
 
   /**
    * Handles file uploads. Accepts PDF files only.
@@ -138,11 +168,12 @@ const CheckPaperFlow = () => {
 
     setLoading(true);
     try {
-      const payload: Record<string, any> = {
+      const effectiveInstructions = (currentPreset?.instructions?.trim() || instructions.trim()) || "";
+      const payload: Record<string, unknown> = {
         userId: user.id,
-        instructions: instructions.trim() || currentPreset?.instructions || "",
+        instructions: effectiveInstructions,
         rubricCategories: currentPreset?.rubric_categories,
-        sourceDocumentId: selectedSource !== NO_REF_DOC_VALUE ? selectedSource : undefined,
+        sourceDocumentId: effectiveReferenceDocumentId,
       };
       if (inputMode === "upload" && pdfFile) {
         payload.pdfBase64 = await convertPdfToBase64(pdfFile);
@@ -168,10 +199,11 @@ const CheckPaperFlow = () => {
         mistakes: data.mistakes || [],
         gradeBreakdown: data.gradeBreakdown,
         model: data.model,
+        usedRubricCategories: currentPreset?.rubric_categories,
       });
       toast.success("Paper checked successfully");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to check paper");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to check paper");
     } finally {
       setLoading(false);
     }
@@ -190,7 +222,7 @@ const CheckPaperFlow = () => {
       `Grade: ${result.grade}/100`,
       `Model: ${result.model}`,
       "",
-      `Instructions: ${instructions || (currentPreset?.instructions || "General paper check")}`,
+      `Instructions: ${effectiveInstructionsForDisplay}`,
       "",
       currentPreset ? `Using Preset: ${currentPreset.name}` : "",
       "",
@@ -244,18 +276,22 @@ const CheckPaperFlow = () => {
 
     setSaveLoading(true);
     try {
-      // Generate HTML with optional breakdown
-      const gradeBreakdownHtml = result.gradeBreakdown && result.gradeBreakdown.length > 0
+      // Generate HTML with optional breakdown (aligned with preset when available)
+      const savedBreakdownRows = alignBreakdownWithPreset(
+        result.gradeBreakdown,
+        result.usedRubricCategories
+      );
+      const gradeBreakdownHtml = savedBreakdownRows.length > 0
         ? `<div style="margin-top: 10px;">
             <h3>Grade Breakdown</h3>
-            ${result.gradeBreakdown
+            ${savedBreakdownRows
               .map(
                 (cat) =>
                   `<div style="margin-bottom:5px;">
-                    <strong>${cat.category}:</strong> ${cat.points}/${cat.maxPoints} (${Math.round(
+                    <strong>${cat.category}:</strong> ${cat.points}/${cat.maxPoints} (${cat.maxPoints > 0 ? Math.round(
                     (cat.points / cat.maxPoints) * 100
-                  )}%)
-                    ${cat.feedback ? `<br /><em>${cat.feedback}</em>` : ""}
+                  ) : 0}%)
+                    ${cat.feedback && cat.feedback !== "—" ? `<br /><em>${cat.feedback}</em>` : ""}
                   </div>`
               )
               .join("")}
@@ -284,12 +320,10 @@ const CheckPaperFlow = () => {
       <h1>AI Checked Paper</h1>
       <p><strong>Grade:</strong> <span class="grade">${result.grade}/100</span></p>
       <p><strong>Checked on:</strong> ${new Date().toLocaleDateString()}</p>
-      <p><strong>Instructions:</strong> ${
-        instructions || "General paper check"
-      }</p>
+      <p><strong>Instructions:</strong> ${effectiveInstructionsForDisplay}</p>
       <p><strong>Model:</strong> ${result.model}</p>
       ${currentPreset ? `<p><strong>Preset:</strong> ${currentPreset.name}</p>` : ""}
-      ${currentSource ? `<p><strong>Reference:</strong> ${currentSource.title}</p>` : ""}
+      ${currentSource ? `<p><strong>Reference:</strong> ${currentSource.name}</p>` : ""}
   </div>
 
   ${
@@ -360,7 +394,7 @@ const CheckPaperFlow = () => {
         file_path: filePath,
         grade: result.grade,
         feedback_text: result.feedback,
-        instructions_used: instructions || null,
+        instructions_used: effectiveInstructionsForDisplay !== "General paper check" ? effectiveInstructionsForDisplay : null,
       });
 
       if (dbError) throw dbError;
@@ -369,8 +403,8 @@ const CheckPaperFlow = () => {
       setSaveDialogOpen(false);
       setSelectedClassroom("");
       setSelectedStudent(ALL_STUDENTS_VALUE);
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to save paper");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to save paper");
     } finally {
       setSaveLoading(false);
     }
@@ -404,11 +438,7 @@ const CheckPaperFlow = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  toast.info(
-                    "Manage presets in the dedicated Presets section coming soon!"
-                  )
-                }
+                onClick={() => router.push("/dashboard/teacher/checker/presets")}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Manage
@@ -430,59 +460,68 @@ const CheckPaperFlow = () => {
         </div>
       </Card>
 
-      {/* Source Documents Section */}
-      <Card className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <FileText className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">Source Document (optional)</h3>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <Label>Reference Document</Label>
-            <Select
-              value={selectedSource ?? NO_REF_DOC_VALUE}
-              onValueChange={val => setSelectedSource(val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a reference document" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_REF_DOC_VALUE}>
-                  No reference document
-                </SelectItem>
-                {sources?.map((source) => (
-                  <SelectItem key={source.id} value={source.id}>
-                    {source.title} ({source.document_type})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                toast.info(
-                  "Manage source documents in the dedicated Sources section coming soon!"
-                )
-              }
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Manage Sources
-            </Button>
+      {/* Source Document: only when preset does not define one */}
+      {showRunTimeSource && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Source Document (optional)</h3>
           </div>
-          {currentSource && (
-            <div className="text-sm text-muted-foreground">
-              <strong>Selected:</strong> {currentSource.title}
-              <div className="mt-1">
-                <div>Type: {currentSource.document_type}</div>
-                {currentSource.description && (
-                  <div>{currentSource.description}</div>
-                )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <Label>Reference Document</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={selectedSource ?? NO_REF_DOC_VALUE}
+                  onValueChange={(val) => setSelectedSource(val)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a reference document" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_REF_DOC_VALUE}>
+                      No reference document
+                    </SelectItem>
+                    {teacherDocuments?.map((doc) => (
+                      <SelectItem key={doc.id} value={doc.id}>
+                        {doc.name}
+                        {doc.file_type ? ` (${doc.file_type})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push("/dashboard/teacher/documents")}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Manage Sources
+                </Button>
               </div>
             </div>
-          )}
-        </div>
-      </Card>
+            {currentSource && (
+              <div className="text-sm text-muted-foreground">
+                <strong>Selected:</strong> {currentSource.name}
+                {currentSource.file_type && (
+                  <div className="mt-1">Type: {currentSource.file_type}</div>
+                )}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+      {!showRunTimeSource && currentSource && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Source Document</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Using reference from preset: <strong>{currentSource.name}</strong>
+          </p>
+        </Card>
+      )}
 
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4">Check Paper</h2>
@@ -537,13 +576,22 @@ const CheckPaperFlow = () => {
         </Tabs>
 
         <div className="mt-6 space-y-4">
-          <Label>Instructions (optional)</Label>
-          <Textarea
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            placeholder="Additional instructions for the AI checker..."
-            rows={3}
-          />
+          {showRunTimeInstructions && (
+            <>
+              <Label>Instructions (optional)</Label>
+              <Textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="Additional instructions for the AI checker..."
+                rows={3}
+              />
+            </>
+          )}
+          {!showRunTimeInstructions && currentPreset?.instructions?.trim() && (
+            <p className="text-sm text-muted-foreground">
+              Using instructions from preset: <strong>{currentPreset.name}</strong>
+            </p>
+          )}
           <Button onClick={handleCheckPaper} disabled={loading} size="lg">
             {loading ? (
               <>
@@ -572,41 +620,54 @@ const CheckPaperFlow = () => {
             </div>
           </div>
 
-          {/* Grade Breakdown */}
-          {result.gradeBreakdown && result.gradeBreakdown.length > 0 && (
-            <div className="mb-6">
-              <h4 className="font-medium mb-3">Grade Breakdown</h4>
-              <div className="space-y-2">
-                {result.gradeBreakdown.map((category, index) => (
-                  <div key={index} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium">{category.category}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {category.points}/{category.maxPoints}
-                        </span>
-                        <Badge variant="outline">
-                          {Math.round(
-                            (category.points / category.maxPoints) * 100
-                          )}
-                          %
-                        </Badge>
+          {/* Grade Breakdown (aligned with preset rubric when available) */}
+          {(() => {
+            const breakdownRows = alignBreakdownWithPreset(
+              result.gradeBreakdown,
+              result.usedRubricCategories
+            );
+            if (breakdownRows.length === 0) return null;
+            return (
+              <div className="mb-6">
+                <h4 className="font-medium mb-3">Grade Breakdown</h4>
+                <div className="space-y-2">
+                  {breakdownRows.map((category, index) => (
+                    <div key={index} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{category.category}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {category.points}/{category.maxPoints}
+                          </span>
+                          <Badge variant="outline">
+                            {category.maxPoints > 0
+                              ? Math.round(
+                                  (category.points / category.maxPoints) * 100
+                                )
+                              : 0}
+                            %
+                          </Badge>
+                        </div>
                       </div>
+                      <Progress
+                        value={
+                          category.maxPoints > 0
+                            ? (category.points / category.maxPoints) * 100
+                            : 0
+                        }
+                        className="mb-2"
+                      />
+                      {category.feedback && category.feedback !== "—" && (
+                        <p className="text-sm text-muted-foreground">
+                          {category.feedback}
+                        </p>
+                      )}
                     </div>
-                    <Progress
-                      value={(category.points / category.maxPoints) * 100}
-                      className="mb-2"
-                    />
-                    {category.feedback && (
-                      <p className="text-sm text-muted-foreground">
-                        {category.feedback}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="space-y-4">
             <div>

@@ -19,12 +19,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2,
   Sparkles,
-  Plus,
   Calendar as CalendarIcon,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  MessageSquare,
   CalendarPlus,
   ClipboardList,
   Clock,
@@ -38,6 +35,7 @@ import type { PlannerEvent } from "@/hooks/usePlannerCalendar";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
+import type { ToolbarProps } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
 import type { CalendarEventSuggestion } from "@/services/aiService";
@@ -65,16 +63,7 @@ function toCalendarEvent(e: PlannerEvent) {
 }
 
 // Custom toolbar: month view only — navigation and label
-function CalendarToolbar({
-  label,
-  onNavigate,
-}: {
-  label: string;
-  onNavigate: (action: string) => void;
-  onView?: (view: string) => void;
-  view?: string;
-  views?: string[];
-}) {
+function CalendarToolbar({ label, onNavigate }: ToolbarProps) {
   return (
     <div className="rbc-toolbar flex flex-wrap items-center justify-center gap-4 py-3 sm:justify-between">
       <div className="flex items-center gap-2">
@@ -83,7 +72,7 @@ function CalendarToolbar({
           variant="ghost"
           size="icon"
           className="p-0 m-0 border-0 flex items-center justify-center calender-arrow"
-          onClick={() => onNavigate("PREV")}
+          onClick={() => onNavigate("PREV", undefined)}
         >
           <ChevronLeft className="h-8 w-8" />
         </Button>
@@ -91,7 +80,7 @@ function CalendarToolbar({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => onNavigate("TODAY")}
+          onClick={() => onNavigate("TODAY", undefined)}
         >
           Today
         </Button>
@@ -100,7 +89,7 @@ function CalendarToolbar({
           variant="ghost"
           size="icon"
           className="p-0 m-0 border-0 flex items-center justify-center calender-arrow"
-          onClick={() => onNavigate("NEXT")}
+          onClick={() => onNavigate("NEXT", undefined)}
         >
           <ChevronRight className="h-8 w-8" />
         </Button>

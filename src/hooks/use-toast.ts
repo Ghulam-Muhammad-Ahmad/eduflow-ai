@@ -12,12 +12,14 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement;
 };
 
+/* eslint-disable @typescript-eslint/no-unused-vars -- actionTypes used for ActionType */
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
   DISMISS_TOAST: "DISMISS_TOAST",
   REMOVE_TOAST: "REMOVE_TOAST",
 } as const;
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 let count = 0;
 
@@ -26,23 +28,23 @@ function genId() {
   return count.toString();
 }
 
-type ActionType = typeof actionTypes;
+type ToastActionType = typeof actionTypes;
 
 type Action =
   | {
-      type: ActionType["ADD_TOAST"];
+      type: ToastActionType["ADD_TOAST"];
       toast: ToasterToast;
     }
   | {
-      type: ActionType["UPDATE_TOAST"];
+      type: ToastActionType["UPDATE_TOAST"];
       toast: Partial<ToasterToast>;
     }
   | {
-      type: ActionType["DISMISS_TOAST"];
+      type: ToastActionType["DISMISS_TOAST"];
       toastId?: ToasterToast["id"];
     }
   | {
-      type: ActionType["REMOVE_TOAST"];
+      type: ToastActionType["REMOVE_TOAST"];
       toastId?: ToasterToast["id"];
     };
 
