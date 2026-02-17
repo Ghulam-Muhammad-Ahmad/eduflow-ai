@@ -38,6 +38,8 @@ export function useSyllabusLessonPlanner() {
   const [loading, setLoading] = useState(false);
   const [extractingDoc, setExtractingDoc] = useState(false);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
+  const [contentPdfBase64, setContentPdfBase64] = useState<string | null>(null);
+  const [contentPdfFileName, setContentPdfFileName] = useState<string | null>(null);
 
   const fetchDocumentText = useCallback(
     async (documentId: string): Promise<string> => {
@@ -69,10 +71,20 @@ export function useSyllabusLessonPlanner() {
   const setContentFromDocument = useCallback(
     async (documentId: string) => {
       const text = await fetchDocumentText(documentId);
-      if (text) setContentText(text);
+      if (text) {
+        setContentText(text);
+        setContentPdfBase64(null);
+        setContentPdfFileName(null);
+      }
     },
     [fetchDocumentText]
   );
+
+  const setContentFromPdf = useCallback((base64: string, fileName: string) => {
+    setContentPdfBase64(base64);
+    setContentPdfFileName(fileName);
+    setContentText('');
+  }, []);
 
   const buildInput = useCallback((): SyllabusLessonInput => ({
     text: contentText,
@@ -85,12 +97,15 @@ export function useSyllabusLessonPlanner() {
     classDurationMinutes,
     daysAvailable: daysAvailable.length ? daysAvailable : undefined,
     teachingStyle: teachingStyle || undefined,
-  }), [contentText, subject, gradeLevel, curriculum, teachingLevel, totalWeeks, hoursPerWeek, classDurationMinutes, daysAvailable, teachingStyle]);
+    pdfBase64: contentPdfBase64 ?? undefined,
+    pdfFileName: contentPdfFileName ?? undefined,
+  }), [contentText, contentPdfBase64, contentPdfFileName, subject, gradeLevel, curriculum, teachingLevel, totalWeeks, hoursPerWeek, classDurationMinutes, daysAvailable, teachingStyle]);
 
   const generate = useCallback(async () => {
     if (!user?.id) return;
-    if (!contentText.trim()) {
-      toast({ title: 'Add content', description: 'Paste text or select a document.', variant: 'destructive' });
+    const hasContent = contentText.trim().length > 0 || (contentPdfBase64 != null && contentPdfBase64.length > 0);
+    if (!hasContent) {
+      toast({ title: 'Add content', description: 'Paste text, select a document, or upload a PDF.', variant: 'destructive' });
       return;
     }
     if (!subject.trim()) {
@@ -110,7 +125,7 @@ export function useSyllabusLessonPlanner() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, contentText, subject, buildInput, toast]);
+  }, [user?.id, contentText, contentPdfBase64, subject, buildInput, toast]);
 
   const regenerate = useCallback(
     async (editPrompt: string) => {
@@ -216,8 +231,17 @@ export function useSyllabusLessonPlanner() {
 
   return {
     contentText,
-    setContentText,
+    setContentText: (t: string) => {
+      setContentText(t);
+      if (t.trim()) {
+        setContentPdfBase64(null);
+        setContentPdfFileName(null);
+      }
+    },
     setContentFromDocument,
+    setContentFromPdf,
+    contentPdfBase64,
+    contentPdfFileName,
     extractingDoc,
     subject,
     setSubject,

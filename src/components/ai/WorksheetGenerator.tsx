@@ -50,6 +50,8 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
   );
   const [topic, setTopic] = useState("");
   const [sourceMaterial, setSourceMaterial] = useState<string | null>(null);
+  const [sourcePdfBase64, setSourcePdfBase64] = useState<string | null>(null);
+  const [sourcePdfFileName, setSourcePdfFileName] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
   const [docCenterOpen, setDocCenterOpen] = useState(false);
   const [loadingDoc, setLoadingDoc] = useState(false);
@@ -81,20 +83,31 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
           binary += String.fromCharCode(...arr.subarray(i, i + chunk));
         }
         const base64 = btoa(binary);
-        const res = await fetch("/api/documents/extract-file", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ base64, fileName: selection.file.name }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Extraction failed");
-        setSourceMaterial(data.text?.trim() ?? "");
-        setSourceName(data.name ?? selection.file.name);
-        setDocCenterOpen(false);
-        toast({ title: "Document ready", description: `Using "${data.name ?? selection.file.name}"` });
+        if (ext === "pdf") {
+          setSourcePdfBase64(base64);
+          setSourcePdfFileName(selection.file.name);
+          setSourceMaterial(null);
+          setSourceName(selection.file.name);
+          setDocCenterOpen(false);
+          toast({ title: "Document ready", description: `Using PDF as-is: "${selection.file.name}"` });
+        } else {
+          const res = await fetch("/api/documents/extract-file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ base64, fileName: selection.file.name }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Extraction failed");
+          setSourceMaterial(data.text?.trim() ?? "");
+          setSourcePdfBase64(null);
+          setSourcePdfFileName(null);
+          setSourceName(data.name ?? selection.file.name);
+          setDocCenterOpen(false);
+          toast({ title: "Document ready", description: `Using "${data.name ?? selection.file.name}"` });
+        }
       } catch (e) {
         toast({
-          title: "Could not extract text",
+          title: "Could not process file",
           description: e instanceof Error ? e.message : "Try a different file.",
           variant: "destructive",
         });
@@ -139,6 +152,8 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
 
   const clearDocument = () => {
     setSourceMaterial(null);
+    setSourcePdfBase64(null);
+    setSourcePdfFileName(null);
     setSourceName(null);
   };
 
@@ -151,7 +166,7 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
       });
       return;
     }
-    if (inputMode === "document" && !sourceMaterial?.trim()) {
+    if (inputMode === "document" && !sourceMaterial?.trim() && !sourcePdfBase64) {
       toast({
         title: "Error",
         description: "Please attach a document from Doc Center or upload a file",
@@ -184,7 +199,9 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
       difficulty,
       instructions: instructions.trim() || undefined,
       questionCount: num,
-      sourceMaterial: inputMode === "document" ? sourceMaterial ?? undefined : undefined,
+      sourceMaterial: inputMode === "document" && !sourcePdfBase64 ? sourceMaterial ?? undefined : undefined,
+      sourcePdfBase64: inputMode === "document" ? sourcePdfBase64 ?? undefined : undefined,
+      sourcePdfFileName: inputMode === "document" ? sourcePdfFileName ?? undefined : undefined,
     });
 
     if (response?.success) {
@@ -260,10 +277,13 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
                   )}
                 </div>
                 {sourceName && (
-                  <p className="text-sm text-muted-foreground">Using: {sourceName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Using: {sourceName}
+                    {sourcePdfBase64 != null ? " (PDF sent as-is)" : ` (${sourceMaterial?.length ?? 0} characters)`}
+                  </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Allowed: {WORKSHEET_DOC_FORMATS.map((f) => f.toUpperCase()).join(", ")}. Worksheet questions will be based on the document content.
+                  Allowed: {WORKSHEET_DOC_FORMATS.map((f) => f.toUpperCase()).join(", ")}. PDF is sent as-is to the AI. DOCX, DOC, and TXT are converted to text.
                 </p>
               </TabsContent>
             </Tabs>

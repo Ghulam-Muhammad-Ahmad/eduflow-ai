@@ -35,24 +35,80 @@ const generateWithOpenAI = async (
 ): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
   const openai = getOpenAIClient();
 
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-  if (systemMessage) {
-    messages.push({ role: "system", content: systemMessage });
-  }
-  messages.push({ role: "user", content: prompt });
-
-  const completion = await openai.chat.completions.create({
+  const response = await openai.responses.create({
     model,
-    messages,
+    instructions: systemMessage ?? undefined,
+    input: prompt,
     temperature: 0.7,
+    truncation: "auto",
   });
 
-  const content = completion.choices[0]?.message?.content || "";
-  const usage = completion.usage;
-  const inputTokens =
-    usage?.prompt_tokens ?? Math.floor(estimateTokens(prompt + (systemMessage ?? "")) * 0.6);
-  const outputTokens =
-    usage?.completion_tokens ?? Math.ceil(estimateTokens(content) * 0.4);
+  const content =
+    (response as { output_text?: string }).output_text ??
+    (Array.isArray((response as { output?: unknown[] }).output)
+      ? (response as { output: Array<{ type?: string; text?: string }> }).output
+          .filter((item) => item.type === "message" || item.text)
+          .map((item) => item.text ?? "")
+          .join("")
+      : "") ??
+    "";
+  const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+  const inputTokens = usage?.input_tokens ?? Math.floor(estimateTokens(prompt + (systemMessage ?? "")) * 0.6);
+  const outputTokens = usage?.output_tokens ?? Math.ceil(estimateTokens(content) * 0.4);
+
+  return { content, inputTokens, outputTokens };
+};
+
+/** Paper generation with PDF sent as-is (no text extraction). Uses Responses API with base64 input_file (no PDF-to-text conversion). */
+const generateWithOpenAIPdf = async (
+  prompt: string,
+  systemMessage: string,
+  pdfBase64: string,
+  filename: string,
+  model: string
+): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
+  const client = getOpenAIClient();
+
+  const base64String = pdfBase64.startsWith("data:")
+    ? pdfBase64.replace(/^data:application\/pdf;base64,/, "")
+    : pdfBase64;
+  const fileData = `data:application/pdf;base64,${base64String}`;
+
+  const response = await client.responses.create({
+    model: model === "gpt-4" ? "gpt-4o" : model,
+    instructions: systemMessage,
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_file",
+            filename,
+            file_data: fileData,
+          },
+          {
+            type: "input_text",
+            text: prompt,
+          },
+        ],
+      },
+    ],
+    temperature: 0.7,
+    truncation: "auto",
+  });
+
+  const content =
+    (response as { output_text?: string }).output_text ??
+    (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
+      ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
+          .flatMap((o) => o.content ?? [])
+          .find((c) => c.type === "output_text")
+          ?.text ?? ""
+      : "") ??
+    "";
+  const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+  const inputTokens = usage?.input_tokens ?? 0;
+  const outputTokens = usage?.output_tokens ?? 0;
 
   return { content, inputTokens, outputTokens };
 };
@@ -64,6 +120,9 @@ interface AIGenerateRequest {
   model?: string;
   /** For checker task: max points so the model can suggest a grade within range */
   pointsPossible?: number;
+  /** For paper_generation: send PDF as-is (no text extraction). Model must support PDF (e.g. gpt-4o). */
+  sourcePdfBase64?: string;
+  sourcePdfFileName?: string;
 }
 
 export default async function handler(
@@ -86,6 +145,8 @@ export default async function handler(
       systemInstruction,
       model,
       pointsPossible,
+      sourcePdfBase64,
+      sourcePdfFileName,
     }: AIGenerateRequest = req.body;
 
     if (!taskType || !prompt) {
@@ -93,6 +154,9 @@ export default async function handler(
     }
 
     const selectedModel = model || "gpt-4";
+    const isPaperWithPdf = taskType === "paper_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
+    const isWorksheetWithPdf = taskType === "worksheet_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
+    const isPdfTask = isPaperWithPdf || isWorksheetWithPdf;
 
     const maxPoints = typeof pointsPossible === "number" && pointsPossible > 0 ? pointsPossible : 100;
     const isCheckerWithGrade = taskType === "checker" && maxPoints > 0;
@@ -105,7 +169,15 @@ export default async function handler(
           " Respond with ONLY a valid JSON object. No markdown, no code fence, no explanation—just the raw JSON."
         : systemInstruction;
 
-    const result = await generateWithOpenAI(prompt, checkerSystem, selectedModel);
+    const result = isPdfTask
+      ? await generateWithOpenAIPdf(
+          prompt,
+          checkerSystem ?? systemInstruction ?? "",
+          sourcePdfBase64,
+          sourcePdfFileName?.trim() || "document.pdf",
+          selectedModel
+        )
+      : await generateWithOpenAI(prompt, checkerSystem, selectedModel);
     const totalTokens = result.inputTokens + result.outputTokens;
     const cost = calculateCost(selectedModel, result.inputTokens, result.outputTokens);
 

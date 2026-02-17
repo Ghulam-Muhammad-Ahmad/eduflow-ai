@@ -44,6 +44,9 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
   const [topic, setTopic] = useState("");
   const [sourceMaterial, setSourceMaterial] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
+  const [sourcePdfBase64, setSourcePdfBase64] = useState<string | null>(null);
+  const [sourcePdfFileName, setSourcePdfFileName] = useState<string | null>(null);
+  const [customInstruction, setCustomInstruction] = useState("");
   const [docCenterOpen, setDocCenterOpen] = useState(false);
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [duration, setDuration] = useState<string>("");
@@ -71,26 +74,43 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
       try {
         const bytes = await selection.file.arrayBuffer();
         const arr = new Uint8Array(bytes);
-        let binary = "";
-        const chunk = 8192;
-        for (let i = 0; i < arr.length; i += chunk) {
-          binary += String.fromCharCode(...arr.subarray(i, i + chunk));
+        if (ext === "pdf") {
+          let binary = "";
+          const chunk = 8192;
+          for (let i = 0; i < arr.length; i += chunk) {
+            binary += String.fromCharCode(...arr.subarray(i, i + chunk));
+          }
+          const base64 = btoa(binary);
+          setSourcePdfBase64(base64);
+          setSourcePdfFileName(selection.file.name);
+          setSourceMaterial(null);
+          setSourceName(selection.file.name);
+          setDocCenterOpen(false);
+          toast({ title: "Document ready", description: `Using PDF as-is: "${selection.file.name}"` });
+        } else {
+          let binary = "";
+          const chunk = 8192;
+          for (let i = 0; i < arr.length; i += chunk) {
+            binary += String.fromCharCode(...arr.subarray(i, i + chunk));
+          }
+          const base64 = btoa(binary);
+          const res = await fetch("/api/documents/extract-file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ base64, fileName: selection.file.name }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Extraction failed");
+          setSourceMaterial(data.text?.trim() ?? "");
+          setSourcePdfBase64(null);
+          setSourcePdfFileName(null);
+          setSourceName(data.name ?? selection.file.name);
+          setDocCenterOpen(false);
+          toast({ title: "Document ready", description: `Using "${data.name ?? selection.file.name}"` });
         }
-        const base64 = btoa(binary);
-        const res = await fetch("/api/documents/extract-file", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ base64, fileName: selection.file.name }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Extraction failed");
-        setSourceMaterial(data.text?.trim() ?? "");
-        setSourceName(data.name ?? selection.file.name);
-        setDocCenterOpen(false);
-        toast({ title: "Document ready", description: `Using "${data.name ?? selection.file.name}"` });
       } catch (e) {
         toast({
-          title: "Could not extract text",
+          title: "Could not process file",
           description: e instanceof Error ? e.message : "Try a different file.",
           variant: "destructive",
         });
@@ -109,6 +129,8 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
       });
       return;
     }
+    setSourcePdfBase64(null);
+    setSourcePdfFileName(null);
     setLoadingDoc(true);
     try {
       const res = await fetch("/api/documents/extract-text", {
@@ -136,6 +158,8 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
   const clearDocument = () => {
     setSourceMaterial(null);
     setSourceName(null);
+    setSourcePdfBase64(null);
+    setSourcePdfFileName(null);
   };
 
   const toggleQuestionType = (type: PaperQuestionType) => {
@@ -172,7 +196,8 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
         return;
       }
     } else {
-      if (!sourceMaterial?.trim()) {
+      const hasSource = (sourceMaterial?.trim()?.length ?? 0) > 0 || (sourcePdfBase64?.length ?? 0) > 0;
+      if (!hasSource) {
         toast({
           title: "Error",
           description: "Please attach a document from Doc Center or upload a file",
@@ -198,7 +223,10 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
       subject,
       gradeLevel,
       topic: topicLabel,
-      sourceMaterial: sourceMaterial?.trim() || undefined,
+      sourceMaterial: sourcePdfBase64 ? undefined : (sourceMaterial?.trim() || undefined),
+      sourcePdfBase64: sourcePdfBase64 ?? undefined,
+      sourcePdfFileName: sourcePdfFileName ?? undefined,
+      customInstruction: customInstruction.trim() || undefined,
       duration: duration ? parseInt(duration, 10) : undefined,
       questionTypes: types,
       numQuestions: num,
@@ -238,9 +266,6 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
           <FileText className="h-5 w-5" />
           Paper Generator
         </h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Create exam or test papers from a topic or from an attached document. Choose subject, grade, and question types; the paper will open on a separate page where you can view, copy, or manage it.
-        </p>
 
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -277,13 +302,12 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
               </Select>
             </div>
           </div>
-
+          <hr className="my-4" />
           <div>
-            <Label>Topic or source</Label>
             <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "topic" | "document")} className="mt-2">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="topic">Enter topic</TabsTrigger>
-                <TabsTrigger value="document">Attach document</TabsTrigger>
+              <TabsList className="grid w-fit grid-cols-2">
+                <TabsTrigger value="topic" className="w-full">Enter topic</TabsTrigger>
+                <TabsTrigger value="document" className="w-full ">Attach document</TabsTrigger>
               </TabsList>
               <TabsContent value="topic" className="mt-3">
                 <Input
@@ -319,14 +343,14 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
                     </Button>
                   )}
                 </div>
-                {sourceMaterial != null && (
+                {(sourceMaterial != null || sourcePdfBase64 != null) && sourceName && (
                   <p className="text-sm text-muted-foreground">
                     Using: <span className="font-medium text-foreground">{sourceName}</span>
-                    {" "}({sourceMaterial.length} characters)
+                    {sourcePdfBase64 != null ? " (PDF sent as-is)" : ` (${sourceMaterial?.length ?? 0} characters)`}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  PDF, DOCX, DOC, or TXT. The paper will be based on the document content.
+                  PDF is sent as-is to the AI. DOCX, DOC, and TXT are converted to text. The paper will be based on the document content.
                 </p>
                 <DocCenterMini
                   open={docCenterOpen}
@@ -349,7 +373,7 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
               </div>
             )}
           </div>
-
+            <hr className="my-4" />
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <Label htmlFor="duration">Duration (minutes)</Label>
@@ -387,6 +411,7 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
             </div>
           </div>
 
+          <hr className="my-4" />
           <div>
             <Label>Question types</Label>
             <p className="text-sm text-muted-foreground mb-2">
@@ -408,6 +433,21 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
                 </label>
               ))}
             </div>
+          </div>
+
+          <hr className="my-4" />
+          <div>
+            <Label htmlFor="customInstruction">Custom instructions (optional)</Label>
+            <Input
+              id="customInstruction"
+              value={customInstruction}
+              onChange={(e) => setCustomInstruction(e.target.value)}
+              placeholder="e.g. Focus on application questions, include one diagram, avoid trick questions"
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Additional instructions for how the paper should be generated.
+            </p>
           </div>
 
           <Button

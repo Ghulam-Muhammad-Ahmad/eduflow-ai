@@ -182,6 +182,8 @@ export const useAIStudio = () => {
     instructions?: string;
     questionCount?: number;
     sourceMaterial?: string;
+    sourcePdfBase64?: string;
+    sourcePdfFileName?: string;
   }): Promise<(AIGenerateResult & { savedContent?: AIGeneratedContent | null }) | null> => {
     if (!user?.id) return null;
 
@@ -194,6 +196,8 @@ export const useAIStudio = () => {
         instructions: params.instructions,
         questionCount: params.questionCount,
         sourceMaterial: params.sourceMaterial,
+        sourcePdfBase64: params.sourcePdfBase64,
+        sourcePdfFileName: params.sourcePdfFileName,
       };
       const result = await generateWorksheet(genParams, user.id);
 

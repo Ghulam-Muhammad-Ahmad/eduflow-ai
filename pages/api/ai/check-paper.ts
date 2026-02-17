@@ -69,9 +69,9 @@ Respond with ONLY a single JSON object (no markdown, no code block) with exactly
   };
 }
 
-/** Check paper via PDF: use Responses API with base64 file input (full document) */
+/** Check paper via PDF: Responses API with base64 input_file (no PDF-to-text conversion). */
 async function checkPdfWithResponses(
-  apiKey: string,
+  openai: OpenAI,
   pdfBase64: string,
   instructions: string,
   rubricCategories?: { name: string; max_points: number; description?: string }[]
@@ -96,10 +96,11 @@ Analyze the full document and respond with ONLY a single JSON object (no markdow
 - "mistakes" (array of strings, list of specific issues/mistakes found)
 - "gradeBreakdown" (array of objects, each with: "category" (string), "points" (number), "maxPoints" (number), "feedback" (string))`;
 
-  const fileData =
-    pdfBase64.startsWith("data:") ? pdfBase64 : `data:application/pdf;base64,${pdfBase64}`;
+  const base64String =
+    pdfBase64.startsWith("data:") ? pdfBase64.replace(/^data:application\/pdf;base64,/, "") : pdfBase64;
+  const fileData = `data:application/pdf;base64,${base64String}`;
 
-  const body = {
+  const response = await openai.responses.create({
     model: "gpt-4o",
     input: [
       {
@@ -116,29 +117,16 @@ Analyze the full document and respond with ONLY a single JSON object (no markdow
       },
     ],
     instructions: system,
-  };
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
   });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(err || "OpenAI Responses API error");
-  }
-
-  const data = (await response.json()) as {
-    output?: Array<{ content?: Array<{ type: string; text?: string }> }>;
-    usage?: { input_tokens: number; output_tokens: number };
-  };
-
   const outputText =
-    data.output?.[0]?.content?.find((c) => c.type === "output_text")?.text ?? "";
+    (response as { output_text?: string }).output_text ??
+    (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
+      ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
+          .flatMap((o) => o.content ?? [])
+          .find((c) => c.type === "output_text")
+          ?.text ?? ""
+      : "") ?? "";
   const raw = outputText.trim().replace(/^```json?\s*|\s*```$/g, "");
   let parsed: { 
     grade?: number; 
@@ -157,7 +145,7 @@ Analyze the full document and respond with ONLY a single JSON object (no markdow
     };
   }
 
-  const usage = data.usage;
+  const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
   return {
     grade: typeof parsed.grade === "number" ? parsed.grade : 0,
     feedback: typeof parsed.feedback === "string" ? parsed.feedback : "",
@@ -225,10 +213,7 @@ export default async function handler(
     });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: "OpenAI API key not configured" });
-  }
+  const openai = getOpenAIClient();
 
   const instructionsStr =
     typeof instructions === "string" ? instructions.trim() : "";
@@ -236,7 +221,7 @@ export default async function handler(
   try {
     if (pdfBase64 && typeof pdfBase64 === "string") {
       const result = await checkPdfWithResponses(
-        apiKey,
+        openai,
         pdfBase64,
         instructionsStr,
         rubricCategories
@@ -272,7 +257,6 @@ export default async function handler(
       return res.status(400).json({ error: "pastedText is empty" });
     }
 
-    const openai = getOpenAIClient();
     const result = await checkPastedText(openai, pasted, instructionsStr, rubricCategories);
 
     const totalTokens = result.inputTokens + result.outputTokens;

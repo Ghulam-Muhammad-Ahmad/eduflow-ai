@@ -56,6 +56,9 @@ export interface AIGenerateOptions {
   userId: string;
   /** For checker: max points so the model suggests a grade in range [0, pointsPossible] */
   pointsPossible?: number;
+  /** For paper_generation: send PDF as-is (no text extraction) */
+  sourcePdfBase64?: string;
+  sourcePdfFileName?: string;
 }
 
 export interface AIGenerateResult {
@@ -72,7 +75,7 @@ export interface AIGenerateResult {
 }
 
 export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerateResult> => {
-  const { taskType, prompt, systemInstruction, model, userId, pointsPossible } = options;
+  const { taskType, prompt, systemInstruction, model, userId, pointsPossible, sourcePdfBase64, sourcePdfFileName } = options;
 
   // Check usage limit first
   const usageCheck = await checkAIUsageLimit(userId);
@@ -100,6 +103,8 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
     if (taskType === 'checker' && pointsPossible != null) {
       body.pointsPossible = pointsPossible;
     }
+    if (sourcePdfBase64 != null) body.sourcePdfBase64 = sourcePdfBase64;
+    if (sourcePdfFileName != null) body.sourcePdfFileName = sourcePdfFileName;
     const response = await fetch('/api/ai/generate', {
       method: 'POST',
       credentials: 'same-origin',
@@ -267,8 +272,13 @@ export interface GeneratePaperParams {
   subject: string;
   gradeLevel: string;
   topic: string;
-  /** When set, the paper is based on this source material (e.g. from an attached document). */
+  /** When set, the paper is based on this source material (e.g. from an attached document). Not used when sourcePdfBase64 is set. */
   sourceMaterial?: string;
+  /** When set, the PDF is sent as-is to the model (no text extraction). Takes precedence over sourceMaterial. */
+  sourcePdfBase64?: string;
+  sourcePdfFileName?: string;
+  /** Optional custom instructions for the paper (e.g. focus areas, style). */
+  customInstruction?: string;
   duration?: number; // minutes
   questionTypes: PaperQuestionType[];
   numQuestions?: number; // total; if not set, use breakdown
@@ -277,6 +287,9 @@ export interface GeneratePaperParams {
 }
 
 const PAPER_SYSTEM = `You are an expert exam and test paper designer. Create clear, fair, age-appropriate exam or test papers. Use markdown with clear sections: a header with subject, grade, topic, duration and total marks; then Section A, Section B, etc. with question numbers, marks per question, and space for answers. Be consistent with numbering and formatting.`;
+
+/** Max chars for source material so prompt stays under model context (e.g. 8192). ~1 token ≈ 4 chars; reserve space for system + rest of prompt + response. */
+const PAPER_SOURCE_MAX_CHARS = 18_000;
 
 export const generatePaper = async (
   params: GeneratePaperParams,
@@ -287,6 +300,9 @@ export const generatePaper = async (
     gradeLevel,
     topic,
     sourceMaterial,
+    sourcePdfBase64,
+    sourcePdfFileName,
+    customInstruction,
     duration,
     questionTypes,
     numQuestions,
@@ -308,8 +324,19 @@ export const generatePaper = async (
   const durationPart = duration ? `\nDuration: ${duration} minutes.` : '';
   const marksPart = totalMarks ? `\nTotal marks: ${totalMarks}.` : '';
 
-  const sourceBlock = sourceMaterial?.trim()
-    ? `\n\nUse the following source material as the basis for the exam. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceMaterial.trim()}\n---\n\n`
+  const usePdfAsIs = Boolean(sourcePdfBase64?.trim());
+  let sourceForPrompt = usePdfAsIs ? '' : (sourceMaterial?.trim() ?? '');
+  if (sourceForPrompt.length > PAPER_SOURCE_MAX_CHARS) {
+    sourceForPrompt = sourceForPrompt.slice(0, PAPER_SOURCE_MAX_CHARS) + '\n\n[Source material was truncated due to length. Base questions on the content above.]';
+  }
+  const sourceBlock = sourceForPrompt
+    ? `\n\nUse the following source material as the basis for the exam. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceForPrompt}\n---\n\n`
+    : usePdfAsIs
+      ? '\n\nUse the attached PDF document as the basis for the exam. Create questions that assess understanding of its content.\n\n'
+      : '';
+
+  const customBlock = customInstruction?.trim()
+    ? `\n\nAdditional instructions from the teacher: ${customInstruction.trim()}\n`
     : '';
 
   const prompt = `Create an exam/test paper with the following specifications:${sourceBlock}
@@ -318,7 +345,7 @@ Subject: ${subject}
 Grade level: ${gradeLevel}
 Topic: ${topic}
 Question types: ${typeList}
-Number of questions: ${countPart}${durationPart}${marksPart}
+Number of questions: ${countPart}${durationPart}${marksPart}${customBlock}
 
 Format the paper in markdown with:
 1. A title line (e.g. "${subject} - ${topic} - Grade ${gradeLevel}")
@@ -331,6 +358,8 @@ Format the paper in markdown with:
     prompt,
     systemInstruction: PAPER_SYSTEM,
     userId,
+    sourcePdfBase64: usePdfAsIs ? sourcePdfBase64 : undefined,
+    sourcePdfFileName: usePdfAsIs ? (sourcePdfFileName || 'document.pdf') : undefined,
   });
 };
 
@@ -349,8 +378,11 @@ export interface GenerateWorksheetParams {
   instructions?: string;
   questionCount?: number;
   questionTypes?: WorksheetQuestionTypeSpec[];
-  /** When set, worksheet content is based on this source (e.g. from Doc Center). */
+  /** When set, worksheet content is based on this source (e.g. from Doc Center). Not used when sourcePdfBase64 is set. */
   sourceMaterial?: string;
+  /** When set, the PDF is sent as base64 to the AI (no text extraction). Takes precedence over sourceMaterial. */
+  sourcePdfBase64?: string;
+  sourcePdfFileName?: string;
 }
 
 const WORKSHEET_JSON_SCHEMA = `Respond with ONLY a single JSON object (no markdown, no code block, no other text). The JSON must have this exact structure:
@@ -381,8 +413,11 @@ export const generateWorksheet = async (
     questionCount = 10,
     questionTypes,
     sourceMaterial,
+    sourcePdfBase64,
+    sourcePdfFileName,
   } = params;
 
+  const usePdfAsIs = Boolean(sourcePdfBase64?.trim());
   const count = Math.min(50, Math.max(1, Number(questionCount) || 10));
   const typeList =
     questionTypes && questionTypes.length > 0
@@ -391,9 +426,11 @@ export const generateWorksheet = async (
   const instructionsBlock = instructions?.trim()
     ? `\n\nAdditional instructions from the teacher: ${instructions.trim()}`
     : '';
-  const sourceBlock = sourceMaterial?.trim()
-    ? `\n\nUse the following source material as the basis for the worksheet. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceMaterial.trim()}\n---\n\n`
-    : '';
+  const sourceBlock = usePdfAsIs
+    ? '\n\nUse the attached PDF document as the basis for the worksheet. Create questions that assess understanding of its content.\n\n'
+    : sourceMaterial?.trim()
+      ? `\n\nUse the following source material as the basis for the worksheet. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceMaterial.trim()}\n---\n\n`
+      : '';
 
   const prompt = `You are a professional teacher. Generate a worksheet in strict JSON format.${sourceBlock}
 
@@ -417,6 +454,8 @@ ${WORKSHEET_JSON_SCHEMA}`;
     systemInstruction:
       'You are an expert teacher. Generate worksheet content as valid JSON only. No markdown, no HTML, no explanation—just the raw JSON object with title, instructions, and questions array.',
     userId,
+    sourcePdfBase64: usePdfAsIs ? sourcePdfBase64 : undefined,
+    sourcePdfFileName: usePdfAsIs ? (sourcePdfFileName || 'document.pdf') : undefined,
   });
 };
 
@@ -543,6 +582,9 @@ export interface SyllabusLessonInput {
   daysAvailable?: string[];
   teachingStyle?: 'concept-based' | 'practice-heavy' | 'revision-focused';
   editPrompt?: string;
+  /** When set, syllabus content is sent as PDF (base64) to the AI instead of text. */
+  pdfBase64?: string;
+  pdfFileName?: string;
 }
 
 export interface SyllabusLessonItem {

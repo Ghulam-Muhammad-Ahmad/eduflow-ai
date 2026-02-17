@@ -63,7 +63,7 @@ const TEACHING_STYLES: { value: TeachingStyle; label: string }[] = [
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** Doc Center formats supported for syllabus (extract to text). */
+/** Doc Center formats supported for syllabus. PDF is sent as base64 to the AI; others are extracted to text. */
 const SYLLABUS_DOC_FORMATS = ["pdf", "txt", "doc", "docx"];
 
 export default function TeacherSyllabusLessonPlanner() {
@@ -73,6 +73,9 @@ export default function TeacherSyllabusLessonPlanner() {
     contentText,
     setContentText,
     setContentFromDocument,
+    setContentFromPdf,
+    contentPdfBase64,
+    contentPdfFileName,
     extractingDoc,
     subject,
     setSubject,
@@ -135,23 +138,29 @@ export default function TeacherSyllabusLessonPlanner() {
           binary += String.fromCharCode(...arr.subarray(i, i + chunk));
         }
         const base64 = btoa(binary);
-        const res = await fetch("/api/documents/extract-file", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ base64, fileName: file.name }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Extraction failed");
-        setContentText(data.text?.trim() ?? "");
-        setDocCenterOpen(false);
-        toast.success(`Using "${data.name ?? file.name}"`);
+        if (ext === "pdf") {
+          setContentFromPdf(base64, file.name);
+          setDocCenterOpen(false);
+          toast.success(`Using PDF as-is: "${file.name}"`);
+        } else {
+          const res = await fetch("/api/documents/extract-file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ base64, fileName: file.name }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Extraction failed");
+          setContentText(data.text?.trim() ?? "");
+          setDocCenterOpen(false);
+          toast.success(`Using "${data.name ?? file.name}"`);
+        }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Could not extract text from file.");
+        toast.error(e instanceof Error ? e.message : "Could not process file.");
       } finally {
         setLoadingDoc(false);
       }
     },
-    [setContentFromDocument, setContentText]
+    [setContentFromDocument, setContentText, setContentFromPdf]
   );
 
   const toggleDay = useCallback((day: string) => {
@@ -160,7 +169,8 @@ export default function TeacherSyllabusLessonPlanner() {
     );
   }, [setDaysAvailable]);
 
-  const canProceedFromStep1 = contentText.trim().length > 0;
+  const hasContent = contentText.trim().length > 0 || (contentPdfBase64 != null && contentPdfBase64.length > 0);
+  const canProceedFromStep1 = hasContent;
   const canProceedFromStep2 = subject.trim().length > 0;
   const canGenerate = canProceedFromStep1 && canProceedFromStep2;
 
@@ -279,7 +289,7 @@ export default function TeacherSyllabusLessonPlanner() {
                   What do you want to teach?
                 </h2>
                 <p className="text-muted-foreground mt-1">
-                  Add your syllabus, topic list, or chapter headings. Pick from Doc Center or paste below.
+                  Add your syllabus, topic list, or chapter headings. Pick from Doc Center or paste below. PDFs are sent as-is to the AI; other formats are converted to text.
                 </p>
               </div>
               <div className="space-y-4">
@@ -501,7 +511,7 @@ export default function TeacherSyllabusLessonPlanner() {
                 <div className="flex gap-2">
                   <span className="text-muted-foreground w-28 shrink-0">Content</span>
                   <span className="line-clamp-2">
-                    {contentText.length > 120 ? `${contentText.slice(0, 120)}…` : contentText}
+                    {contentPdfFileName ? `PDF: ${contentPdfFileName} (sent as-is)` : contentText.length > 120 ? `${contentText.slice(0, 120)}…` : contentText}
                   </span>
                 </div>
                 <div className="flex gap-2">

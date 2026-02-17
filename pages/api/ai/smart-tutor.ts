@@ -54,21 +54,22 @@ async function smartTutorWithText(
   };
 }
 
-/** Smart Tutor with PDF: Responses API with file attachment (no text parsing) */
+/** Smart Tutor with PDF: Responses API with base64 input_file (no PDF-to-text conversion). */
 async function smartTutorWithPdf(
-  apiKey: string,
+  openai: OpenAI,
   pdfBase64: string,
   targetLevel: TargetLevel,
   subject: string,
   gradeLevel: string
 ): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
-  const fileData = pdfBase64.startsWith("data:")
-    ? pdfBase64
-    : `data:application/pdf;base64,${pdfBase64}`;
+  const base64String = pdfBase64.startsWith("data:")
+    ? pdfBase64.replace(/^data:application\/pdf;base64,/, "")
+    : pdfBase64;
+  const fileData = `data:application/pdf;base64,${base64String}`;
 
   const userPrompt = `This is ${subject} content for ${gradeLevel}. Adapt it so it is ${levelDescriptions[targetLevel]}. Maintain core concepts but adjust complexity, vocabulary, and depth. Output only the adapted content.`;
 
-  const body = {
+  const response = await openai.responses.create({
     model: "gpt-4o",
     input: [
       {
@@ -81,30 +82,17 @@ async function smartTutorWithPdf(
     ],
     instructions:
       "You are an expert in differentiated instruction. Modify the attached document content for the requested learning level. Output only the adapted content in markdown format, no preamble or explanation.",
-  };
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
   });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(err || "OpenAI Responses API error");
-  }
-
-  const data = (await response.json()) as {
-    output?: Array<{ content?: Array<{ type: string; text?: string }> }>;
-    usage?: { input_tokens: number; output_tokens: number };
-  };
-
   const outputText =
-    data.output?.[0]?.content?.find((c) => c.type === "output_text")?.text ?? "";
-  const usage = data.usage;
+    (response as { output_text?: string }).output_text ??
+    (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
+      ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
+          .flatMap((o) => o.content ?? [])
+          .find((c) => c.type === "output_text")
+          ?.text ?? ""
+      : "") ?? "";
+  const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
   return {
     content: outputText.trim(),
     inputTokens: usage?.input_tokens ?? 0,
@@ -229,7 +217,7 @@ export default async function handler(
       const name = typeof fileName === "string" ? fileName.trim() || undefined : undefined;
       if (isPdfFile(name)) {
         result = await smartTutorWithPdf(
-          apiKey,
+          openai,
           pdfBase64,
           level,
           subject.trim(),

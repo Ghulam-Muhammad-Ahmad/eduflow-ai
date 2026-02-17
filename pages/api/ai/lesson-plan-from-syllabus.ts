@@ -51,7 +51,10 @@ export interface LessonPlanFromSyllabusBody {
   classDurationMinutes: number;
   daysAvailable?: string[];
   teachingStyle?: "concept-based" | "practice-heavy" | "revision-focused";
-  editPrompt?: string; // For regenerate: "add more practice", "skip chapter 3", etc.
+  editPrompt?: string;
+  /** When set, syllabus content is sent as PDF (base64) to the AI; text is ignored for content. */
+  pdfBase64?: string;
+  pdfFileName?: string;
 }
 
 export default async function handler(
@@ -83,27 +86,23 @@ export default async function handler(
     daysAvailable,
     teachingStyle,
     editPrompt,
+    pdfBase64,
+    pdfFileName,
   } = body;
 
-  if (!text?.trim() || !subject?.trim()) {
+  const hasText = Boolean(text?.trim());
+  const hasPdf = Boolean(pdfBase64 && typeof pdfBase64 === "string");
+  if ((!hasText && !hasPdf) || !subject?.trim()) {
     return res.status(400).json({
       success: false,
-      error: "text and subject are required",
+      error: "subject is required; provide either text or pdfBase64 (syllabus content)",
     });
   }
 
   const totalMinutes = totalWeeks * hoursPerWeek * 60;
   const maxSessions = Math.floor(totalMinutes / Math.max(1, classDurationMinutes));
 
-  const userPrompt = `Current date: ${new Date().toISOString().slice(0, 10)}
-
-TEACHING CONTENT (syllabus / topics to cover):
----
-${text.slice(0, 12000)}
-${text.length > 12000 ? "\n[... content truncated for length ...]" : ""}
----
-
-CONSTRAINTS:
+  const constraintsBlock = `CONSTRAINTS:
 - Subject: ${subject}
 ${gradeLevel ? `- Grade/Class: ${gradeLevel}` : ""}
 ${curriculum ? `- Curriculum: ${curriculum}` : ""}
@@ -117,21 +116,77 @@ ${editPrompt ? `\nTEACHER EDIT REQUEST: ${editPrompt}` : ""}
 
 Produce the lesson plan JSON. Ensure total lesson duration fits within ${totalMinutes} minutes.`;
 
+  const userPromptText = hasPdf
+    ? `Current date: ${new Date().toISOString().slice(0, 10)}
+
+The teaching content (syllabus / topics to cover) is in the attached PDF document. Use it as the basis for the lesson plan.
+
+${constraintsBlock}`
+    : `Current date: ${new Date().toISOString().slice(0, 10)}
+
+TEACHING CONTENT (syllabus / topics to cover):
+---
+${(text ?? "").slice(0, 12000)}
+${(text ?? "").length > 12000 ? "\n[... content truncated for length ...]" : ""}
+---
+
+${constraintsBlock}`;
+
   try {
     const openai = getOpenAIClient();
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.5,
-    });
+    let raw: string;
+    let inputTokens: number;
+    let outputTokens: number;
 
-    const raw = completion.choices[0]?.message?.content?.trim() ?? "";
-    const usage = completion.usage;
-    const inputTokens = usage?.prompt_tokens ?? estimateTokens(SYSTEM + userPrompt);
-    const outputTokens = usage?.completion_tokens ?? estimateTokens(raw);
+    if (hasPdf) {
+      const base64String = (pdfBase64 as string).startsWith("data:")
+        ? (pdfBase64 as string).replace(/^data:application\/pdf;base64,/, "")
+        : (pdfBase64 as string);
+      const fileData = `data:application/pdf;base64,${base64String}`;
+      const filename = (pdfFileName && typeof pdfFileName === "string" ? pdfFileName.trim() : null) || "syllabus.pdf";
+
+      const response = await openai.responses.create({
+        model: "gpt-4o",
+        instructions: SYSTEM,
+        input: [
+          {
+            role: "user",
+            content: [
+              { type: "input_file", filename, file_data: fileData },
+              { type: "input_text", text: userPromptText },
+            ],
+          },
+        ],
+        temperature: 0.5,
+        truncation: "auto",
+      });
+
+      raw =
+        (response as { output_text?: string }).output_text ??
+        (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
+          ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
+              .flatMap((o) => o.content ?? [])
+              .find((c) => c.type === "output_text")
+              ?.text ?? ""
+          : "") ?? "";
+      const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+      inputTokens = usage?.input_tokens ?? 0;
+      outputTokens = usage?.output_tokens ?? 0;
+    } else {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: SYSTEM },
+          { role: "user", content: userPromptText },
+        ],
+        temperature: 0.5,
+      });
+
+      raw = completion.choices[0]?.message?.content?.trim() ?? "";
+      const usage = completion.usage;
+      inputTokens = usage?.prompt_tokens ?? estimateTokens(SYSTEM + userPromptText);
+      outputTokens = usage?.completion_tokens ?? estimateTokens(raw);
+    }
 
     const cleaned = raw.replace(/^```json?\s*|\s*```$/g, "");
     const plan = JSON.parse(cleaned) as {
