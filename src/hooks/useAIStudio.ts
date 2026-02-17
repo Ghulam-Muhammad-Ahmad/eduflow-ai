@@ -4,11 +4,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import {
-  generateContent,
   generateRubric,
+  generateRubricCriterion,
   generateQuizQuestions,
+  generatePaper,
+  generateWorksheet,
+  generateWorksheetQuestion,
   type AIGenerateResult,
+  type GeneratePaperParams,
+  type GenerateWorksheetParams,
 } from '@/services/aiService';
+import { parseRubricJson, type RubricJson } from '@/types/rubric';
+import {
+  normalizeWorksheetContent,
+  type WorksheetContent,
+  type WorksheetQuestion,
+} from '@/types/worksheet';
 
 export interface AIGeneratedContent {
   id: string;
@@ -28,30 +39,194 @@ export const useAIStudio = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [regeneratingCriterionIndex, setRegeneratingCriterionIndex] = useState<number | null>(null);
+  const [regeneratingWorksheetQuestionIndex, setRegeneratingWorksheetQuestionIndex] = useState<number | null>(null);
 
-  // Generate worksheet, discussion questions, or project ideas
-  const generateWorksheet = async (
-    topic: string,
-    gradeLevel: string,
-    subject: string
-  ): Promise<AIGenerateResult | null> => {
+  // Generate rubric from assignment description; returns result with savedContent when saved
+  const createRubric = async (assignmentDescription: string): Promise<(AIGenerateResult & { savedContent?: AIGeneratedContent | null }) | null> => {
     if (!user?.id) return null;
 
     setLoading(true);
     try {
-      const prompt = `Create a worksheet for ${gradeLevel} grade ${subject} on the topic: ${topic}. Include a variety of question types and activities.`;
-      const result = await generateContent(prompt, user.id, 'worksheet');
+      const result = await generateRubric(assignmentDescription, user.id);
       
       if (result.success) {
-        await saveGeneratedContent({
-          content_type: 'worksheet',
-          title: `${topic} Worksheet`,
-          content: { text: result.content },
-          metadata: { topic, gradeLevel, subject },
+        const parsed = parseRubricJson(result.content);
+        const saved = await saveGeneratedContent({
+          content_type: 'rubric',
+          title: 'Generated Rubric',
+          content: { text: result.content, rubric: parsed ?? undefined },
+          metadata: { assignmentDescription },
         });
+        return { ...result, savedContent: saved ?? undefined };
       }
-      
+
+      return { ...result, savedContent: undefined };
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to generate rubric',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Generate rubric content only (no save). Use to regenerate and then update an existing record. Sends current rubric + optional instructions for context. */
+  const regenerateRubricContent = async (
+    assignmentDescription: string,
+    options?: { currentRubric?: string; editInstructions?: string }
+  ): Promise<AIGenerateResult | null> => {
+    if (!user?.id) return null;
+    setLoading(true);
+    try {
+      const result = await generateRubric(assignmentDescription, user.id, options);
       return result;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to regenerate rubric',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Regenerate a single criterion; returns result with content = JSON (full rubric with one criterion). Sends full rubric as context. */
+  const regenerateCriterion = async (
+    assignmentDescription: string,
+    rubric: RubricJson,
+    criterionIndex: number
+  ): Promise<AIGenerateResult | null> => {
+    if (!user?.id) return null;
+    const criterion = rubric.criteria[criterionIndex];
+    if (!criterion) return null;
+
+    setRegeneratingCriterionIndex(criterionIndex);
+    try {
+      const otherNames = rubric.criteria.filter((_, i) => i !== criterionIndex).map((c) => c.name);
+      const currentRubricContext = JSON.stringify(rubric, null, 2);
+      const result = await generateRubricCriterion(
+        assignmentDescription,
+        { name: criterion.name, max_points: criterion.max_points },
+        otherNames,
+        user.id,
+        currentRubricContext
+      );
+      return result;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to regenerate criterion',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setRegeneratingCriterionIndex(null);
+    }
+  };
+
+  // Paper (exam/test) generation
+  const createPaper = async (
+    params: GeneratePaperParams
+  ): Promise<(AIGenerateResult & { savedContent?: AIGeneratedContent | null }) | null> => {
+    if (!user?.id) return null;
+
+    setLoading(true);
+    try {
+      const result = await generatePaper(params, user.id);
+
+      if (result.success && result.content) {
+        const title = `Paper: ${params.subject} - ${params.topic}`;
+        const saved = await saveGeneratedContent({
+          content_type: 'paper',
+          title,
+          content: { text: result.content },
+          metadata: {
+            subject: params.subject,
+            gradeLevel: params.gradeLevel,
+            topic: params.topic,
+            duration: params.duration,
+            questionTypes: params.questionTypes,
+            numQuestions: params.numQuestions,
+            questionBreakdown: params.questionBreakdown,
+            totalMarks: params.totalMarks,
+          },
+        });
+        return { ...result, savedContent: saved ?? undefined };
+      }
+
+      return { ...result, savedContent: undefined };
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to generate paper',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Worksheet (template + JSON content) generation
+  const createWorksheet = async (params: {
+    templateId: string;
+    topic: string;
+    grade: string;
+    difficulty: string;
+    instructions?: string;
+    questionCount?: number;
+    sourceMaterial?: string;
+  }): Promise<(AIGenerateResult & { savedContent?: AIGeneratedContent | null }) | null> => {
+    if (!user?.id) return null;
+
+    setLoading(true);
+    try {
+      const genParams: GenerateWorksheetParams = {
+        topic: params.topic,
+        grade: params.grade,
+        difficulty: params.difficulty,
+        instructions: params.instructions,
+        questionCount: params.questionCount,
+        sourceMaterial: params.sourceMaterial,
+      };
+      const result = await generateWorksheet(genParams, user.id);
+
+      if (result.success && result.content) {
+        try {
+          const raw = result.content.trim().replace(/^```json?\s*|\s*```$/g, '');
+          const parsed = JSON.parse(raw) as Partial<WorksheetContent>;
+          const data = normalizeWorksheetContent(parsed);
+          const saved = await saveGeneratedContent({
+            content_type: 'worksheet_builder',
+            title: data.title,
+            content: { worksheet: data, text: JSON.stringify(data) },
+            metadata: {
+              templateId: params.templateId,
+              topic: params.topic,
+              grade: params.grade,
+              difficulty: params.difficulty,
+              instructions: params.instructions,
+              questionCount: params.questionCount,
+              sourceMaterial: params.sourceMaterial ? true : undefined,
+            },
+          });
+          return { ...result, savedContent: saved ?? undefined };
+        } catch (parseErr: any) {
+          toast({
+            title: 'Error',
+            description: parseErr?.message || 'Invalid worksheet JSON from AI',
+            variant: 'destructive',
+          });
+          return { ...result, success: false, error: 'Invalid worksheet JSON', savedContent: undefined };
+        }
+      }
+      return { ...result, savedContent: undefined };
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -64,31 +239,51 @@ export const useAIStudio = () => {
     }
   };
 
-  const generateDiscussionQuestions = async (
-    topic: string,
-    numQuestions: number = 5
-  ): Promise<AIGenerateResult | null> => {
+  /** Regenerate entire worksheet; loads item by contentId, uses metadata for topic/grade/difficulty. */
+  const regenerateWorksheet = async (
+    contentId: string,
+    options?: { editInstructions?: string }
+  ): Promise<AIGeneratedContent | null> => {
     if (!user?.id) return null;
+    const item = await fetchGeneratedContentById(contentId);
+    if (!item || item.content_type !== 'worksheet_builder') return null;
+    const meta = (item.metadata && typeof item.metadata === 'object' ? item.metadata : {}) as Record<string, unknown>;
+    const topic = (meta.topic as string) ?? '';
+    const grade = (meta.grade as string) ?? '';
+    const difficulty = (meta.difficulty as string) ?? 'medium';
+    const questionCount = (meta.questionCount as number) ?? 10;
 
     setLoading(true);
     try {
-      const prompt = `Generate ${numQuestions} thought-provoking discussion questions about: ${topic}`;
-      const result = await generateContent(prompt, user.id, 'discussion_questions');
-      
-      if (result.success) {
-        await saveGeneratedContent({
-          content_type: 'discussion_questions',
-          title: `Discussion Questions: ${topic}`,
-          content: { text: result.content },
-          metadata: { topic, numQuestions },
-        });
-      }
-      
-      return result;
+      const result = await generateWorksheet(
+        {
+          topic,
+          grade,
+          difficulty,
+          instructions: options?.editInstructions,
+          questionCount,
+        },
+        user.id
+      );
+      if (!result.success || !result.content) return null;
+      const raw = result.content.trim().replace(/^```json?\s*|\s*```$/g, '');
+      const parsed = JSON.parse(raw) as Partial<WorksheetContent>;
+      const data = normalizeWorksheetContent(parsed);
+      const contentObj = item.content && typeof item.content === 'object' ? item.content : {};
+      const updated = await updateGeneratedContent(
+        contentId,
+        {
+          content: { ...contentObj, worksheet: data, text: JSON.stringify(data) },
+          metadata: { ...meta, lastEditInstructions: options?.editInstructions },
+        },
+        { silent: true }
+      );
+      if (updated) toast({ title: 'Regenerated', description: 'Worksheet updated.' });
+      return updated;
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to generate discussion questions',
+        description: error.message || 'Failed to regenerate worksheet',
         variant: 'destructive',
       });
       return null;
@@ -97,67 +292,70 @@ export const useAIStudio = () => {
     }
   };
 
-  const generateProjectIdeas = async (
-    subject: string,
-    gradeLevel: string,
-    topic: string
-  ): Promise<AIGenerateResult | null> => {
+  /** Regenerate a single question at questionIndex; returns updated content or null. */
+  const regenerateWorksheetQuestion = async (
+    contentId: string,
+    questionIndex: number,
+    options?: { difficulty?: string }
+  ): Promise<WorksheetQuestion | null> => {
     if (!user?.id) return null;
+    const item = await fetchGeneratedContentById(contentId);
+    if (!item || item.content_type !== 'worksheet_builder') return null;
+    const contentObj = item.content && typeof item.content === 'object' ? item.content : {};
+    const worksheet = contentObj.worksheet as WorksheetContent | undefined;
+    const questions = worksheet?.questions ?? [];
+    const question = questions[questionIndex];
+    if (!question) return null;
 
-    setLoading(true);
+    const meta = (item.metadata && typeof item.metadata === 'object' ? item.metadata : {}) as Record<string, unknown>;
+    const topic = (meta.topic as string) ?? '';
+    const grade = (meta.grade as string) ?? '';
+    const difficulty = (options?.difficulty as string) ?? (meta.difficulty as string) ?? 'medium';
+
+    setRegeneratingWorksheetQuestionIndex(questionIndex);
     try {
-      const prompt = `Generate creative project ideas for ${gradeLevel} grade ${subject} students on the topic: ${topic}. Include project descriptions, materials needed, and learning objectives.`;
-      const result = await generateContent(prompt, user.id, 'project_ideas');
-      
-      if (result.success) {
-        await saveGeneratedContent({
-          content_type: 'project_ideas',
-          title: `Project Ideas: ${topic}`,
-          content: { text: result.content },
-          metadata: { subject, gradeLevel, topic },
-        });
-      }
-      
-      return result;
+      const result = await generateWorksheetQuestion(
+        {
+          topic,
+          grade,
+          difficulty,
+          questionType: question.type,
+          currentQuestionText: question.question,
+        },
+        user.id
+      );
+      if (!result.success || !result.content) return null;
+      const raw = result.content.trim().replace(/^```json?\s*|\s*```$/g, '');
+      const one = JSON.parse(raw) as Partial<WorksheetQuestion>;
+      const newQuestion: WorksheetQuestion = {
+        id: question.id,
+        type: (one.type && ['short', 'long', 'mcq', 'true_false', 'fill_blank'].includes(one.type) ? one.type : question.type) as WorksheetQuestion['type'],
+        question: typeof one.question === 'string' ? one.question : question.question,
+        options: Array.isArray(one.options) ? one.options : question.options,
+        answer: typeof one.answer === 'string' ? one.answer : question.answer,
+      };
+      const newQuestions = questions.map((q, i) => (i === questionIndex ? newQuestion : q));
+      const newWorksheet: WorksheetContent = {
+        ...worksheet,
+        title: worksheet?.title ?? 'Worksheet',
+        instructions: worksheet?.instructions ?? '',
+        questions: newQuestions,
+      };
+      await updateGeneratedContent(
+        contentId,
+        { content: { ...contentObj, worksheet: newWorksheet, text: JSON.stringify(newWorksheet) } },
+        { silent: true }
+      );
+      return newQuestion;
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to generate project ideas',
+        description: error.message || 'Failed to regenerate question',
         variant: 'destructive',
       });
       return null;
     } finally {
-      setLoading(false);
-    }
-  };
-
-  // Generate rubric from assignment description
-  const createRubric = async (assignmentDescription: string): Promise<AIGenerateResult | null> => {
-    if (!user?.id) return null;
-
-    setLoading(true);
-    try {
-      const result = await generateRubric(assignmentDescription, user.id);
-      
-      if (result.success) {
-        await saveGeneratedContent({
-          content_type: 'rubric',
-          title: 'Generated Rubric',
-          content: { text: result.content },
-          metadata: { assignmentDescription },
-        });
-      }
-      
-      return result;
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to generate rubric',
-        variant: 'destructive',
-      });
-      return null;
-    } finally {
-      setLoading(false);
+      setRegeneratingWorksheetQuestionIndex(null);
     }
   };
 
@@ -201,29 +399,19 @@ export const useAIStudio = () => {
     }
   };
 
-  // Differentiation assistant - modify content for different learning levels (text only, legacy)
-  const differentiateContent = async (
-    originalContent: string,
-    targetLevel: 'below_grade' | 'at_grade' | 'above_grade',
-    subject: string,
-    gradeLevel: string
-  ): Promise<AIGenerateResult | null> => {
-    return smartTutorContent({
-      pastedText: originalContent,
-      targetLevel,
-      subject,
-      gradeLevel,
-    });
-  };
-
-  // Smart Tutor: adapt content from pasted text or uploaded PDF (file sent to OpenAI, not parsed to text)
+  // Smart Tutor: adapt content from pasted text or uploaded file (PDF sent to OpenAI; DOCX/DOC/TXT extracted to text)
+  // For regeneration from output page: pass current content as pastedText and optional editInstructions.
   const smartTutorContent = async (payload: {
     pastedText?: string;
     pdfBase64?: string;
+    /** File name when uploading (e.g. "notes.docx") so API can choose PDF vs text extraction. */
+    fileName?: string;
     targetLevel: 'below_grade' | 'at_grade' | 'above_grade';
     subject: string;
     gradeLevel: string;
-  }): Promise<AIGenerateResult | null> => {
+    /** Optional instructions when regenerating (e.g. "add more examples", "simplify further"). */
+    editInstructions?: string;
+  }): Promise<(AIGenerateResult & { savedContent?: AIGeneratedContent }) | null> => {
     if (!user?.id) return null;
     if (!payload.pastedText && !payload.pdfBase64) return null;
 
@@ -235,9 +423,11 @@ export const useAIStudio = () => {
         body: JSON.stringify({
           pastedText: payload.pastedText || undefined,
           pdfBase64: payload.pdfBase64 || undefined,
+          fileName: payload.fileName || undefined,
           targetLevel: payload.targetLevel,
           subject: payload.subject,
           gradeLevel: payload.gradeLevel,
+          editInstructions: payload.editInstructions || undefined,
         }),
       });
 
@@ -248,7 +438,7 @@ export const useAIStudio = () => {
       }
 
       if (data.success && data.content) {
-        await saveGeneratedContent({
+        const saved = await saveGeneratedContent({
           content_type: 'worksheet',
           title: `Smart Tutor (${payload.targetLevel})`,
           content: {
@@ -269,6 +459,7 @@ export const useAIStudio = () => {
           tokens: 0,
           cost: 0,
           success: true,
+          savedContent: saved ?? undefined,
         };
       }
 
@@ -300,7 +491,12 @@ export const useAIStudio = () => {
         .from('ai_generated_content')
         .insert({
           user_id: user.id,
-          ...data,
+          content_type: data.content_type,
+          title: data.title,
+          content: data.content,
+          source_materials: data.source_materials ?? null,
+          metadata: data.metadata ?? null,
+          saved_to_documents: false,
         })
         .select()
         .single();
@@ -309,6 +505,11 @@ export const useAIStudio = () => {
       return saved as AIGeneratedContent;
     } catch (error: any) {
       console.error('Error saving generated content:', error);
+      toast({
+        title: 'Could not save to history',
+        description: error?.message ?? 'Please try again or copy the content below.',
+        variant: 'destructive',
+      });
       return null;
     }
   };
@@ -335,6 +536,73 @@ export const useAIStudio = () => {
       console.error('Error fetching generated content:', error);
       return [];
     }
+  };
+
+  // Fetch a single generated content by id (must belong to user)
+  const fetchGeneratedContentById = async (id: string): Promise<AIGeneratedContent | null> => {
+    if (!user?.id) return null;
+    try {
+      const { data, error } = await supabase
+        .from('ai_generated_content')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+      if (error) throw error;
+      return data as AIGeneratedContent;
+    } catch (error: any) {
+      console.error('Error fetching generated content by id:', error);
+      return null;
+    }
+  };
+
+  // Update generated content (partial update). Set options.silent to skip success toast.
+  const updateGeneratedContent = async (
+    id: string,
+    updates: { title?: string; content?: any; metadata?: any },
+    options?: { silent?: boolean }
+  ): Promise<AIGeneratedContent | null> => {
+    if (!user?.id) return null;
+    try {
+      const { data, error } = await supabase
+        .from('ai_generated_content')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+      if (error) throw error;
+      if (!options?.silent) {
+        toast({ title: 'Saved', description: 'Content updated successfully' });
+      }
+      return data as AIGeneratedContent;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update content',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  // Toggle favorite (stored in metadata.is_favorite)
+  const toggleFavorite = async (id: string): Promise<boolean> => {
+    const item = await fetchGeneratedContentById(id);
+    if (!item) return false;
+    const next = !(item.metadata && typeof item.metadata === 'object' && (item.metadata as { is_favorite?: boolean }).is_favorite);
+    const updated = await updateGeneratedContent(
+      id,
+      { metadata: { ...(item.metadata as object || {}), is_favorite: next } },
+      { silent: true }
+    );
+    if (updated) {
+      toast({
+        title: next ? 'Added to favorites' : 'Removed from favorites',
+      });
+      return true;
+    }
+    return false;
   };
 
   // Delete generated content
@@ -380,15 +648,22 @@ export const useAIStudio = () => {
 
   return {
     loading,
-    generateWorksheet,
-    generateDiscussionQuestions,
-    generateProjectIdeas,
+    regeneratingCriterionIndex,
+    regeneratingWorksheetQuestionIndex,
     createRubric,
+    regenerateRubricContent,
+    regenerateCriterion,
+    createPaper,
+    createWorksheet,
+    regenerateWorksheet,
+    regenerateWorksheetQuestion,
     createQuizQuestions,
-    differentiateContent,
     smartTutorContent,
     saveGeneratedContent,
     fetchGeneratedContent,
+    fetchGeneratedContentById,
+    updateGeneratedContent,
+    toggleFavorite,
     deleteGeneratedContent,
   };
 };

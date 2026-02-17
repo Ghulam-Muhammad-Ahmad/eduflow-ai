@@ -1,4 +1,4 @@
-﻿-- Add optional reference document to checker presets (Document Center document)
+-- Add optional reference document to checker presets (Document Center document)
 ALTER TABLE checker_presets
 ADD COLUMN IF NOT EXISTS reference_document_id uuid REFERENCES documents(id) ON DELETE SET NULL;
 

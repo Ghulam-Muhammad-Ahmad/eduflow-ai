@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { useRouter } from "next/router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,8 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAIStudio } from "@/hooks/useAIStudio";
-import { TrendingUp, Loader2, Upload, FileText, X } from "lucide-react";
+import { Loader2, Upload, FileText, X, FolderOpen, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SmartTutorProps {
   onContentGenerated?: () => void;
@@ -34,6 +36,7 @@ const convertPdfToBase64 = (file: File): Promise<string> => {
 };
 
 const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
+  const router = useRouter();
   const { smartTutorContent, loading } = useAIStudio();
   const { toast } = useToast();
   const [inputMode, setInputMode] = useState<"upload" | "paste">("upload");
@@ -44,20 +47,54 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
   >("at_grade");
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [result, setResult] = useState("");
+  const [docCenterOpen, setDocCenterOpen] = useState(false);
+  const [loadingDoc, setLoadingDoc] = useState(false);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type === "application/pdf") {
-      setPdfFile(file);
-    } else {
+  const SMART_TUTOR_FORMATS = ["pdf", "txt", "doc", "docx"];
+
+  const handleDocCenterSelect = async (selection: DocCenterSelection) => {
+    const extFromName = (name: string) => name.split(".").pop()?.toLowerCase() ?? "";
+    if (selection.type === "file") {
+      const ext = extFromName(selection.file.name);
+      if (SMART_TUTOR_FORMATS.includes(ext)) {
+        setPdfFile(selection.file);
+      } else {
+        toast({
+          title: "Invalid file",
+          description: `Smart Tutor allows only: ${SMART_TUTOR_FORMATS.join(", ").toUpperCase()}.`,
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+    const doc = selection.doc;
+    const ext = extFromName(doc.name);
+    if (!SMART_TUTOR_FORMATS.includes(ext)) {
       toast({
-        title: "Invalid file",
-        description: "Please select a PDF file",
+        title: "Invalid document",
+        description: `Smart Tutor allows only: ${SMART_TUTOR_FORMATS.join(", ").toUpperCase()}.`,
         variant: "destructive",
       });
+      return;
     }
-    event.target.value = "";
+    setLoadingDoc(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .download(doc.file_path);
+      if (error) throw error;
+      const file = new File([data], doc.name, { type: doc.file_type || "application/pdf" });
+      setPdfFile(file);
+      toast({ title: "Document selected", description: `Using "${doc.name}"` });
+    } catch (e) {
+      toast({
+        title: "Could not load document",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingDoc(false);
+    }
   };
 
   const clearFile = () => setPdfFile(null);
@@ -95,6 +132,7 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
     const payload: {
       pastedText?: string;
       pdfBase64?: string;
+      fileName?: string;
       targetLevel: "below_grade" | "at_grade" | "above_grade";
       subject: string;
       gradeLevel: string;
@@ -107,6 +145,7 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
     if (inputMode === "upload" && pdfFile) {
       try {
         payload.pdfBase64 = await convertPdfToBase64(pdfFile);
+        payload.fileName = pdfFile.name;
       } catch {
         toast({
           title: "Error",
@@ -122,12 +161,15 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
     const response = await smartTutorContent(payload);
 
     if (response?.success && response.content) {
-      setResult(response.content);
+      const savedContent = (response as { savedContent?: { id: string } }).savedContent;
+      onContentGenerated?.();
       toast({
         title: "Success",
-        description: "Content adapted successfully",
+        description: "Content adapted successfully. Opening output...",
       });
-      onContentGenerated?.();
+      if (savedContent?.id) {
+        router.push(`/dashboard/teacher/ai-studio/output/${savedContent.id}`);
+      }
     }
   };
 
@@ -136,8 +178,7 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4">Smart Tutor</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Upload a document or paste content. We send the file to AI as-is (no
-          text extraction)—same as paper checking. Get content adapted for your
+          Upload a document or paste content and Get content adapted for your
           chosen level.
         </p>
 
@@ -156,13 +197,22 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
           <TabsContent value="upload" className="space-y-4 mt-4">
             <div>
               <Label>Document (PDF)</Label>
-              <div className="mt-2 flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleFileChange}
-                  className="max-w-xs"
-                />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setDocCenterOpen(true)}
+                  disabled={loadingDoc}
+                >
+                  {loadingDoc ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderOpen className="h-4 w-4" />
+                  )}
+                  Choose from Document Center
+                </Button>
                 {pdfFile && (
                   <span className="text-sm text-muted-foreground flex items-center gap-1">
                     {pdfFile.name}
@@ -179,16 +229,18 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                File is sent to AI as an attachment (like in AI Checker), not
-                parsed to text.
-              </p>
             </div>
+            <DocCenterMini
+              open={docCenterOpen}
+              onOpenChange={setDocCenterOpen}
+              onSelect={handleDocCenterSelect}
+              allowedFormats={["pdf", "txt", "doc", "docx"]}
+            />
           </TabsContent>
 
           <TabsContent value="paste" className="space-y-4 mt-4">
             <div>
-              <Label htmlFor="original">Content to adapt *</Label>
+              <Label htmlFor="original">Content to smarten *</Label>
               <Textarea
                 id="original"
                 value={pastedText}
@@ -228,6 +280,7 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
                 <SelectItem value="History">History</SelectItem>
                 <SelectItem value="Geography">Geography</SelectItem>
                 <SelectItem value="Art">Art</SelectItem>
+                <SelectItem value="Computer Science">Computer Science</SelectItem>                
                 <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
@@ -256,27 +309,16 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Adapting...
+              Smartening...
             </>
           ) : (
             <>
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Adapt content
+            <Sparkles className="h-4 w-4 mr-2" />
+              Smarten the content
             </>
           )}
         </Button>
       </Card>
-
-      {result && (
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Adapted content</h3>
-          <div className="prose max-w-none">
-            <pre className="whitespace-pre-wrap text-sm bg-secondary p-4 rounded-lg">
-              {result}
-            </pre>
-          </div>
-        </Card>
-      )}
     </div>
   );
 };

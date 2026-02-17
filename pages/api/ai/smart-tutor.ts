@@ -20,17 +20,21 @@ const levelDescriptions: Record<TargetLevel, string> = {
   above_grade: "challenging for students working above grade level",
 };
 
-/** Smart Tutor with pasted text: Chat Completions */
+/** Smart Tutor with pasted text: Chat Completions. Optional editInstructions for regeneration (e.g. "add more examples", "simplify further"). */
 async function smartTutorWithText(
   openai: OpenAI,
   pastedText: string,
   targetLevel: TargetLevel,
   subject: string,
-  gradeLevel: string
+  gradeLevel: string,
+  editInstructions?: string
 ): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
   const system =
-    "You are an expert in differentiated instruction. Modify content appropriately for different learning levels while maintaining educational value. Output only the adapted content, no preamble.";
-  const prompt = `Modify this ${subject} content for ${gradeLevel} grade students, making it ${levelDescriptions[targetLevel]}:\n\n${pastedText}\n\nMaintain the core concepts but adjust complexity, vocabulary, and depth appropriately.`;
+    "You are an expert in differentiated instruction. Modify content appropriately for different learning levels while maintaining educational value. Output only the adapted content in markdown format, no preamble.";
+  let prompt = `Modify this ${subject} content for ${gradeLevel} grade students, making it ${levelDescriptions[targetLevel]}:\n\n${pastedText}\n\nMaintain the core concepts but adjust complexity, vocabulary, and depth appropriately.`;
+  if (editInstructions && editInstructions.trim()) {
+    prompt += `\n\nAdditional instructions from the teacher (apply these to the output): ${editInstructions.trim()}`;
+  }
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -76,7 +80,7 @@ async function smartTutorWithPdf(
       },
     ],
     instructions:
-      "You are an expert in differentiated instruction. Modify the attached document content for the requested learning level. Output only the adapted content, no preamble or explanation.",
+      "You are an expert in differentiated instruction. Modify the attached document content for the requested learning level. Output only the adapted content in markdown format, no preamble or explanation.",
   };
 
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -128,14 +132,16 @@ export default async function handler(
   const {
     pastedText,
     pdfBase64,
+    fileName,
     targetLevel,
     subject,
     gradeLevel,
+    editInstructions,
   } = req.body || {};
 
   if (!pastedText && !pdfBase64) {
     return res.status(400).json({
-      error: "Provide either pastedText or pdfBase64 (base64-encoded PDF)",
+      error: "Provide either pastedText or pdfBase64 (base64-encoded file)",
     });
   }
 
@@ -150,13 +156,43 @@ export default async function handler(
     return res.status(400).json({ error: "gradeLevel is required" });
   }
 
+  const maxFileBytes = MAX_PDF_BYTES;
   if (pdfBase64 && typeof pdfBase64 === "string") {
     const estimatedBytes = (pdfBase64.length * 3) / 4;
-    if (estimatedBytes > MAX_PDF_BYTES) {
+    if (estimatedBytes > maxFileBytes) {
       return res.status(400).json({
-        error: `PDF too large. Max ${MAX_PDF_BASE64_MB} MB.`,
+        error: `File too large. Max ${MAX_PDF_BASE64_MB} MB.`,
       });
     }
+  }
+
+  /** Returns true if the file should be sent as PDF to OpenAI (PDF only). Otherwise we extract text. */
+  const isPdfFile = (name: string | undefined) => {
+    if (!name) return true;
+    const lower = name.toLowerCase();
+    return lower.endsWith(".pdf");
+  };
+
+  /** Extract plain text from DOCX/DOC/TXT buffer for use with text-based Smart Tutor. */
+  async function extractTextFromBuffer(
+    buffer: Buffer,
+    name: string | undefined
+  ): Promise<string> {
+    const lower = name?.toLowerCase() ?? "";
+    if (lower.endsWith(".txt") || lower.endsWith(".text")) {
+      return buffer.toString("utf-8");
+    }
+    if (
+      lower.endsWith(".docx") ||
+      lower.endsWith(".doc") ||
+      (typeof name === "string" &&
+        (name.includes("wordprocessingml") || name.includes("msword")))
+    ) {
+      const mammoth = await import("mammoth");
+      const result = await mammoth.extractRawText({ buffer });
+      return result?.value ?? "";
+    }
+    throw new Error("Unsupported file type for text extraction. Use PDF, DOCX, DOC, or TXT.");
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -187,28 +223,52 @@ export default async function handler(
   try {
     let result: { content: string; inputTokens: number; outputTokens: number };
     let model: string;
+    const openai = getOpenAIClient();
 
     if (pdfBase64 && typeof pdfBase64 === "string") {
-      result = await smartTutorWithPdf(
-        apiKey,
-        pdfBase64,
-        level,
-        subject.trim(),
-        gradeLevel.trim()
-      );
-      model = "gpt-4o";
+      const name = typeof fileName === "string" ? fileName.trim() || undefined : undefined;
+      if (isPdfFile(name)) {
+        result = await smartTutorWithPdf(
+          apiKey,
+          pdfBase64,
+          level,
+          subject.trim(),
+          gradeLevel.trim()
+        );
+        model = "gpt-4o";
+      } else {
+        const raw = Buffer.from(pdfBase64, "base64");
+        const extractedText = await extractTextFromBuffer(raw, name);
+        const trimmed = extractedText.trim();
+        if (!trimmed) {
+          return res.status(400).json({
+            error: "No text could be extracted from the file. Try a different file or paste content.",
+          });
+        }
+        const editInst = typeof editInstructions === "string" ? editInstructions.trim() || undefined : undefined;
+        result = await smartTutorWithText(
+          openai,
+          trimmed,
+          level,
+          subject.trim(),
+          gradeLevel.trim(),
+          editInst
+        );
+        model = "gpt-4o-mini";
+      }
     } else {
       const pasted = String(pastedText ?? "").trim();
       if (!pasted) {
         return res.status(400).json({ error: "pastedText is empty" });
       }
-      const openai = getOpenAIClient();
+      const editInst = typeof editInstructions === "string" ? editInstructions.trim() || undefined : undefined;
       result = await smartTutorWithText(
         openai,
         pasted,
         level,
         subject.trim(),
-        gradeLevel.trim()
+        gradeLevel.trim(),
+        editInst
       );
       model = "gpt-4o-mini";
     }

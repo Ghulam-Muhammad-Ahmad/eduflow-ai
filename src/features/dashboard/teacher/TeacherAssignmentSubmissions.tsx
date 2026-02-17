@@ -470,7 +470,9 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
         <Dialog open={gradeDialogOpen} onOpenChange={setGradeDialogOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Grade Submission</DialogTitle>
+              <DialogTitle>
+                {selectedSubmission?.status === "graded" ? "Edit Grade" : "Grade Submission"}
+              </DialogTitle>
               <DialogDescription>
                 {(selectedSubmission?.profiles as { display_name?: string } | undefined)?.display_name || "Student"}&apos;s submission
               </DialogDescription>
@@ -580,7 +582,12 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
                 onClick={handleGradeSubmission}
                 disabled={!grade || isSubmitting}
               >
-                {isSubmitting ? "Submitting..." : (
+                {isSubmitting ? "Saving..." : selectedSubmission?.status === "graded" ? (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Update Grade
+                  </>
+                ) : (
                   <>
                     <Send className="w-4 h-4 mr-2" />
                     Submit Grade

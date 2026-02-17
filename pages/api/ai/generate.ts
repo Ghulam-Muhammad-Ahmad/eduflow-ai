@@ -96,10 +96,14 @@ export default async function handler(
 
     const maxPoints = typeof pointsPossible === "number" && pointsPossible > 0 ? pointsPossible : 100;
     const isCheckerWithGrade = taskType === "checker" && maxPoints > 0;
+    const isRubricGeneration = taskType === "rubric_generation";
     const checkerSystem = isCheckerWithGrade
       ? (systemInstruction || "You are an expert teacher providing constructive feedback.") +
         ` Respond with ONLY a single JSON object (no markdown, no code block) with exactly: "suggested_grade" (number from 0 to ${maxPoints}), "feedback" (string with your full feedback).`
-      : systemInstruction;
+      : isRubricGeneration
+        ? (systemInstruction || "You are an expert in educational assessment.") +
+          " Respond with ONLY a valid JSON object. No markdown, no code fence, no explanation—just the raw JSON."
+        : systemInstruction;
 
     const result = await generateWithOpenAI(prompt, checkerSystem, selectedModel);
     const totalTokens = result.inputTokens + result.outputTokens;

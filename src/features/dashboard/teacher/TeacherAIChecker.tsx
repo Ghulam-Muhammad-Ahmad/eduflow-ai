@@ -29,7 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, FileText, Loader2, CheckCircle, XCircle, Users } from "lucide-react";
+import { Brain, FileText, Loader2, CheckCircle, XCircle, Users, Pencil } from "lucide-react";
 import { useAIChecker, AIFeedback } from "@/hooks/useAIChecker";
 import { useAssignments, useAssignmentSubmissions } from "@/hooks/useAssignments";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,7 +37,20 @@ import { useAIUsage } from "@/hooks/useAIUsage";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import CheckPaperFlow from "@/components/teacher/CheckPaperFlow";
+
+type SubmissionRow = {
+  id: string;
+  assignment_id?: string;
+  file_path?: string | null;
+  text_content?: string | null;
+  status?: string;
+  grade?: number | null;
+  feedback?: string | null;
+  profiles?: { display_name?: string };
+  submitted_at?: string;
+};
 
 type FlowMode = "assignment" | "paper";
 
@@ -68,8 +81,56 @@ const TeacherAIChecker = () => {
   const [suggestedGrade, setSuggestedGrade] = useState<string>("");
   const [applyLoading, setApplyLoading] = useState(false);
 
+  // Edit grade (for already-graded submissions)
+  const [editGradeDialogOpen, setEditGradeDialogOpen] = useState(false);
+  const [submissionForEdit, setSubmissionForEdit] = useState<SubmissionRow | null>(null);
+  const [editGrade, setEditGrade] = useState("");
+  const [editFeedback, setEditFeedback] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const assignment = assignments?.find((a) => a.id === selectedAssignment);
   const pointsPossible = assignment?.points_possible ?? 100;
+
+  const openEditGradeDialog = (submission: SubmissionRow) => {
+    setSubmissionForEdit(submission);
+    setEditGrade(submission.grade != null ? String(submission.grade) : "");
+    setEditFeedback(submission.feedback ?? "");
+    setEditGradeDialogOpen(true);
+  };
+
+  const handleSaveEditGrade = async () => {
+    if (!submissionForEdit) return;
+    const gradeValue = parseFloat(editGrade);
+    if (isNaN(gradeValue) || gradeValue < 0 || gradeValue > pointsPossible) {
+      toast.error(`Grade must be between 0 and ${pointsPossible}`);
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const { error } = await supabase
+        .from("submissions")
+        .update({
+          grade: gradeValue,
+          feedback: editFeedback.trim() || null,
+          graded_at: new Date().toISOString(),
+          status: "graded",
+        })
+        .eq("id", submissionForEdit.id);
+      if (error) throw error;
+      toast.success("Grade updated");
+      queryClient.invalidateQueries({ queryKey: ["assignment-submissions", selectedAssignment] });
+      refetchSubmissions();
+      setEditGradeDialogOpen(false);
+      setSubmissionForEdit(null);
+      setEditGrade("");
+      setEditFeedback("");
+    } catch (err) {
+      console.error("Error updating grade:", err);
+      toast.error("Failed to update grade");
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const handleGradeSubmission = async (submission: { id: string; assignment_id: string; file_path?: string; text_content?: string }) => {
     if (!submission) return;
@@ -344,17 +405,28 @@ const TeacherAIChecker = () => {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleGradeSubmission({ id: sub.id, assignment_id: sub.assignment_id ?? "", file_path: (submission as { file_path?: string | null }).file_path ?? undefined, text_content: (submission as { text_content?: string | null }).text_content ?? undefined })}
-                              disabled={
-                                loading || sub.status !== "submitted"
-                              }
-                            >
-                              <Brain className="h-4 w-4 mr-2" />
-                              AI Check
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                              {sub.status === "graded" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openEditGradeDialog(submission as SubmissionRow)}
+                                >
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Edit Grade
+                                </Button>
+                              ) : sub.status === "submitted" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleGradeSubmission({ id: sub.id, assignment_id: sub.assignment_id ?? "", file_path: (submission as { file_path?: string | null }).file_path ?? undefined, text_content: (submission as { text_content?: string | null }).text_content ?? undefined })}
+                                  disabled={loading}
+                                >
+                                  <Brain className="h-4 w-4 mr-2" />
+                                  AI Check
+                                </Button>
+                              ) : null}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ); })
@@ -464,6 +536,63 @@ const TeacherAIChecker = () => {
                   )}
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Grade dialog (for already-graded submissions) */}
+        <Dialog open={editGradeDialogOpen} onOpenChange={setEditGradeDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Grade</DialogTitle>
+              <DialogDescription>
+                Update grade and feedback for {(submissionForEdit?.profiles as { display_name?: string } | undefined)?.display_name ?? "this student"}&apos;s submission.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Grade (0 – {pointsPossible})</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={pointsPossible}
+                  value={editGrade}
+                  onChange={(e) => setEditGrade(e.target.value)}
+                  placeholder="Grade"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Feedback</Label>
+                <Textarea
+                  value={editFeedback}
+                  onChange={(e) => setEditFeedback(e.target.value)}
+                  rows={4}
+                  placeholder="Feedback for the student..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditGradeDialogOpen(false);
+                  setSubmissionForEdit(null);
+                  setEditGrade("");
+                  setEditFeedback("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEditGrade}
+                disabled={!editGrade.trim() || editSaving || isNaN(parseFloat(editGrade))}
+              >
+                {editSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Save Grade"
+                )}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

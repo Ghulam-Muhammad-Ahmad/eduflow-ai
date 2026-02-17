@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,17 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useSyllabusLessonPlanner, type TeachingLevel, type TeachingStyle } from "@/hooks/useSyllabusLessonPlanner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIUsage } from "@/hooks/useAIUsage";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles,
   Loader2,
@@ -45,9 +37,10 @@ import {
   Clock,
   Zap,
   FileText,
-  Upload,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
 
 const STEPS = [
   { id: 1, title: "Content", short: "What to teach", icon: BookOpen },
@@ -70,19 +63,8 @@ const TEACHING_STYLES: { value: TeachingStyle; label: string }[] = [
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** Returns a display name that doesn't collide with existing names (adds (1), (2), ... before extension). */
-function getUniqueDocumentName(originalName: string, existingNames: string[]): string {
-  const lastDot = originalName.lastIndexOf(".");
-  const base = lastDot >= 0 ? originalName.slice(0, lastDot) : originalName;
-  const ext = lastDot >= 0 ? originalName.slice(lastDot) : "";
-  let candidate = originalName;
-  let n = 0;
-  while (existingNames.includes(candidate)) {
-    n += 1;
-    candidate = `${base} (${n})${ext}`;
-  }
-  return candidate;
-}
+/** Doc Center formats supported for syllabus (extract to text). */
+const SYLLABUS_DOC_FORMATS = ["pdf", "txt", "doc", "docx"];
 
 export default function TeacherSyllabusLessonPlanner() {
   const { user } = useAuth();
@@ -121,90 +103,55 @@ export default function TeacherSyllabusLessonPlanner() {
   } = useSyllabusLessonPlanner();
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [documents, setDocuments] = useState<{ id: string; name: string }[]>([]);
+  const [docCenterOpen, setDocCenterOpen] = useState(false);
+  const [loadingDoc, setLoadingDoc] = useState(false);
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [editPrompt, setEditPrompt] = useState("");
   const [editingLessonIndex, setEditingLessonIndex] = useState<number | null>(null);
   const [editLessonTitle, setEditLessonTitle] = useState("");
   const [editLessonNotes, setEditLessonNotes] = useState("");
-  const [uploadDocOpen, setUploadDocOpen] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const refreshDocuments = useCallback(async () => {
-    if (!user?.id) return;
-    const { data } = await supabase
-      .from("documents")
-      .select("id, name")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false });
-    setDocuments(data ?? []);
-    return data ?? [];
-  }, [user?.id]);
-
-  useEffect(() => {
-    refreshDocuments();
-  }, [refreshDocuments]);
-
-  const uploadDocumentToCenter = useCallback(
-    async (file: File) => {
-      if (!user?.id) return;
-      const maxFileSizeBytes = 10 * 1024 * 1024;
-      if (file.size > maxFileSizeBytes) {
-        toast.error("File is too large. Maximum size is 10MB.");
+  const handleDocCenterSelect = useCallback(
+    async (selection: DocCenterSelection) => {
+      if (selection.type === "document") {
+        setContentFromDocument(selection.doc.id);
+        setDocCenterOpen(false);
+        toast.success(`Using "${selection.doc.name}"`);
         return;
       }
-      setUploadingDoc(true);
+      const file = selection.file;
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      if (!SYLLABUS_DOC_FORMATS.includes(ext)) {
+        toast.error(`Lesson Planner allows: ${SYLLABUS_DOC_FORMATS.map((f) => f.toUpperCase()).join(", ")}.`);
+        return;
+      }
+      setLoadingDoc(true);
       try {
-        const { data: existingDocs } = await supabase
-          .from("documents")
-          .select("name")
-          .eq("user_id", user.id)
-          .is("folder_id", null);
-        const existingNames = (existingDocs ?? []).map((d) => d.name);
-        const displayName = getUniqueDocumentName(file.name, existingNames);
-
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${user.id}/${Date.now()}_${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from("documents")
-          .upload(fileName, file);
-        if (uploadError) throw uploadError;
-        const { data: inserted, error: insertError } = await supabase
-          .from("documents")
-          .insert({
-            user_id: user.id,
-            folder_id: null,
-            name: displayName,
-            file_path: fileName,
-            file_size: file.size,
-            file_type: file.type || `application/${fileExt}`,
-          })
-          .select("id")
-          .single();
-        if (insertError) throw insertError;
-        toast.success("Document uploaded to Doc Center");
-        await refreshDocuments();
-        setUploadDocOpen(false);
-        if (inserted?.id) {
-          setContentFromDocument(inserted.id);
+        const bytes = await file.arrayBuffer();
+        const arr = new Uint8Array(bytes);
+        let binary = "";
+        const chunk = 8192;
+        for (let i = 0; i < arr.length; i += chunk) {
+          binary += String.fromCharCode(...arr.subarray(i, i + chunk));
         }
-      } catch (e: unknown) {
-        console.error("Upload error:", e);
-        toast.error("Failed to upload document");
+        const base64 = btoa(binary);
+        const res = await fetch("/api/documents/extract-file", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base64, fileName: file.name }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Extraction failed");
+        setContentText(data.text?.trim() ?? "");
+        setDocCenterOpen(false);
+        toast.success(`Using "${data.name ?? file.name}"`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not extract text from file.");
       } finally {
-        setUploadingDoc(false);
+        setLoadingDoc(false);
       }
     },
-    [user?.id, refreshDocuments, setContentFromDocument]
-  );
-
-  const handleSelectDocument = useCallback(
-    (documentId: string) => {
-      if (documentId === "_none") return;
-      setContentFromDocument(documentId);
-    },
-    [setContentFromDocument]
+    [setContentFromDocument, setContentText]
   );
 
   const toggleDay = useCallback((day: string) => {
@@ -339,30 +286,28 @@ export default function TeacherSyllabusLessonPlanner() {
                 <div>
                   <Label className="text-sm text-muted-foreground">From Doc Center (optional)</Label>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Select onValueChange={handleSelectDocument} disabled={extractingDoc}>
-                      <SelectTrigger className="max-w-sm w-full sm:w-auto">
-                      <SelectValue placeholder="Choose a document..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">I’ll paste below</SelectItem>
-                      {documents.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                    </Select>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setUploadDocOpen(true)}
-                      disabled={extractingDoc}
-                      className="shrink-0"
+                      onClick={() => setDocCenterOpen(true)}
+                      disabled={extractingDoc || loadingDoc}
                     >
-                      <Upload className="h-4 w-4 mr-1.5" />
-                      Upload to Doc Center
+                      {(extractingDoc || loadingDoc) ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                      ) : (
+                        <FolderOpen className="h-4 w-4 mr-1.5" />
+                      )}
+                      Choose from Doc Center
                     </Button>
                   </div>
-                  {extractingDoc && (
+                  <DocCenterMini
+                    open={docCenterOpen}
+                    onOpenChange={setDocCenterOpen}
+                    onSelect={handleDocCenterSelect}
+                    allowedFormats={SYLLABUS_DOC_FORMATS}
+                  />
+                  {(extractingDoc || loadingDoc) && (
                     <span className="inline-flex items-center gap-1 mt-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" /> Extracting text…
                     </span>
@@ -722,55 +667,6 @@ export default function TeacherSyllabusLessonPlanner() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={uploadDocOpen}
-        onOpenChange={(open) => {
-          setUploadDocOpen(open);
-          if (!open) setSelectedFile(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Upload to Doc Center</DialogTitle>
-            <DialogDescription>
-              Upload a syllabus or document. It will be saved to your Document Center and you can use it here or in other tools. PDF, Word, and common office formats supported (max 10MB).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <Input
-                type="file"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*"
-                className="cursor-pointer"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-              />
-              {selectedFile && (
-                <p className="text-sm text-muted-foreground">
-                  Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                </p>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setUploadDocOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                disabled={!selectedFile || uploadingDoc}
-                onClick={() => selectedFile && uploadDocumentToCenter(selectedFile)}
-              >
-                {uploadingDoc ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </DashboardLayout>
+      </DashboardLayout>
   );
 }

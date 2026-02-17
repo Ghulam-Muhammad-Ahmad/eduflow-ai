@@ -34,6 +34,8 @@ import {
   UserMinus,
   BookOpen,
   ClipboardList,
+  FileText,
+  ScrollText,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -164,20 +166,29 @@ const TeacherClassroomDetail = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/dashboard/teacher/classrooms")}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl lg:text-3xl font-bold">{classroom?.name}</h1>
-            {classroom?.subject && (
-              <p className="text-muted-foreground mt-1">{classroom.subject}</p>
-            )}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/dashboard/teacher/classrooms")}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-2xl lg:text-3xl font-bold">{classroom?.name}</h1>
+              {classroom?.subject && (
+                <p className="text-muted-foreground mt-1">{classroom.subject}</p>
+              )}
+            </div>
           </div>
+          <Button
+            onClick={() => router.push(`/dashboard/teacher/student-records?classroomId=${classroomId}`)}
+            className="gap-2 shrink-0"
+          >
+            <FileText className="w-4 h-4" />
+            View classroom reports
+          </Button>
         </div>
 
         {/* Classroom Info Cards */}
@@ -359,14 +370,25 @@ const TeacherClassroomDetail = () => {
                           Joined {new Date(enrollment.joined_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-60 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleRemoveStudent(enrollment.id, studentName)}
-                      >
-                        <UserMinus className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          onClick={() => router.push(`/dashboard/teacher/student-records/${enrollment.student_id}?classroomId=${classroomId}`)}
+                        >
+                          <ScrollText className="w-4 h-4" />
+                          View record
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="opacity-60 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemoveStudent(enrollment.id, studentName)}
+                        >
+                          <UserMinus className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}

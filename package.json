@@ -47,6 +47,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
+    "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.3",
@@ -62,8 +63,10 @@
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.61.1",
+    "react-markdown": "^10.1.0",
     "react-resizable-panels": "^2.1.9",
     "recharts": "^2.15.4",
+    "remark-gfm": "^4.0.1",
     "sonner": "^1.7.4",
     "supabase": "^2.72.8",
     "tailwind-merge": "^2.6.0",
@@ -73,7 +76,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.16",
+    "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^22.16.5",

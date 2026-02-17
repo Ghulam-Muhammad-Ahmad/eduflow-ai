@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useTeacherStudentRecords, type StudentRecord } from "@/hooks/useTeacherStudentRecords";
@@ -42,10 +42,18 @@ import { useToast } from "@/hooks/use-toast";
 
 const TeacherStudentRecords = () => {
   const router = useRouter();
+  const queryClassroomId = router.query.classroomId as string | undefined;
   const [classroomId, setClassroomId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { data, isLoading, error } = useTeacherStudentRecords(classroomId);
   const { toast } = useToast();
+
+  // Sync classroom filter from URL (e.g. when coming from classroom detail "View reports")
+  useEffect(() => {
+    if (queryClassroomId) {
+      setClassroomId(queryClassroomId);
+    }
+  }, [queryClassroomId]);
 
   const goToStudentRecord = (student: StudentRecord) => {
     router.push(`/dashboard/teacher/student-records/${student.student_id}?classroomId=${student.classroom_id}`);

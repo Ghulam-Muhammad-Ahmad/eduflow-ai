@@ -3,6 +3,20 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/types/auth";
 
+/**
+ * Internal: Development logging helper.
+ * Calls to localhost:7242 are only sent when NOT in production.
+ */
+function devAgentLog(path: string, data: any) {
+  if (process.env.NODE_ENV !== "production") {
+    fetch(`http://127.0.0.1:7242/ingest/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch(() => {});
+  }
+}
+
 interface UserProfile {
   display_name: string | null;
   avatar_url: string | null;
@@ -117,7 +131,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               await ensureOAuthUserProfile(session.user.id, session.user.user_metadata || {});
             }
             setRole(fetchedRole);
-            setProfile(fetchedProfile ?? (fetchedRole ? { display_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null, avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null } : null));
+            setProfile(
+              fetchedProfile ??
+              (fetchedRole
+                ? {
+                    display_name:
+                      session.user.user_metadata?.full_name ||
+                      session.user.user_metadata?.name ||
+                      null,
+                    avatar_url:
+                      session.user.user_metadata?.avatar_url ||
+                      session.user.user_metadata?.picture ||
+                      null,
+                  }
+                : null)
+            );
           }, 0);
         } else {
           setRole(null);
@@ -139,7 +167,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await ensureOAuthUserProfile(session.user.id, session.user.user_metadata || {});
         }
         setRole(fetchedRole);
-        setProfile(fetchedProfile ?? (fetchedRole ? { display_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null, avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null } : null));
+        setProfile(
+          fetchedProfile ??
+          (fetchedRole
+            ? {
+                display_name:
+                  session.user.user_metadata?.full_name ||
+                  session.user.user_metadata?.name ||
+                  null,
+                avatar_url:
+                  session.user.user_metadata?.avatar_url ||
+                  session.user.user_metadata?.picture ||
+                  null,
+              }
+            : null)
+        );
       }
 
       setLoading(false);
@@ -151,7 +193,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, displayName: string, selectedRole: AppRole) => {
     try {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c33afbad-741d-479c-95b3-1a38165830f0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'useAuth.tsx:86',message:'signUp start',data:{hasEmail:Boolean(email),displayNameLength:displayName?.length ?? 0,selectedRole},timestamp:Date.now()})}).catch(()=>{});
+      devAgentLog(
+        "c33afbad-741d-479c-95b3-1a38165830f0",
+        {
+          sessionId: "debug-session",
+          runId: "pre-fix",
+          hypothesisId: "A",
+          location: "useAuth.tsx:86",
+          message: "signUp start",
+          data: {
+            hasEmail: Boolean(email),
+            displayNameLength: displayName?.length ?? 0,
+            selectedRole,
+          },
+          timestamp: Date.now(),
+        }
+      );
       // #endregion
       const redirectUrl = `${window.location.origin}/`;
 
@@ -169,13 +226,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c33afbad-741d-479c-95b3-1a38165830f0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'useAuth.tsx:101',message:'signUp response',data:{hasUser:Boolean(data.user),hasSession:Boolean(data.session),userId:data.user?.id ?? null,sessionUserId:data.session?.user?.id ?? null,errorMessage:(error as { message?: string } | null)?.message ?? null},timestamp:Date.now()})}).catch(()=>{});
+      devAgentLog(
+        "c33afbad-741d-479c-95b3-1a38165830f0",
+        {
+          sessionId: "debug-session",
+          runId: "pre-fix",
+          hypothesisId: "A",
+          location: "useAuth.tsx:101",
+          message: "signUp response",
+          data: {
+            hasUser: Boolean(data.user),
+            hasSession: Boolean(data.session),
+            userId: data.user?.id ?? null,
+            sessionUserId: data.session?.user?.id ?? null,
+            errorMessage: (error as { message?: string } | null)?.message ?? null,
+          },
+          timestamp: Date.now(),
+        }
+      );
       // #endregion
 
       if (data.user) {
         const { data: sessionData } = await supabase.auth.getSession();
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c33afbad-741d-479c-95b3-1a38165830f0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'useAuth.tsx:106',message:'pre user_roles insert',data:{targetUserId:data.user.id,sessionUserId:sessionData.session?.user?.id ?? null,selectedRole},timestamp:Date.now()})}).catch(()=>{});
+        devAgentLog(
+          "c33afbad-741d-479c-95b3-1a38165830f0",
+          {
+            sessionId: "debug-session",
+            runId: "pre-fix",
+            hypothesisId: "B",
+            location: "useAuth.tsx:106",
+            message: "pre user_roles insert",
+            data: {
+              targetUserId: data.user.id,
+              sessionUserId: sessionData.session?.user?.id ?? null,
+              selectedRole,
+            },
+            timestamp: Date.now(),
+          }
+        );
         // #endregion
         // Create user role
         const { error: roleError } = await supabase.from("user_roles").insert({
@@ -184,7 +273,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c33afbad-741d-479c-95b3-1a38165830f0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'useAuth.tsx:112',message:'user_roles insert result',data:{hasRoleError:Boolean(roleError),roleErrorCode:roleError?.code ?? null,roleErrorMessage:roleError?.message ?? null},timestamp:Date.now()})}).catch(()=>{});
+        devAgentLog(
+          "c33afbad-741d-479c-95b3-1a38165830f0",
+          {
+            sessionId: "debug-session",
+            runId: "pre-fix",
+            hypothesisId: "C",
+            location: "useAuth.tsx:112",
+            message: "user_roles insert result",
+            data: {
+              hasRoleError: Boolean(roleError),
+              roleErrorCode: roleError?.code ?? null,
+              roleErrorMessage: roleError?.message ?? null,
+            },
+            timestamp: Date.now(),
+          }
+        );
         // #endregion
 
         if (roleError) {
@@ -208,7 +312,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error: null };
     } catch (error) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c33afbad-741d-479c-95b3-1a38165830f0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'useAuth.tsx:129',message:'signUp error',data:{errorMessage:(error as Error)?.message ?? 'unknown',errorName:(error as Error)?.name ?? 'unknown'},timestamp:Date.now()})}).catch(()=>{});
+      devAgentLog(
+        "c33afbad-741d-479c-95b3-1a38165830f0",
+        {
+          sessionId: "debug-session",
+          runId: "pre-fix",
+          hypothesisId: "D",
+          location: "useAuth.tsx:129",
+          message: "signUp error",
+          data: {
+            errorMessage: (error as Error)?.message ?? "unknown",
+            errorName: (error as Error)?.name ?? "unknown",
+          },
+          timestamp: Date.now(),
+        }
+      );
       // #endregion
       return { error: error as Error };
     }
@@ -353,7 +471,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, profile, loading, signUp, signIn, signInWithGoogle, signOut, setRoleForOAuthUser, resetPassword, updatePassword, updateProfile, updateEmail, updateAvatar, refreshProfile }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        role,
+        profile,
+        loading,
+        signUp,
+        signIn,
+        signInWithGoogle,
+        signOut,
+        setRoleForOAuthUser,
+        resetPassword,
+        updatePassword,
+        updateProfile,
+        updateEmail,
+        updateAvatar,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

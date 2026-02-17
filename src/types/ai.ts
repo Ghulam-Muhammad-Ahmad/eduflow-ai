@@ -4,6 +4,8 @@ export type AITaskType =
   | "lesson_planning"
   | "study_materials"
   | "rubric_generation"
+  | "paper_generation"
+  | "worksheet_generation"
   | "quiz_questions"
   | "differentiation"
   | "concept_explanation"

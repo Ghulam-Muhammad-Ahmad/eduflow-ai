@@ -5,11 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { useAIStudio } from "@/hooks/useAIStudio";
-import DifferentiationAssistant from "@/components/ai/DifferentiationAssistant";
+import PaperGenerator from "@/components/ai/PaperGenerator";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const TeacherAIStudioDifferentiate = () => {
+const TeacherAIStudioPaper = () => {
   const { usage, getUsagePercentage, isNearLimit } = useAIUsage();
   const { fetchGeneratedContent } = useAIStudio();
   const usagePercentage = getUsagePercentage();
@@ -26,9 +26,9 @@ const TeacherAIStudioDifferentiate = () => {
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Differentiate</h1>
+            <h1 className="text-3xl font-bold text-foreground">Paper Generator</h1>
             <p className="text-muted-foreground mt-1">
-              Adapt content for different learning levels and needs
+              Create exam or test papers with configurable sections and question types
             </p>
           </div>
         </div>
@@ -69,10 +69,10 @@ const TeacherAIStudioDifferentiate = () => {
           </Card>
         )}
 
-        <DifferentiationAssistant onContentGenerated={loadHistory} />
+        <PaperGenerator onContentGenerated={loadHistory} />
       </div>
     </DashboardLayout>
   );
 };
 
-export default TeacherAIStudioDifferentiate;
+export default TeacherAIStudioPaper;

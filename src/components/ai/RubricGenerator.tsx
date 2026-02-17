@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from "next/router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,10 +13,10 @@ interface RubricGeneratorProps {
 }
 
 const RubricGenerator = ({ onContentGenerated }: RubricGeneratorProps) => {
+  const router = useRouter();
   const { createRubric, loading } = useAIStudio();
   const { toast } = useToast();
   const [assignmentDescription, setAssignmentDescription] = useState("");
-  const [result, setResult] = useState<string>("");
 
   const handleGenerate = async () => {
     if (!assignmentDescription.trim()) {
@@ -29,17 +30,20 @@ const RubricGenerator = ({ onContentGenerated }: RubricGeneratorProps) => {
 
     const response = await createRubric(assignmentDescription);
 
-    if (response?.success) {
-      setResult(response.content);
+    if (response?.success && response.content) {
+      const savedContent = (response as { savedContent?: { id: string } }).savedContent;
       toast({
         title: "Success",
-        description: "Rubric generated successfully",
+        description: "Rubric generated successfully. Opening output...",
       });
       onContentGenerated?.();
+      if (savedContent?.id) {
+        router.push(`/dashboard/teacher/ai-studio/output/${savedContent.id}`);
+      }
     } else {
       toast({
         title: "Error",
-        description: response?.error || "Failed to generate rubric",
+        description: (response as { error?: string })?.error || "Failed to generate rubric",
         variant: "destructive",
       });
     }
@@ -50,9 +54,9 @@ const RubricGenerator = ({ onContentGenerated }: RubricGeneratorProps) => {
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4">Rubric Generator</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Generate a detailed rubric based on your assignment description
+          Enter your assignment description below. The generated rubric will open on a separate page where you can edit, regenerate criteria, and export to PDF.
         </p>
-        
+
         <div className="space-y-4">
           <div>
             <Label htmlFor="assignment">Assignment Description *</Label>
@@ -60,7 +64,7 @@ const RubricGenerator = ({ onContentGenerated }: RubricGeneratorProps) => {
               id="assignment"
               value={assignmentDescription}
               onChange={(e) => setAssignmentDescription(e.target.value)}
-              placeholder="Describe the assignment, including objectives, requirements, and what students should demonstrate..."
+              placeholder="Describe the assignment, objectives, requirements, and what students should demonstrate..."
               rows={10}
             />
           </div>
@@ -80,17 +84,6 @@ const RubricGenerator = ({ onContentGenerated }: RubricGeneratorProps) => {
           </Button>
         </div>
       </Card>
-
-      {result && (
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Generated Rubric</h3>
-          <div className="prose max-w-none">
-            <pre className="whitespace-pre-wrap text-sm bg-secondary p-4 rounded-lg">
-              {result}
-            </pre>
-          </div>
-        </Card>
-      )}
     </div>
   );
 };

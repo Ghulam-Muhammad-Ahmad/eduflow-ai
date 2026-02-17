@@ -9,6 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   LayoutDashboard,
   FileText,
   ClipboardCheck,
@@ -27,6 +39,7 @@ import {
   ListChecks,
   GraduationCap,
   ScrollText,
+  ChevronDown,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -159,9 +172,6 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
                 EduLabLoom
               </span>
             </div>
-            <span className="text-xs text-primary font-medium mt-0.5">
-              Learning Management
-            </span>
           </Link>
         </div>
 
@@ -198,22 +208,8 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
           </div>
         </nav>
 
-        {/* User Section */}
-        <div className="p-3 border-t border-border space-y-2">
-          <div className="flex items-center gap-2 px-1 py-2">
-            <Avatar className="h-9 w-9 border-2 border-primary/20">
-              <AvatarImage src={avatarUrl} />
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                {displayName[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate text-foreground">{displayName}</p>
-              <p className="text-xs text-muted-foreground capitalize">{role}</p>
-            </div>
-          </div>
-
-          {/* AI Usage Bar */}
+        {/* AI Usage Bar */}
+        <div className="p-3 border-t border-border">
           {!usageLoading && usage && (
             <div className="px-2 py-2 bg-secondary/30 rounded-lg">
               <div className="flex items-center justify-between mb-1.5">
@@ -250,16 +246,6 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
               </p>
             </div>
           )}
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            onClick={handleSignOut}
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </Button>
         </div>
       </aside>
 
@@ -284,19 +270,48 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
             </button>
             <h1 className="text-xl font-semibold text-foreground">{getPageTitle()}</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
-              <Bell className="w-5 h-5" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-muted-foreground hover:text-primary"
-              onClick={() => router.push("/dashboard/settings")}
-            >
-              <Settings className="w-5 h-5" />
-            </Button>
-          </div>
+          <TooltipProvider delayDuration={300}>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="rounded-full gap-1 pr-1.5 pl-1 h-9 hover:bg-secondary hover:ring-2 hover:ring-primary/20 focus-visible:ring-2 focus-visible:ring-primary/20"
+                    >
+                      <Avatar className="h-8 w-8 border-2 border-primary/20">
+                        <AvatarImage src={avatarUrl} />
+                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                          {displayName[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Account
+                </TooltipContent>
+              </Tooltip>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                <Bell className="w-4 h-4 mr-2" />
+                Notifications
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+            </DropdownMenu>
+          </TooltipProvider>
         </header>
 
         {/* Page Content */}

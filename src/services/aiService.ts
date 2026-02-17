@@ -177,16 +177,289 @@ export const generateContent = async (
   });
 };
 
+const RUBRIC_JSON_SCHEMA = `Respond with ONLY a single JSON object (no markdown, no code block, no other text). The JSON must have this exact structure:
+{
+  "title": "Optional rubric title",
+  "criteria": [
+    {
+      "name": "Criterion name (e.g. Content & Ideas)",
+      "max_points": 25,
+      "levels": [
+        { "level": "Exemplary", "points": 25, "description": "Description of this level" },
+        { "level": "Proficient", "points": 20, "description": "Description" },
+        { "level": "Developing", "points": 15, "description": "Description" },
+        { "level": "Beginning", "points": 10, "description": "Description" }
+      ]
+    }
+  ]
+}
+Each criterion must have "name", "max_points" (number), and "levels" (array of objects with "level", "points", "description"). Use at least 4 criteria and 4 levels per criterion.`;
+
 export const generateRubric = async (
   assignmentDescription: string,
-  userId: string
+  userId: string,
+  options?: { currentRubric?: string; editInstructions?: string }
 ) => {
-  const prompt = `Create a detailed rubric for the following assignment:\n\n${assignmentDescription}\n\nProvide a rubric with at least 4 criteria, each with 4 performance levels (Exemplary, Proficient, Developing, Beginning). Include point values.`;
-  
+  let prompt: string;
+  if (options?.currentRubric?.trim() || options?.editInstructions?.trim()) {
+    const contextPart = options.currentRubric?.trim()
+      ? `\n\nCurrent rubric (for context — regenerate a full rubric based on the assignment and instructions below):\n${options.currentRubric.trim()}\n`
+      : '';
+    const instructionsPart = options.editInstructions?.trim()
+      ? `\n\nAdditional instructions for regeneration: ${options.editInstructions.trim()}\n`
+      : '';
+    prompt = `Assignment:\n${assignmentDescription}${contextPart}${instructionsPart}\nRegenerate a full rubric for this assignment.${RUBRIC_JSON_SCHEMA}`;
+  } else {
+    prompt = `Create a detailed rubric for the following assignment:\n\n${assignmentDescription}\n\n${RUBRIC_JSON_SCHEMA}`;
+  }
+
   return generateAI({
     taskType: 'rubric_generation',
     prompt,
-    systemInstruction: 'You are an expert in educational assessment. Create clear, fair, and detailed rubrics.',
+    systemInstruction: 'You are an expert in educational assessment. Create clear, fair, and detailed rubrics. You must respond only with valid JSON in the exact format specified.',
+    userId,
+  });
+};
+
+const RUBRIC_ONE_CRITERION_SCHEMA = `Respond with ONLY a single JSON object (no markdown, no code block). The JSON must have this exact structure with exactly ONE criterion in the "criteria" array:
+{
+  "title": "optional",
+  "criteria": [
+    {
+      "name": "Criterion name",
+      "max_points": 25,
+      "levels": [
+        { "level": "Exemplary", "points": 25, "description": "Description" },
+        { "level": "Proficient", "points": 20, "description": "Description" },
+        { "level": "Developing", "points": 15, "description": "Description" },
+        { "level": "Beginning", "points": 10, "description": "Description" }
+      ]
+    }
+  ]
+}
+Use 4 performance levels (e.g. Exemplary, Proficient, Developing, Beginning) with points and descriptions.`;
+
+export const generateRubricCriterion = async (
+  assignmentDescription: string,
+  criterionToReplace: { name: string; max_points: number },
+  otherCriteriaNames: string[],
+  userId: string,
+  currentRubricContext?: string
+) => {
+  const otherList = otherCriteriaNames.length ? `Other criteria in this rubric (keep these in mind for consistency): ${otherCriteriaNames.join(', ')}.` : '';
+  const contextBlock = currentRubricContext?.trim()
+    ? `\n\nCurrent full rubric (for context):\n${currentRubricContext.trim()}\n\n`
+    : '';
+  const prompt = `Assignment:\n${assignmentDescription}\n\n${contextBlock}${otherList}\n\nRegenerate ONLY the following rubric criterion (same name and max_points, new level descriptions). Return a full rubric JSON with exactly one criterion in the "criteria" array.\n\nCriterion to regenerate: "${criterionToReplace.name}" (max ${criterionToReplace.max_points} points).\n\n${RUBRIC_ONE_CRITERION_SCHEMA}`;
+
+  return generateAI({
+    taskType: 'rubric_generation',
+    prompt,
+    systemInstruction: 'You are an expert in educational assessment. Create one rubric criterion with 4 levels. Respond only with valid JSON in the exact format specified.',
+    userId,
+  });
+};
+
+// --- Paper (exam/test) generation ---
+export type PaperQuestionType = 'multiple_choice' | 'short_answer' | 'long_answer' | 'true_false';
+
+export interface GeneratePaperParams {
+  subject: string;
+  gradeLevel: string;
+  topic: string;
+  /** When set, the paper is based on this source material (e.g. from an attached document). */
+  sourceMaterial?: string;
+  duration?: number; // minutes
+  questionTypes: PaperQuestionType[];
+  numQuestions?: number; // total; if not set, use breakdown
+  questionBreakdown?: Partial<Record<PaperQuestionType, number>>;
+  totalMarks?: number;
+}
+
+const PAPER_SYSTEM = `You are an expert exam and test paper designer. Create clear, fair, age-appropriate exam or test papers. Use markdown with clear sections: a header with subject, grade, topic, duration and total marks; then Section A, Section B, etc. with question numbers, marks per question, and space for answers. Be consistent with numbering and formatting.`;
+
+export const generatePaper = async (
+  params: GeneratePaperParams,
+  userId: string
+): Promise<AIGenerateResult> => {
+  const {
+    subject,
+    gradeLevel,
+    topic,
+    sourceMaterial,
+    duration,
+    questionTypes,
+    numQuestions,
+    questionBreakdown,
+    totalMarks,
+  } = params;
+
+  const typeList = questionTypes.length ? questionTypes.join(', ') : 'mixed (multiple choice, short answer, long answer)';
+  let countPart: string;
+  if (questionBreakdown && Object.keys(questionBreakdown).length > 0) {
+    const parts = Object.entries(questionBreakdown)
+      .filter(([, n]) => n != null && n > 0)
+      .map(([t, n]) => `${n} ${t.replace('_', ' ')}`);
+    countPart = parts.length ? parts.join(', ') : `${numQuestions ?? 10} questions (${typeList})`;
+  } else {
+    countPart = `${numQuestions ?? 10} questions (${typeList})`;
+  }
+
+  const durationPart = duration ? `\nDuration: ${duration} minutes.` : '';
+  const marksPart = totalMarks ? `\nTotal marks: ${totalMarks}.` : '';
+
+  const sourceBlock = sourceMaterial?.trim()
+    ? `\n\nUse the following source material as the basis for the exam. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceMaterial.trim()}\n---\n\n`
+    : '';
+
+  const prompt = `Create an exam/test paper with the following specifications:${sourceBlock}
+
+Subject: ${subject}
+Grade level: ${gradeLevel}
+Topic: ${topic}
+Question types: ${typeList}
+Number of questions: ${countPart}${durationPart}${marksPart}
+
+Format the paper in markdown with:
+1. A title line (e.g. "${subject} - ${topic} - Grade ${gradeLevel}")
+2. Instructions for students (time, total marks, how to answer)
+3. Sections (e.g. Section A: Multiple Choice, Section B: Short Answer, Section C: Long Answer) with question numbers and marks per question
+4. Clear, unambiguous questions appropriate for the grade level`;
+
+  return generateAI({
+    taskType: 'paper_generation',
+    prompt,
+    systemInstruction: PAPER_SYSTEM,
+    userId,
+  });
+};
+
+// --- Worksheet (template + JSON content) generation ---
+export type WorksheetQuestionTypeSpec =
+  | 'short'
+  | 'long'
+  | 'mcq'
+  | 'true_false'
+  | 'fill_blank';
+
+export interface GenerateWorksheetParams {
+  topic: string;
+  grade: string;
+  difficulty: string;
+  instructions?: string;
+  questionCount?: number;
+  questionTypes?: WorksheetQuestionTypeSpec[];
+  /** When set, worksheet content is based on this source (e.g. from Doc Center). */
+  sourceMaterial?: string;
+}
+
+const WORKSHEET_JSON_SCHEMA = `Respond with ONLY a single JSON object (no markdown, no code block, no other text). The JSON must have this exact structure:
+{
+  "title": "Worksheet title (string)",
+  "instructions": "Instructions for students (string)",
+  "questions": [
+    {
+      "id": "q-1",
+      "type": "short" | "long" | "mcq" | "true_false" | "fill_blank",
+      "question": "The question text",
+      "options": ["A", "B", "C", "D"] (only for type "mcq"),
+      "answer": "Optional model answer or key (string)"
+    }
+  ]
+}
+Each question must have "id" (unique, e.g. q-1, q-2), "type", and "question". Use "options" only for "mcq". Use "answer" for model answer when helpful.`;
+
+export const generateWorksheet = async (
+  params: GenerateWorksheetParams,
+  userId: string
+): Promise<AIGenerateResult> => {
+  const {
+    topic,
+    grade,
+    difficulty,
+    instructions,
+    questionCount = 10,
+    questionTypes,
+    sourceMaterial,
+  } = params;
+
+  const count = Math.min(50, Math.max(1, Number(questionCount) || 10));
+  const typeList =
+    questionTypes && questionTypes.length > 0
+      ? questionTypes.join(', ')
+      : 'short, long, mcq, true_false, fill_blank (mix these)';
+  const instructionsBlock = instructions?.trim()
+    ? `\n\nAdditional instructions from the teacher: ${instructions.trim()}`
+    : '';
+  const sourceBlock = sourceMaterial?.trim()
+    ? `\n\nUse the following source material as the basis for the worksheet. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceMaterial.trim()}\n---\n\n`
+    : '';
+
+  const prompt = `You are a professional teacher. Generate a worksheet in strict JSON format.${sourceBlock}
+
+Rules:
+- Do not return HTML.
+- Do not return markdown or code fences.
+- Return only valid JSON matching the schema below.
+
+Context:
+Grade: ${grade}
+Topic: ${topic}
+Difficulty: ${difficulty}
+Number of questions: ${count}
+Question types to include: ${typeList}${instructionsBlock}
+
+${WORKSHEET_JSON_SCHEMA}`;
+
+  return generateAI({
+    taskType: 'worksheet_generation',
+    prompt,
+    systemInstruction:
+      'You are an expert teacher. Generate worksheet content as valid JSON only. No markdown, no HTML, no explanation—just the raw JSON object with title, instructions, and questions array.',
+    userId,
+  });
+};
+
+/** Generate a single worksheet question (for regenerate-one). Returns raw JSON string for one question object. */
+export interface GenerateWorksheetQuestionParams {
+  topic: string;
+  grade: string;
+  difficulty: string;
+  questionType: WorksheetQuestionTypeSpec;
+  currentQuestionText?: string;
+}
+
+const ONE_QUESTION_SCHEMA = `Respond with ONLY a single JSON object (no markdown, no code block) representing ONE question:
+{
+  "id": "q-1",
+  "type": "short" | "long" | "mcq" | "true_false" | "fill_blank",
+  "question": "The question text",
+  "options": ["A", "B", "C", "D"] (only for type "mcq"),
+  "answer": "Optional model answer"
+}`;
+
+export const generateWorksheetQuestion = async (
+  params: GenerateWorksheetQuestionParams,
+  userId: string
+): Promise<AIGenerateResult> => {
+  const { topic, grade, difficulty, questionType, currentQuestionText } = params;
+  const context = currentQuestionText?.trim()
+    ? `\n\nCurrent question (replace with a new one of the same type): ${currentQuestionText.trim()}`
+    : '';
+  const prompt = `Generate one worksheet question as valid JSON only.
+
+Grade: ${grade}
+Topic: ${topic}
+Difficulty: ${difficulty}
+Question type: ${questionType}${context}
+
+${ONE_QUESTION_SCHEMA}`;
+
+  return generateAI({
+    taskType: 'worksheet_generation',
+    prompt,
+    systemInstruction:
+      'You are an expert teacher. Return only one question as a valid JSON object. No markdown, no code fence, no explanation.',
     userId,
   });
 };

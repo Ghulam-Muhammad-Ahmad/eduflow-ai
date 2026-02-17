@@ -532,3 +532,36 @@
 .calender-view-button{
   display:flex !important;
 }
+.prose hr{
+  margin: 0 0 10px 0 !important;
+  width: 100%;
+  border-bottom: 2px solid #b1b1b1;
+}
+.prose pre{
+  text-wrap: auto !important;
+}
+
+/* Worksheet Maker: print only the worksheet preview (template + content) */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .worksheet-preview,
+  .worksheet-preview * {
+    visibility: visible;
+  }
+  .worksheet-preview {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: white;
+  }
+  .worksheet-print-root {
+    color: #111;
+  }
+}

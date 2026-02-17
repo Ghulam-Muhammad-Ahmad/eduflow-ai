@@ -3,7 +3,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAIUsage } from "@/hooks/useAIUsage";
-import { TrendingUp, ListChecks, History, ArrowRight } from "lucide-react";
+import { TrendingUp, ListChecks, History, ArrowRight, FileText, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const options = [
@@ -18,6 +18,18 @@ const options = [
     description: "Build assessment rubrics for assignments and projects.",
     href: "/dashboard/teacher/ai-studio/rubric",
     icon: ListChecks,
+  },
+  {
+    title: "Paper Generator",
+    description: "Create exam or test papers with sections, marks, and question types.",
+    href: "/dashboard/teacher/ai-studio/paper",
+    icon: FileText,
+  },
+  {
+    title: "Worksheet Maker",
+    description: "Create worksheets from templates with AI-generated questions. Edit and export to PDF.",
+    href: "/dashboard/teacher/ai-studio/worksheet",
+    icon: FileSpreadsheet,
   },
   {
     title: "History",
