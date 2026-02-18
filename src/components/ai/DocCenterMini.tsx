@@ -18,6 +18,7 @@ import {
   FileImage,
   FileSpreadsheet,
   Search,
+  Info,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -213,6 +214,15 @@ export function DocCenterMini({ open, onOpenChange, onSelect, allowedFormats }: 
           )}
         </div>
 
+        {/* Tip: large docs → split for better results */}
+        <p className="flex items-center gap-2 text-xs text-black rounded-md bg-slime-lime px-3 py-2">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            For large documents, use the <strong>Split pages</strong> option in Documents to create smaller PDFs for better results.
+          </span>
+        </p>
+
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -224,6 +234,8 @@ export function DocCenterMini({ open, onOpenChange, onSelect, allowedFormats }: 
             className="pl-9"
           />
         </div>
+
+
 
         {/* File list */}
         <div className="flex-1 min-h-0 overflow-auto">

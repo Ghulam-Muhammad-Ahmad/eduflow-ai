@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/integrations/supabase/server";
+import { stripMarkdownCodeFence } from "@/lib/utils";
 
 const MAX_PDF_BASE64_MB = 20;
 const MAX_PDF_BYTES = MAX_PDF_BASE64_MB * 1024 * 1024;
@@ -280,7 +281,7 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      content: result.content,
+      content: stripMarkdownCodeFence(result.content),
     });
   } catch (error: unknown) {
     console.error("Smart tutor error:", error);

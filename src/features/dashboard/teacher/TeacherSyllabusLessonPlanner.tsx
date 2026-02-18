@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -382,7 +389,7 @@ export default function TeacherSyllabusLessonPlanner() {
                 </div>
                 <div className="space-y-2">
                   <Label>Teaching level</Label>
-                  <Select value={teachingLevel || "_"} onValueChange={(v) => setTeachingLevel((v === "_" ? "" : v) as TeachingLevel)}>
+                  <Select value={teachingLevel || "_"} onValueChange={(v: string) => setTeachingLevel((v === "_" ? "" : v) as TeachingLevel)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
@@ -454,7 +461,7 @@ export default function TeacherSyllabusLessonPlanner() {
               </div>
               <div className="space-y-2">
                 <Label>Teaching style (optional)</Label>
-                <Select value={teachingStyle || "_"} onValueChange={(v) => setTeachingStyle((v === "_" ? "" : v) as TeachingStyle)}>
+                <Select value={teachingStyle || "_"} onValueChange={(v: string) => setTeachingStyle((v === "_" ? "" : v) as TeachingStyle)}>
                   <SelectTrigger className="max-w-xs">
                     <SelectValue placeholder="Optional" />
                   </SelectTrigger>

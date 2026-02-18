@@ -200,11 +200,38 @@ const RUBRIC_JSON_SCHEMA = `Respond with ONLY a single JSON object (no markdown,
 }
 Each criterion must have "name", "max_points" (number), and "levels" (array of objects with "level", "points", "description"). Use at least 4 criteria and 4 levels per criterion.`;
 
+type RubricSourceContext = {
+  sourceMaterial?: string;
+  sourceName?: string;
+};
+
+/** Max chars for pasted/non-PDF source so prompts stay under OpenAI context. Used for rubric, paper, worksheet, smart tutor. */
+export const AI_SOURCE_TEXT_MAX_CHARS = 18_000;
+
+/** Keep rubric prompts within context limits. */
+const RUBRIC_SOURCE_MAX_CHARS = AI_SOURCE_TEXT_MAX_CHARS;
+
+function buildRubricSourceBlock(source?: RubricSourceContext): string {
+  const raw = source?.sourceMaterial?.trim();
+  if (!raw) return "";
+  let text = raw;
+  if (text.length > RUBRIC_SOURCE_MAX_CHARS) {
+    text =
+      text.slice(0, RUBRIC_SOURCE_MAX_CHARS) +
+      "\n\n[Reference material was truncated due to length. Base the rubric on the content above.]";
+  }
+  const name = source?.sourceName?.trim();
+  const label = name ? `Reference material (${name}):` : "Reference material:";
+  return `\n\n${label}\n---\n${text}\n---\n`;
+}
+
 export const generateRubric = async (
   assignmentDescription: string,
   userId: string,
-  options?: { currentRubric?: string; editInstructions?: string }
+  options?: { currentRubric?: string; editInstructions?: string },
+  source?: RubricSourceContext
 ) => {
+  const sourceBlock = buildRubricSourceBlock(source);
   let prompt: string;
   if (options?.currentRubric?.trim() || options?.editInstructions?.trim()) {
     const contextPart = options.currentRubric?.trim()
@@ -213,9 +240,9 @@ export const generateRubric = async (
     const instructionsPart = options.editInstructions?.trim()
       ? `\n\nAdditional instructions for regeneration: ${options.editInstructions.trim()}\n`
       : '';
-    prompt = `Assignment:\n${assignmentDescription}${contextPart}${instructionsPart}\nRegenerate a full rubric for this assignment.${RUBRIC_JSON_SCHEMA}`;
+    prompt = `Assignment:\n${assignmentDescription}${sourceBlock}${contextPart}${instructionsPart}\nRegenerate a full rubric for this assignment.${RUBRIC_JSON_SCHEMA}`;
   } else {
-    prompt = `Create a detailed rubric for the following assignment:\n\n${assignmentDescription}\n\n${RUBRIC_JSON_SCHEMA}`;
+    prompt = `Create a detailed rubric for the following assignment:\n\n${assignmentDescription}${sourceBlock}\n\n${RUBRIC_JSON_SCHEMA}`;
   }
 
   return generateAI({
@@ -249,13 +276,15 @@ export const generateRubricCriterion = async (
   criterionToReplace: { name: string; max_points: number },
   otherCriteriaNames: string[],
   userId: string,
-  currentRubricContext?: string
+  currentRubricContext?: string,
+  source?: RubricSourceContext
 ) => {
+  const sourceBlock = buildRubricSourceBlock(source);
   const otherList = otherCriteriaNames.length ? `Other criteria in this rubric (keep these in mind for consistency): ${otherCriteriaNames.join(', ')}.` : '';
   const contextBlock = currentRubricContext?.trim()
     ? `\n\nCurrent full rubric (for context):\n${currentRubricContext.trim()}\n\n`
     : '';
-  const prompt = `Assignment:\n${assignmentDescription}\n\n${contextBlock}${otherList}\n\nRegenerate ONLY the following rubric criterion (same name and max_points, new level descriptions). Return a full rubric JSON with exactly one criterion in the "criteria" array.\n\nCriterion to regenerate: "${criterionToReplace.name}" (max ${criterionToReplace.max_points} points).\n\n${RUBRIC_ONE_CRITERION_SCHEMA}`;
+  const prompt = `Assignment:\n${assignmentDescription}${sourceBlock}\n\n${contextBlock}${otherList}\n\nRegenerate ONLY the following rubric criterion (same name and max_points, new level descriptions). Return a full rubric JSON with exactly one criterion in the "criteria" array.\n\nCriterion to regenerate: "${criterionToReplace.name}" (max ${criterionToReplace.max_points} points).\n\n${RUBRIC_ONE_CRITERION_SCHEMA}`;
 
   return generateAI({
     taskType: 'rubric_generation',
@@ -277,6 +306,8 @@ export interface GeneratePaperParams {
   /** When set, the PDF is sent as-is to the model (no text extraction). Takes precedence over sourceMaterial. */
   sourcePdfBase64?: string;
   sourcePdfFileName?: string;
+  /** Display name for the source (e.g. document name) for metadata. */
+  sourceName?: string;
   /** Optional custom instructions for the paper (e.g. focus areas, style). */
   customInstruction?: string;
   duration?: number; // minutes
@@ -284,12 +315,16 @@ export interface GeneratePaperParams {
   numQuestions?: number; // total; if not set, use breakdown
   questionBreakdown?: Partial<Record<PaperQuestionType, number>>;
   totalMarks?: number;
+  /** When regenerating: instructions for how to change the paper (e.g. "add 2 more MCQs", "make Section B harder"). */
+  editInstructions?: string;
+  /** When regenerating: current paper text sent as context so the model can apply edit instructions. */
+  currentPaperText?: string;
 }
 
 const PAPER_SYSTEM = `You are an expert exam and test paper designer. Create clear, fair, age-appropriate exam or test papers. Use markdown with clear sections: a header with subject, grade, topic, duration and total marks; then Section A, Section B, etc. with question numbers, marks per question, and space for answers. Be consistent with numbering and formatting.`;
 
-/** Max chars for source material so prompt stays under model context (e.g. 8192). ~1 token ≈ 4 chars; reserve space for system + rest of prompt + response. */
-const PAPER_SOURCE_MAX_CHARS = 18_000;
+/** Max chars for source material so prompt stays under model context. */
+const PAPER_SOURCE_MAX_CHARS = AI_SOURCE_TEXT_MAX_CHARS;
 
 export const generatePaper = async (
   params: GeneratePaperParams,
@@ -308,6 +343,8 @@ export const generatePaper = async (
     numQuestions,
     questionBreakdown,
     totalMarks,
+    editInstructions,
+    currentPaperText,
   } = params;
 
   const typeList = questionTypes.length ? questionTypes.join(', ') : 'mixed (multiple choice, short answer, long answer)';
@@ -339,6 +376,11 @@ export const generatePaper = async (
     ? `\n\nAdditional instructions from the teacher: ${customInstruction.trim()}\n`
     : '';
 
+  const editBlock =
+    editInstructions?.trim() && currentPaperText?.trim()
+      ? `\n\n--- Current paper (for reference) ---\n${currentPaperText.trim()}\n---\n\nApply these regeneration instructions: ${editInstructions.trim()}. Keep the same subject, grade level, topic, question types, and structure; change the paper according to the instructions above.`
+      : '';
+
   const prompt = `Create an exam/test paper with the following specifications:${sourceBlock}
 
 Subject: ${subject}
@@ -346,6 +388,7 @@ Grade level: ${gradeLevel}
 Topic: ${topic}
 Question types: ${typeList}
 Number of questions: ${countPart}${durationPart}${marksPart}${customBlock}
+${editBlock}
 
 Format the paper in markdown with:
 1. A title line (e.g. "${subject} - ${topic} - Grade ${gradeLevel}")
@@ -426,10 +469,16 @@ export const generateWorksheet = async (
   const instructionsBlock = instructions?.trim()
     ? `\n\nAdditional instructions from the teacher: ${instructions.trim()}`
     : '';
+  let sourceForWorksheet = usePdfAsIs ? '' : (sourceMaterial?.trim() ?? '');
+  if (sourceForWorksheet.length > AI_SOURCE_TEXT_MAX_CHARS) {
+    sourceForWorksheet =
+      sourceForWorksheet.slice(0, AI_SOURCE_TEXT_MAX_CHARS) +
+      '\n\n[Source material was truncated due to length. Base the worksheet on the content above.]';
+  }
   const sourceBlock = usePdfAsIs
     ? '\n\nUse the attached PDF document as the basis for the worksheet. Create questions that assess understanding of its content.\n\n'
-    : sourceMaterial?.trim()
-      ? `\n\nUse the following source material as the basis for the worksheet. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceMaterial.trim()}\n---\n\n`
+    : sourceForWorksheet
+      ? `\n\nUse the following source material as the basis for the worksheet. Create questions that assess understanding of this content.\n\n--- Source material ---\n${sourceForWorksheet}\n---\n\n`
       : '';
 
   const prompt = `You are a professional teacher. Generate a worksheet in strict JSON format.${sourceBlock}

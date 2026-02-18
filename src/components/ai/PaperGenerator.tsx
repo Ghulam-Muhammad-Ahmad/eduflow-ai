@@ -14,11 +14,14 @@ import {
 } from "@/components/ui/select";
 import { useAIStudio } from "@/hooks/useAIStudio";
 import type { PaperQuestionType } from "@/services/aiService";
+import { AI_SOURCE_TEXT_MAX_CHARS } from "@/services/aiService";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
-import { FileText, Loader2, FolderOpen, X } from "lucide-react";
+import { FileText, Loader2, FolderOpen, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+const OTHER_OPTION_VALUE = "__other__";
 
 const QUESTION_TYPES: { value: PaperQuestionType; label: string }[] = [
   { value: "multiple_choice", label: "Multiple choice" },
@@ -40,7 +43,9 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
 
   const [inputMode, setInputMode] = useState<"topic" | "document">("topic");
   const [subject, setSubject] = useState("");
+  const [subjectCustom, setSubjectCustom] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
+  const [gradeCustom, setGradeCustom] = useState("");
   const [topic, setTopic] = useState("");
   const [sourceMaterial, setSourceMaterial] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
@@ -170,18 +175,20 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
 
   const handleGenerate = async () => {
     setLastGeneratedPaper(null);
-    if (!subject.trim()) {
+    const subjectValue = subject === OTHER_OPTION_VALUE ? subjectCustom.trim() : subject;
+    const gradeValue = gradeLevel === OTHER_OPTION_VALUE ? gradeCustom.trim() : gradeLevel;
+    if (!subjectValue) {
       toast({
         title: "Error",
-        description: "Please select a subject",
+        description: subject === OTHER_OPTION_VALUE ? "Please enter a subject" : "Please select a subject",
         variant: "destructive",
       });
       return;
     }
-    if (!gradeLevel.trim()) {
+    if (!gradeValue) {
       toast({
         title: "Error",
-        description: "Please select a grade level",
+        description: gradeLevel === OTHER_OPTION_VALUE ? "Please enter a grade level" : "Please select a grade level",
         variant: "destructive",
       });
       return;
@@ -220,8 +227,8 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
     const topicLabel = topic.trim() || sourceName || "From document";
 
     const response = await createPaper({
-      subject,
-      gradeLevel,
+      subject: subjectValue,
+      gradeLevel: gradeValue,
       topic: topicLabel,
       sourceMaterial: sourcePdfBase64 ? undefined : (sourceMaterial?.trim() || undefined),
       sourcePdfBase64: sourcePdfBase64 ?? undefined,
@@ -283,9 +290,17 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
                   <SelectItem value="Geography">Geography</SelectItem>
                   <SelectItem value="Art">Art</SelectItem>
                   <SelectItem value="Computer Science">Computer Science</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  <SelectItem value={OTHER_OPTION_VALUE}>Other (type below)</SelectItem>
                 </SelectContent>
               </Select>
+              {subject === OTHER_OPTION_VALUE && (
+                <Input
+                  value={subjectCustom}
+                  onChange={(e) => setSubjectCustom(e.target.value)}
+                  placeholder="Enter subject"
+                  className="mt-2"
+                />
+              )}
             </div>
             <div>
               <Label htmlFor="grade">Grade level *</Label>
@@ -298,8 +313,17 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
                   <SelectItem value="Middle School">Middle School (6-8)</SelectItem>
                   <SelectItem value="High School">High School (9-12)</SelectItem>
                   <SelectItem value="College">College</SelectItem>
+                  <SelectItem value={OTHER_OPTION_VALUE}>Other (type below)</SelectItem>
                 </SelectContent>
               </Select>
+              {gradeLevel === OTHER_OPTION_VALUE && (
+                <Input
+                  value={gradeCustom}
+                  onChange={(e) => setGradeCustom(e.target.value)}
+                  placeholder="Enter grade level"
+                  className="mt-2"
+                />
+              )}
             </div>
           </div>
           <hr className="my-4" />
@@ -352,6 +376,14 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
                 <p className="text-xs text-muted-foreground">
                   PDF is sent as-is to the AI. DOCX, DOC, and TXT are converted to text. The paper will be based on the document content.
                 </p>
+                {sourceMaterial != null && (sourceMaterial.length >= AI_SOURCE_TEXT_MAX_CHARS) && (
+                  <div className="flex gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <p>
+                      Source text exceeds the recommended length (~{AI_SOURCE_TEXT_MAX_CHARS.toLocaleString()} characters). Only the first part will be used. Use a PDF for full document content.
+                    </p>
+                  </div>
+                )}
                 <DocCenterMini
                   open={docCenterOpen}
                   onOpenChange={setDocCenterOpen}

@@ -1,4 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
 import type { AITaskType } from "@/types/ai";
@@ -59,7 +62,68 @@ const generateWithOpenAI = async (
   return { content, inputTokens, outputTokens };
 };
 
-/** Paper generation with PDF sent as-is (no text extraction). Uses Responses API with base64 input_file (no PDF-to-text conversion). */
+/** Paper generation with PDF only: upload PDF via Files API, then ask with file_id. Reuse file_id in DB for repeated use. */
+const generatePaperWithPdfFile = async (
+  prompt: string,
+  systemMessage: string,
+  pdfBase64: string,
+  filename: string,
+  model: string
+): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
+  const client = getOpenAIClient();
+  const base64String = pdfBase64.startsWith("data:")
+    ? pdfBase64.replace(/^data:application\/pdf;base64,/, "")
+    : pdfBase64;
+  const buffer = Buffer.from(base64String, "base64");
+  const tempPath = path.join(os.tmpdir(), `paper-pdf-${Date.now()}-${filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`);
+  let fileId: string | null = null;
+  try {
+    fs.writeFileSync(tempPath, buffer);
+    const file = await client.files.create({
+      file: fs.createReadStream(tempPath),
+      purpose: "user_data",
+    });
+    fileId = file.id;
+    const response = await client.responses.create({
+      model: model === "gpt-4" ? "gpt-4o" : model,
+      instructions: systemMessage,
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_file", file_id: fileId },
+            { type: "input_text", text: prompt },
+          ],
+        },
+      ],
+      temperature: 0.7,
+      truncation: "auto",
+    });
+    const content =
+      (response as { output_text?: string }).output_text ??
+      (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
+        ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
+            .flatMap((o) => o.content ?? [])
+            .find((c) => c.type === "output_text")
+            ?.text ?? ""
+        : "") ??
+      "";
+    const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+    return {
+      content,
+      inputTokens: usage?.input_tokens ?? 0,
+      outputTokens: usage?.output_tokens ?? 0,
+    };
+  } finally {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+};
+
+/** Worksheet (or other) PDF: inline base64 with Responses API (no Files API). */
 const generateWithOpenAIPdf = async (
   prompt: string,
   systemMessage: string,
@@ -68,7 +132,6 @@ const generateWithOpenAIPdf = async (
   model: string
 ): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
   const client = getOpenAIClient();
-
   const base64String = pdfBase64.startsWith("data:")
     ? pdfBase64.replace(/^data:application\/pdf;base64,/, "")
     : pdfBase64;
@@ -81,15 +144,8 @@ const generateWithOpenAIPdf = async (
       {
         role: "user",
         content: [
-          {
-            type: "input_file",
-            filename,
-            file_data: fileData,
-          },
-          {
-            type: "input_text",
-            text: prompt,
-          },
+          { type: "input_file", filename, file_data: fileData },
+          { type: "input_text", text: prompt },
         ],
       },
     ],
@@ -107,10 +163,11 @@ const generateWithOpenAIPdf = async (
       : "") ??
     "";
   const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
-  const inputTokens = usage?.input_tokens ?? 0;
-  const outputTokens = usage?.output_tokens ?? 0;
-
-  return { content, inputTokens, outputTokens };
+  return {
+    content,
+    inputTokens: usage?.input_tokens ?? 0,
+    outputTokens: usage?.output_tokens ?? 0,
+  };
 };
 
 interface AIGenerateRequest {
@@ -156,7 +213,6 @@ export default async function handler(
     const selectedModel = model || "gpt-4";
     const isPaperWithPdf = taskType === "paper_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
     const isWorksheetWithPdf = taskType === "worksheet_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
-    const isPdfTask = isPaperWithPdf || isWorksheetWithPdf;
 
     const maxPoints = typeof pointsPossible === "number" && pointsPossible > 0 ? pointsPossible : 100;
     const isCheckerWithGrade = taskType === "checker" && maxPoints > 0;
@@ -169,15 +225,23 @@ export default async function handler(
           " Respond with ONLY a valid JSON object. No markdown, no code fence, no explanation—just the raw JSON."
         : systemInstruction;
 
-    const result = isPdfTask
-      ? await generateWithOpenAIPdf(
+    const result = isPaperWithPdf
+      ? await generatePaperWithPdfFile(
           prompt,
           checkerSystem ?? systemInstruction ?? "",
           sourcePdfBase64,
           sourcePdfFileName?.trim() || "document.pdf",
           selectedModel
         )
-      : await generateWithOpenAI(prompt, checkerSystem, selectedModel);
+      : isWorksheetWithPdf
+        ? await generateWithOpenAIPdf(
+            prompt,
+            checkerSystem ?? systemInstruction ?? "",
+            sourcePdfBase64,
+            sourcePdfFileName?.trim() || "document.pdf",
+            selectedModel
+          )
+        : await generateWithOpenAI(prompt, checkerSystem, selectedModel);
     const totalTokens = result.inputTokens + result.outputTokens;
     const cost = calculateCost(selectedModel, result.inputTokens, result.outputTokens);
 

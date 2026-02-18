@@ -33,6 +33,7 @@ import {
   type WorksheetQuestion,
   type WorksheetQuestionType,
 } from "@/types/worksheet";
+import { stripMarkdownCodeFence } from "@/lib/utils";
 import { WorksheetTemplateLayout } from "@/components/ai/WorksheetTemplateLayout";
 import { WorksheetContentRender } from "@/components/ai/WorksheetContentRender";
 
@@ -89,6 +90,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
     smartTutorContent,
     regenerateRubricContent,
     regenerateCriterion,
+    regeneratePaper,
     regenerateWorksheet,
     regenerateWorksheetQuestion,
     loading,
@@ -109,6 +111,8 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
   const rubric = contentObj.rubric ?? (contentObj.text ? parseRubricJson(contentObj.text) : null);
   const metadata = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, unknown>;
   const assignmentDescription = (metadata.assignmentDescription as string) ?? "";
+  const rubricSourceMaterial = (metadata.sourceMaterial as string) ?? "";
+  const rubricSourceName = (metadata.sourceName as string) ?? "";
 
   const [editMode, setEditMode] = useState(false);
   const [editingText, setEditingText] = useState(text);
@@ -117,6 +121,8 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
   const [showRegeneratePanel, setShowRegeneratePanel] = useState(false);
   const [rubricRegenerateInstructions, setRubricRegenerateInstructions] = useState("");
   const [showRubricRegeneratePanel, setShowRubricRegeneratePanel] = useState(false);
+  const [paperRegenerateInstructions, setPaperRegenerateInstructions] = useState("");
+  const [showPaperRegeneratePanel, setShowPaperRegeneratePanel] = useState(false);
 
   const [localWorksheet, setLocalWorksheet] = useState<WorksheetContent>(() => {
     if (item.content_type !== "worksheet_builder" || !item.content || typeof item.content !== "object") return { title: "", instructions: "", questions: [] };
@@ -206,6 +212,9 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
     const result = await regenerateRubricContent(assignmentDescription, {
       currentRubric: currentRubricJson,
       editInstructions: instructions,
+    }, {
+      sourceMaterial: rubricSourceMaterial || undefined,
+      sourceName: rubricSourceName || undefined,
     });
     if (result?.success && result.content) {
       const parsed = parseRubricJson(result.content);
@@ -271,7 +280,15 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
   const handleRegenerateCriterion = async (criterionIndex: number) => {
     const r = localRubric ?? rubric;
     if (!r || !assignmentDescription.trim()) return;
-    const response = await regenerateCriterion(assignmentDescription, r, criterionIndex);
+    const response = await regenerateCriterion(
+      assignmentDescription,
+      r,
+      criterionIndex,
+      {
+        sourceMaterial: rubricSourceMaterial || undefined,
+        sourceName: rubricSourceName || undefined,
+      }
+    );
     if (response?.success && response.content) {
       const parsed = parseRubricJson(response.content);
       if (parsed?.criteria?.length) {
@@ -367,7 +384,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
           ref={renderedContentRef}
           className="prose rounded-lg p-4 reactMarkdownCustom max-w-none dark:prose-invert"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripMarkdownCodeFence(text)}</ReactMarkdown>
         </div>
       </Card>
     );
@@ -603,22 +620,112 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
     );
   }
 
-  if (isPaper && text) {
+  const handleRegeneratePaper = async () => {
+    const refreshed = await regeneratePaper(item.id, {
+      editInstructions: paperRegenerateInstructions.trim() || undefined,
+    });
+    if (refreshed) {
+      const newContent = refreshed.content && typeof refreshed.content === "object" ? (refreshed.content as { text?: string }) : {};
+      setEditingText(newContent.text ?? "");
+      setPaperRegenerateInstructions("");
+      setShowPaperRegeneratePanel(false);
+      onUpdated?.(refreshed);
+    }
+  };
+
+  if (isPaper && (text || editingText)) {
     return (
       <Card className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <h2 className="text-xl font-semibold">{item.title}</h2>
-          <Button variant="outline" size="sm" onClick={() => downloadSmartTutorAsPdf(renderedContentRef.current, item.title)}>
-            <FileDown className="h-4 w-4 mr-2" />
-            Export PDF
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {editMode ? (
+              <>
+                <Button size="sm" onClick={handleSaveText} disabled={loading}>
+                  Save
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setEditMode(false)}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Done editing
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPaperRegeneratePanel((v) => !v)}
+                  disabled={loading}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Regenerate
+                </Button>
+              </>
+            )}
+            <Button variant="outline" size="sm" onClick={() => downloadSmartTutorAsPdf(renderedContentRef.current, item.title)}>
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+          </div>
         </div>
-        <div
-          ref={renderedContentRef}
-          className="prose rounded-lg p-4 reactMarkdownCustom max-w-none dark:prose-invert"
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-        </div>
+
+        {(metadata.lastEditInstructions as string) && (
+          <div className="mb-4 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Last regeneration instructions: </span>
+            {String(metadata.lastEditInstructions)}
+          </div>
+        )}
+
+        {showPaperRegeneratePanel && (
+          <div className="mb-4 p-4 rounded-lg border bg-muted/40 space-y-3">
+            <Label className="text-sm font-medium">Edit instructions (optional)</Label>
+            <p className="text-xs text-muted-foreground">
+              Regeneration uses the same source (PDF or text) and settings as the original. Add instructions to change the paper (e.g. &quot;Add 2 more MCQs&quot;, &quot;Make Section B harder&quot;).
+            </p>
+            <Textarea
+              placeholder="e.g. Add two more short-answer questions, increase marks for Section C"
+              value={paperRegenerateInstructions}
+              onChange={(e) => setPaperRegenerateInstructions(e.target.value)}
+              className="min-h-[80px]"
+            />
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleRegeneratePaper} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Regenerate with instructions
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setShowPaperRegeneratePanel(false);
+                  setPaperRegenerateInstructions("");
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {editMode ? (
+          <Textarea
+            value={editingText}
+            onChange={(e) => setEditingText(e.target.value)}
+            className="min-h-[400px] font-mono text-sm"
+            placeholder="Paper content (markdown)"
+          />
+        ) : (
+          <div
+            ref={renderedContentRef}
+            className="prose rounded-lg p-4 reactMarkdownCustom max-w-none dark:prose-invert"
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripMarkdownCodeFence(editingText)}</ReactMarkdown>
+          </div>
+        )}
       </Card>
     );
   }

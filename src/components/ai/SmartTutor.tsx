@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,10 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAIStudio } from "@/hooks/useAIStudio";
-import { Loader2, Upload, FileText, X, FolderOpen, Sparkles } from "lucide-react";
+import { AI_SOURCE_TEXT_MAX_CHARS } from "@/services/aiService";
+import { Loader2, Upload, FileText, X, FolderOpen, Sparkles, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
 import { supabase } from "@/integrations/supabase/client";
+
+const OTHER_OPTION_VALUE = "__other__";
 
 interface SmartTutorProps {
   onContentGenerated?: () => void;
@@ -46,7 +50,9 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
     "below_grade" | "at_grade" | "above_grade"
   >("at_grade");
   const [subject, setSubject] = useState("");
+  const [subjectCustom, setSubjectCustom] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
+  const [gradeCustom, setGradeCustom] = useState("");
   const [docCenterOpen, setDocCenterOpen] = useState(false);
   const [loadingDoc, setLoadingDoc] = useState(false);
 
@@ -100,10 +106,20 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
   const clearFile = () => setPdfFile(null);
 
   const handleRun = async () => {
-    if (!subject || !gradeLevel) {
+    const subjectValue = subject === OTHER_OPTION_VALUE ? subjectCustom.trim() : subject;
+    const gradeValue = gradeLevel === OTHER_OPTION_VALUE ? gradeCustom.trim() : gradeLevel;
+    if (!subjectValue) {
       toast({
         title: "Error",
-        description: "Please select subject and grade level",
+        description: subject === OTHER_OPTION_VALUE ? "Please enter a subject" : "Please select a subject",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!gradeValue) {
+      toast({
+        title: "Error",
+        description: gradeLevel === OTHER_OPTION_VALUE ? "Please enter a grade level" : "Please select a grade level",
         variant: "destructive",
       });
       return;
@@ -138,8 +154,8 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
       gradeLevel: string;
     } = {
       targetLevel,
-      subject,
-      gradeLevel,
+      subject: subjectValue,
+      gradeLevel: gradeValue,
     };
 
     if (inputMode === "upload" && pdfFile) {
@@ -250,6 +266,14 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
                 className="mt-2"
               />
             </div>
+            {pastedText.length >= AI_SOURCE_TEXT_MAX_CHARS && (
+              <div className="flex gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <p>
+                  Pasted content exceeds the recommended length (~{AI_SOURCE_TEXT_MAX_CHARS.toLocaleString()} characters). Only the first part will be sent to the AI.
+                </p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
@@ -280,10 +304,18 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
                 <SelectItem value="History">History</SelectItem>
                 <SelectItem value="Geography">Geography</SelectItem>
                 <SelectItem value="Art">Art</SelectItem>
-                <SelectItem value="Computer Science">Computer Science</SelectItem>                
-                <SelectItem value="Other">Other</SelectItem>
+                <SelectItem value="Computer Science">Computer Science</SelectItem>
+                <SelectItem value={OTHER_OPTION_VALUE}>Other (type below)</SelectItem>
               </SelectContent>
             </Select>
+            {subject === OTHER_OPTION_VALUE && (
+              <Input
+                value={subjectCustom}
+                onChange={(e) => setSubjectCustom(e.target.value)}
+                placeholder="Enter subject"
+                className="mt-2"
+              />
+            )}
           </div>
           <div>
             <Label>Grade level</Label>
@@ -296,8 +328,17 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
                 <SelectItem value="Middle School">Middle School (6-8)</SelectItem>
                 <SelectItem value="High School">High School (9-12)</SelectItem>
                 <SelectItem value="College">College</SelectItem>
+                <SelectItem value={OTHER_OPTION_VALUE}>Other (type below)</SelectItem>
               </SelectContent>
             </Select>
+            {gradeLevel === OTHER_OPTION_VALUE && (
+              <Input
+                value={gradeCustom}
+                onChange={(e) => setGradeCustom(e.target.value)}
+                placeholder="Enter grade level"
+                className="mt-2"
+              />
+            )}
           </div>
         </div>
 

@@ -14,11 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAIStudio } from "@/hooks/useAIStudio";
+import { AI_SOURCE_TEXT_MAX_CHARS } from "@/services/aiService";
 import { WORKSHEET_SYSTEM_TEMPLATES } from "@/types/worksheet";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
-import { FileSpreadsheet, Loader2, FolderOpen, X } from "lucide-react";
+import { FileSpreadsheet, Loader2, FolderOpen, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+const OTHER_OPTION_VALUE = "__other__";
 
 const DIFFICULTY_OPTIONS = [
   { value: "easy", label: "Easy" },
@@ -56,7 +59,9 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
   const [docCenterOpen, setDocCenterOpen] = useState(false);
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [grade, setGrade] = useState("");
+  const [gradeCustom, setGradeCustom] = useState("");
   const [difficulty, setDifficulty] = useState("medium");
+  const [difficultyCustom, setDifficultyCustom] = useState("");
   const [instructions, setInstructions] = useState("");
   const [questionCount, setQuestionCount] = useState<string>("10");
 
@@ -174,10 +179,20 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
       });
       return;
     }
-    if (!grade) {
+    const gradeValue = grade === OTHER_OPTION_VALUE ? gradeCustom.trim() : grade;
+    const difficultyValue = difficulty === OTHER_OPTION_VALUE ? difficultyCustom.trim() : difficulty;
+    if (!gradeValue) {
       toast({
         title: "Error",
-        description: "Please select a grade level",
+        description: grade === OTHER_OPTION_VALUE ? "Please enter a grade level" : "Please select a grade level",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (difficulty === OTHER_OPTION_VALUE && !difficultyValue) {
+      toast({
+        title: "Error",
+        description: "Please enter a difficulty or choose from the list",
         variant: "destructive",
       });
       return;
@@ -195,8 +210,8 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
     const response = await createWorksheet({
       templateId: selectedTemplateId,
       topic: inputMode === "topic" ? topic.trim() : (sourceName || "From document"),
-      grade,
-      difficulty,
+      grade: gradeValue,
+      difficulty: difficultyValue || "medium",
       instructions: instructions.trim() || undefined,
       questionCount: num,
       sourceMaterial: inputMode === "document" && !sourcePdfBase64 ? sourceMaterial ?? undefined : undefined,
@@ -285,6 +300,14 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
                 <p className="text-xs text-muted-foreground">
                   Allowed: {WORKSHEET_DOC_FORMATS.map((f) => f.toUpperCase()).join(", ")}. PDF is sent as-is to the AI. DOCX, DOC, and TXT are converted to text.
                 </p>
+                {sourceMaterial != null && sourcePdfBase64 == null && (sourceMaterial.length >= AI_SOURCE_TEXT_MAX_CHARS) && (
+                  <div className="flex gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <p>
+                      Source text exceeds the recommended length (~{AI_SOURCE_TEXT_MAX_CHARS.toLocaleString()} characters). Only the first part will be used. Use a PDF for full document content.
+                    </p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
             <DocCenterMini
@@ -341,8 +364,17 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
                       {o.label}
                     </SelectItem>
                   ))}
+                  <SelectItem value={OTHER_OPTION_VALUE}>Other (type below)</SelectItem>
                 </SelectContent>
               </Select>
+              {grade === OTHER_OPTION_VALUE && (
+                <Input
+                  value={gradeCustom}
+                  onChange={(e) => setGradeCustom(e.target.value)}
+                  placeholder="Enter grade level"
+                  className="mt-2"
+                />
+              )}
             </div>
             <div>
               <Label htmlFor="difficulty">Difficulty</Label>
@@ -356,8 +388,17 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
                       {o.label}
                     </SelectItem>
                   ))}
+                  <SelectItem value={OTHER_OPTION_VALUE}>Other (type below)</SelectItem>
                 </SelectContent>
               </Select>
+              {difficulty === OTHER_OPTION_VALUE && (
+                <Input
+                  value={difficultyCustom}
+                  onChange={(e) => setDifficultyCustom(e.target.value)}
+                  placeholder="e.g. Intermediate, Advanced"
+                  className="mt-2"
+                />
+              )}
             </div>
           </div>
 

@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         // Primary - Medium Slate Blue
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-medium hover:shadow-large",
+        default: "bg-primary text-primary-foreground hover:bg-slime-lime hover:text-black shadow-medium hover:shadow-large",
         
         // Premium CTA - Slime Lime (use sparingly)
         premium: "bg-slime-lime text-ink-black font-semibold hover:shadow-glow animate-premium-pulse hover:animate-none hover:brightness-110",

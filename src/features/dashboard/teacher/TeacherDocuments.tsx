@@ -36,6 +36,7 @@ import {
   Plus,
   ChevronRight,
   Home,
+  Scissors,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -51,6 +52,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { parsePageRange, validatePageNumbers } from "@/lib/pageRange";
 
 interface DocumentType {
   id: string;
@@ -164,6 +166,15 @@ const TeacherDocuments = () => {
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState<string>(TAG_COLORS[0]);
   const [createTagLoading, setCreateTagLoading] = useState(false);
+  // Split PDF dialog
+  const [splitDialogOpen, setSplitDialogOpen] = useState(false);
+  const [documentToSplit, setDocumentToSplit] = useState<DocumentType | null>(null);
+  const [splitPageRange, setSplitPageRange] = useState("");
+  const [splitNewFileName, setSplitNewFileName] = useState("");
+  const [splitLoading, setSplitLoading] = useState(false);
+  const [splitPreviewUrl, setSplitPreviewUrl] = useState<string | null>(null);
+  const [splitPageCount, setSplitPageCount] = useState<number | null>(null);
+  const [splitPageCountLoading, setSplitPageCountLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -549,6 +560,91 @@ const TeacherDocuments = () => {
       t.includes("webp") ||
       t.includes("svg")
     );
+  };
+
+  const isPdfDocument = (doc: DocumentType) => {
+    const t = (doc.file_type || "").toLowerCase();
+    const n = (doc.name || "").toLowerCase();
+    return t.includes("pdf") || n.endsWith(".pdf");
+  };
+
+  const openSplitDialog = (doc: DocumentType) => {
+    const base = doc.name.replace(/\.pdf$/i, "") || doc.name;
+    setDocumentToSplit(doc);
+    setSplitPageRange("1");
+    setSplitNewFileName(`${base} - split.pdf`);
+    setSplitPreviewUrl(null);
+    setSplitPageCount(null);
+    setSplitDialogOpen(true);
+  };
+
+  useEffect(() => {
+    if (!splitDialogOpen || !documentToSplit) return;
+    let cancelled = false;
+    setSplitPageCountLoading(true);
+    (async () => {
+      try {
+        const [urlRes, countRes] = await Promise.all([
+          supabase.storage
+            .from("documents")
+            .createSignedUrl(documentToSplit.file_path, 3600),
+          fetch("/api/documents/pdf-page-count", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ documentId: documentToSplit.id }),
+          }),
+        ]);
+        if (cancelled) return;
+        if (urlRes.data?.signedUrl) setSplitPreviewUrl(urlRes.data.signedUrl);
+        if (countRes.ok) {
+          const data = await countRes.json().catch(() => ({}));
+          if (typeof data.numPages === "number") setSplitPageCount(data.numPages);
+        }
+      } catch {
+        if (!cancelled) setSplitPageCount(null);
+      } finally {
+        if (!cancelled) setSplitPageCountLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [splitDialogOpen, documentToSplit?.id, documentToSplit?.file_path]);
+
+  const handleSplitPdf = async () => {
+    if (!documentToSplit || !splitPageRange.trim() || !splitNewFileName.trim()) return;
+    if (!splitNewFileName.toLowerCase().endsWith(".pdf")) {
+      toast.error("New file name must end with .pdf");
+      return;
+    }
+    setSplitLoading(true);
+    try {
+      const res = await fetch("/api/documents/split-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentId: documentToSplit.id,
+          pageRange: splitPageRange.trim(),
+          newFileName: splitNewFileName.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Failed to split PDF");
+        return;
+      }
+      toast.success("PDF created: " + (data.document?.name ?? splitNewFileName));
+      setSplitDialogOpen(false);
+      setDocumentToSplit(null);
+      setSplitPageRange("");
+      setSplitNewFileName("");
+      fetchData();
+    } catch (e) {
+      console.error("Split PDF error:", e);
+      toast.error("Failed to split PDF");
+    } finally {
+      setSplitLoading(false);
+    }
   };
 
   const openMoveDialog = (doc: DocumentType) => {
@@ -945,6 +1041,12 @@ const TeacherDocuments = () => {
                                 Preview
                               </DropdownMenuItem>
                             )}
+                            {isPdfDocument(doc) && (
+                              <DropdownMenuItem onClick={() => openSplitDialog(doc)}>
+                                <Scissors className="w-4 h-4 mr-2" />
+                                Split pages
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
                               <Tag className="w-4 h-4 mr-2" />
                               Edit tags
@@ -1066,6 +1168,12 @@ const TeacherDocuments = () => {
                               Preview
                             </DropdownMenuItem>
                           )}
+                          {isPdfDocument(doc) && (
+                            <DropdownMenuItem onClick={() => openSplitDialog(doc)}>
+                              <Scissors className="w-4 h-4 mr-2" />
+                              Split pages
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
                             <Tag className="w-4 h-4 mr-2" />
                             Edit tags
@@ -1103,6 +1211,137 @@ const TeacherDocuments = () => {
           </div>
         </div>
       </div>
+
+      {/* Split PDF Dialog */}
+      <Dialog
+        open={splitDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSplitDialogOpen(false);
+            setDocumentToSplit(null);
+            setSplitPageRange("");
+            setSplitNewFileName("");
+            setSplitPreviewUrl(null);
+            setSplitPageCount(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Split pages</DialogTitle>
+            <DialogDescription>
+              Create a new PDF from selected pages of &quot;{documentToSplit?.name}&quot;. Enter page numbers or ranges in the text box below (e.g. 1-5, 8, 10-12).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-2 flex-1 min-h-0">
+            <div className="flex flex-col min-h-0">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-sm font-medium">Preview</span>
+                {splitPageCountLoading ? (
+                  <span className="text-xs text-muted-foreground">Loading…</span>
+                ) : splitPageCount != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    Total: {splitPageCount} page{splitPageCount !== 1 ? "s" : ""}
+                  </span>
+                ) : null}
+              </div>
+              <div className="border rounded-lg overflow-hidden bg-muted flex-1 min-h-[400px]">
+                {splitPreviewUrl ? (
+                  <iframe
+                    src={splitPreviewUrl}
+                    title={documentToSplit?.name ?? "PDF preview"}
+                    className="w-full h-full min-h-[400px]"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full min-h-[400px] text-muted-foreground text-sm">
+                    Loading preview…
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-4">
+              <div>
+                <Label htmlFor="split-page-range">Pages to include (text only)</Label>
+                <Input
+                  id="split-page-range"
+                  placeholder="e.g. 1-5, 8, 10-12"
+                  value={splitPageRange}
+                  onChange={(e) => setSplitPageRange(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSplitPdf()}
+                  className="mt-1.5"
+                />
+                {splitPageRange.trim() && (() => {
+                  const pages = parsePageRange(splitPageRange);
+                  if (pages === null) {
+                    return (
+                      <p className="text-xs text-destructive mt-1.5">
+                        Invalid format. Use numbers and ranges like 1-5, 8, 10-12.
+                      </p>
+                    );
+                  }
+                  if (splitPageCount != null) {
+                    const validation = validatePageNumbers(pages, splitPageCount);
+                    if (!validation.ok) {
+                      return (
+                        <p className="text-xs text-destructive mt-1.5">
+                          {validation.error}
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {validation.pages.length} page{validation.pages.length !== 1 ? "s" : ""} selected.
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      {pages.length} page{pages.length !== 1 ? "s" : ""} entered.
+                    </p>
+                  );
+                })()}
+              </div>
+              <div>
+                <Label htmlFor="split-new-filename">New file name</Label>
+                <Input
+                  id="split-new-filename"
+                  placeholder="excerpt.pdf"
+                  value={splitNewFileName}
+                  onChange={(e) => setSplitNewFileName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSplitPdf()}
+                  className="mt-1.5"
+                />
+              </div>
+              <DialogFooter className="flex-row gap-2 sm:gap-0 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSplitDialogOpen(false);
+                    setDocumentToSplit(null);
+                    setSplitPageRange("");
+                    setSplitNewFileName("");
+                    setSplitPreviewUrl(null);
+                    setSplitPageCount(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSplitPdf}
+                  disabled={
+                    splitLoading ||
+                    !splitPageRange.trim() ||
+                    !splitNewFileName.trim() ||
+                    !splitNewFileName.toLowerCase().endsWith(".pdf")
+                  }
+                >
+                  {splitLoading ? "Creating…" : "Create PDF"}
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Preview Dialog */}
       <Dialog open={previewDialogOpen} onOpenChange={(open) => !open && closePreview()}>

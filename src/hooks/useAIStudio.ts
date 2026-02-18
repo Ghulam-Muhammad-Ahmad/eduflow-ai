@@ -10,9 +10,11 @@ import {
   generatePaper,
   generateWorksheet,
   generateWorksheetQuestion,
+  AI_SOURCE_TEXT_MAX_CHARS,
   type AIGenerateResult,
   type GeneratePaperParams,
   type GenerateWorksheetParams,
+  type PaperQuestionType,
 } from '@/services/aiService';
 import { parseRubricJson, type RubricJson } from '@/types/rubric';
 import {
@@ -42,21 +44,68 @@ export const useAIStudio = () => {
   const [regeneratingCriterionIndex, setRegeneratingCriterionIndex] = useState<number | null>(null);
   const [regeneratingWorksheetQuestionIndex, setRegeneratingWorksheetQuestionIndex] = useState<number | null>(null);
 
-  // Generate rubric from assignment description; returns result with savedContent when saved
-  const createRubric = async (assignmentDescription: string): Promise<(AIGenerateResult & { savedContent?: AIGeneratedContent | null }) | null> => {
+  // Generate rubric from assignment description and/or a document with instructions. At least one must be provided.
+  const createRubric = async (params: {
+    assignmentDescription?: string;
+    sourceMaterial?: string;
+    sourceName?: string;
+  }): Promise<(AIGenerateResult & { savedContent?: AIGeneratedContent | null }) | null> => {
     if (!user?.id) return null;
+
+    const typedDescription = params.assignmentDescription?.trim() ?? "";
+    const docText = params.sourceMaterial?.trim();
+    const effectiveDescription = (typedDescription || docText) ?? "";
+    if (!effectiveDescription) {
+      toast({
+        title: 'Error',
+        description: 'Provide an assignment description or attach a document with instructions.',
+        variant: 'destructive',
+      });
+      return null;
+    }
 
     setLoading(true);
     try {
-      const result = await generateRubric(assignmentDescription, user.id);
-      
+      const sourceMaterialRaw = docText;
+      const overLimit = (sourceMaterialRaw?.length ?? 0) > AI_SOURCE_TEXT_MAX_CHARS;
+      const sourceMaterial =
+        sourceMaterialRaw && overLimit
+          ? sourceMaterialRaw.slice(0, AI_SOURCE_TEXT_MAX_CHARS) +
+            "\n\n[Reference material was truncated due to length.]"
+          : sourceMaterialRaw;
+      if (overLimit) {
+        toast({
+          title: 'Source truncated',
+          description: `Only the first ~${AI_SOURCE_TEXT_MAX_CHARS.toLocaleString()} characters were sent. Use a shorter document or PDF for full content.`,
+          variant: 'default',
+        });
+      }
+
+      // When user provided both: use typed as main assignment, doc as reference. When only doc: use doc as assignment (no separate reference block).
+      const assignmentDescription = typedDescription || effectiveDescription;
+      const source =
+        typedDescription && sourceMaterialRaw
+          ? { sourceMaterial: sourceMaterial ?? undefined, sourceName: params.sourceName }
+          : undefined;
+
+      const result = await generateRubric(
+        assignmentDescription,
+        user.id,
+        undefined,
+        source
+      );
+
       if (result.success) {
         const parsed = parseRubricJson(result.content);
         const saved = await saveGeneratedContent({
           content_type: 'rubric',
           title: 'Generated Rubric',
           content: { text: result.content, rubric: parsed ?? undefined },
-          metadata: { assignmentDescription },
+          metadata: {
+            assignmentDescription: effectiveDescription,
+            sourceName: params.sourceName ?? undefined,
+            sourceMaterial: sourceMaterial ?? undefined,
+          },
         });
         return { ...result, savedContent: saved ?? undefined };
       }
@@ -77,12 +126,13 @@ export const useAIStudio = () => {
   /** Generate rubric content only (no save). Use to regenerate and then update an existing record. Sends current rubric + optional instructions for context. */
   const regenerateRubricContent = async (
     assignmentDescription: string,
-    options?: { currentRubric?: string; editInstructions?: string }
+    options?: { currentRubric?: string; editInstructions?: string },
+    source?: { sourceMaterial?: string; sourceName?: string }
   ): Promise<AIGenerateResult | null> => {
     if (!user?.id) return null;
     setLoading(true);
     try {
-      const result = await generateRubric(assignmentDescription, user.id, options);
+      const result = await generateRubric(assignmentDescription, user.id, options, source);
       return result;
     } catch (error: any) {
       toast({
@@ -100,7 +150,8 @@ export const useAIStudio = () => {
   const regenerateCriterion = async (
     assignmentDescription: string,
     rubric: RubricJson,
-    criterionIndex: number
+    criterionIndex: number,
+    source?: { sourceMaterial?: string; sourceName?: string }
   ): Promise<AIGenerateResult | null> => {
     if (!user?.id) return null;
     const criterion = rubric.criteria[criterionIndex];
@@ -115,7 +166,8 @@ export const useAIStudio = () => {
         { name: criterion.name, max_points: criterion.max_points },
         otherNames,
         user.id,
-        currentRubricContext
+        currentRubricContext,
+        source
       );
       return result;
     } catch (error: any) {
@@ -155,6 +207,11 @@ export const useAIStudio = () => {
             numQuestions: params.numQuestions,
             questionBreakdown: params.questionBreakdown,
             totalMarks: params.totalMarks,
+            customInstruction: params.customInstruction,
+            sourceMaterial: params.sourceMaterial,
+            sourcePdfBase64: params.sourcePdfBase64,
+            sourcePdfFileName: params.sourcePdfFileName,
+            sourceName: params.sourceName,
           },
         });
         return { ...result, savedContent: saved ?? undefined };
@@ -360,6 +417,75 @@ export const useAIStudio = () => {
       return null;
     } finally {
       setRegeneratingWorksheetQuestionIndex(null);
+    }
+  };
+
+  /** Regenerate paper: uses original source (PDF/text), metadata, and optional edit instructions. */
+  const regeneratePaper = async (
+    contentId: string,
+    options?: { editInstructions?: string }
+  ): Promise<AIGeneratedContent | null> => {
+    if (!user?.id) return null;
+    const item = await fetchGeneratedContentById(contentId);
+    if (!item || item.content_type !== 'paper') return null;
+    const meta = (item.metadata && typeof item.metadata === 'object' ? item.metadata : {}) as Record<string, unknown>;
+    const contentObj = item.content && typeof item.content === 'object' ? (item.content as { text?: string }) : {};
+    const currentText = contentObj.text ?? '';
+    const subject = (meta.subject as string) ?? '';
+    const gradeLevel = (meta.gradeLevel as string) ?? '';
+    const topic = (meta.topic as string) ?? '';
+    if (!subject || !gradeLevel || !topic) {
+      toast({
+        title: 'Cannot regenerate',
+        description: 'Original paper subject, grade level, or topic is missing.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+    const questionTypes = Array.isArray(meta.questionTypes)
+      ? (meta.questionTypes as PaperQuestionType[]).filter((t) =>
+          ['multiple_choice', 'short_answer', 'long_answer', 'true_false'].includes(t)
+        )
+      : (['multiple_choice', 'short_answer'] as PaperQuestionType[]);
+    const params: GeneratePaperParams = {
+      subject,
+      gradeLevel,
+      topic,
+      questionTypes: questionTypes.length ? questionTypes : (['multiple_choice', 'short_answer'] as PaperQuestionType[]),
+      sourceMaterial: meta.sourceMaterial as string | undefined,
+      sourcePdfBase64: meta.sourcePdfBase64 as string | undefined,
+      sourcePdfFileName: meta.sourcePdfFileName as string | undefined,
+      customInstruction: meta.customInstruction as string | undefined,
+      duration: meta.duration as number | undefined,
+      numQuestions: meta.numQuestions as number | undefined,
+      questionBreakdown: meta.questionBreakdown as Partial<Record<PaperQuestionType, number>> | undefined,
+      totalMarks: meta.totalMarks as number | undefined,
+      editInstructions: options?.editInstructions?.trim() || undefined,
+      currentPaperText: currentText || undefined,
+    };
+    setLoading(true);
+    try {
+      const result = await generatePaper(params, user.id);
+      if (!result.success || !result.content) return null;
+      const updated = await updateGeneratedContent(
+        contentId,
+        {
+          content: { ...contentObj, text: result.content },
+          metadata: { ...meta, lastEditInstructions: options?.editInstructions?.trim() || undefined },
+        },
+        { silent: true }
+      );
+      if (updated) toast({ title: 'Regenerated', description: 'Paper updated with same source and your instructions.' });
+      return updated;
+    } catch (error: unknown) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to regenerate paper',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -658,6 +784,7 @@ export const useAIStudio = () => {
     regenerateRubricContent,
     regenerateCriterion,
     createPaper,
+    regeneratePaper,
     createWorksheet,
     regenerateWorksheet,
     regenerateWorksheetQuestion,

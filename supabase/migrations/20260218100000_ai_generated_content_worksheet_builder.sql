@@ -1,6 +1,4 @@
--- Add worksheet_builder to ai_generated_content content_type constraint.
--- Run this in Supabase SQL Editor or: copy to supabase/migrations/20260218100000_ai_generated_content_worksheet_builder.sql and run supabase db push.
-
+-- Allow 'worksheet_builder' for AI Studio Worksheet Maker (editable worksheet content)
 ALTER TABLE public.ai_generated_content
   DROP CONSTRAINT IF EXISTS ai_generated_content_content_type_check;
 
