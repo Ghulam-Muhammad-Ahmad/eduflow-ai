@@ -36,8 +36,6 @@ export default function AuthCallback() {
         }
 
         router.replace("/auth");
-
-        router.replace("/auth");
       } catch {
         setStatus("error");
         router.replace("/auth");
@@ -45,7 +43,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [router]);
+  }, [router, router.isReady]);
 
   if (status === "loading") {
     return (

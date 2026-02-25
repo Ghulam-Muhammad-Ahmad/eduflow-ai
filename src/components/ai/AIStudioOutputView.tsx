@@ -21,6 +21,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import remarkDirective from "remark-directive";
+import { visit } from "unist-util-visit";
+import "katex/dist/katex.min.css";
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { parseRubricJson, type RubricJson, type RubricCriterion, type RubricLevel } from "@/types/rubric";
@@ -36,6 +41,19 @@ import {
 import { stripMarkdownCodeFence } from "@/lib/utils";
 import { WorksheetTemplateLayout } from "@/components/ai/WorksheetTemplateLayout";
 import { WorksheetContentRender } from "@/components/ai/WorksheetContentRender";
+
+function urduDirective() {
+  return (tree: any) => {
+    visit(tree, (node: any) => {
+      if (node.type === "containerDirective" && node.name === "urdu") {
+        node.data = {
+          hName: "div",
+          hProperties: { className: "urdu" },
+        };
+      }
+    });
+  };
+}
 
 interface AIStudioOutputViewProps {
   item: AIGeneratedContent;
@@ -384,7 +402,12 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
           ref={renderedContentRef}
           className="prose rounded-lg p-4 reactMarkdownCustom max-w-none dark:prose-invert"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripMarkdownCodeFence(text)}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath, remarkDirective, urduDirective]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {stripMarkdownCodeFence(text)}
+          </ReactMarkdown>
         </div>
       </Card>
     );
@@ -723,7 +746,12 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
             ref={renderedContentRef}
             className="prose rounded-lg p-4 reactMarkdownCustom max-w-none dark:prose-invert"
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripMarkdownCodeFence(editingText)}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath, remarkDirective, urduDirective]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {stripMarkdownCodeFence(editingText)}
+            </ReactMarkdown>
           </div>
         )}
       </Card>
@@ -900,7 +928,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
           </div>
           <div ref={worksheetPrintRef} className="rounded-lg border bg-background p-4 worksheet-preview">
             <WorksheetTemplateLayout template={template} title={localWorksheet.title}>
-              <WorksheetContentRender data={localWorksheet} />
+              <WorksheetContentRender data={localWorksheet} templateId={template.id} />
             </WorksheetTemplateLayout>
           </div>
         </div>

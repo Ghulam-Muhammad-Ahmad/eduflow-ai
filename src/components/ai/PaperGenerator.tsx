@@ -20,6 +20,11 @@ import { FileText, Loader2, FolderOpen, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import remarkDirective from "remark-directive";
+import rehypeKatex from "rehype-katex";
+import { visit } from "unist-util-visit";
+import "katex/dist/katex.min.css";
 
 const OTHER_OPTION_VALUE = "__other__";
 
@@ -35,6 +40,19 @@ interface PaperGeneratorProps {
 }
 
 const PAPER_DOC_FORMATS = ["pdf", "txt", "doc", "docx"];
+
+function urduDirective() {
+  return (tree: any) => {
+    visit(tree, (node: any) => {
+      if (node.type === "containerDirective" && node.name === "urdu") {
+        node.data = {
+          hName: "div",
+          hProperties: { className: "urdu" },
+        };
+      }
+    });
+  };
+}
 
 const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
   const router = useRouter();
@@ -509,7 +527,12 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
             This paper was generated but could not be saved to history. Copy the content below or generate again to retry saving.
           </p>
           <div className="prose rounded-lg p-4 bg-muted/30 max-w-none dark:prose-invert reactMarkdownCustom">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{lastGeneratedPaper}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath, remarkDirective, urduDirective]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {lastGeneratedPaper}
+            </ReactMarkdown>
           </div>
           <Button
             variant="outline"

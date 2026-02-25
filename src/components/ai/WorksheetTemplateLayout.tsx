@@ -41,6 +41,21 @@ export function WorksheetTemplateLayout({
         ...marginStyle,
       }}
     >
+      {(template.id === "simple_lined" ||
+        template.id === "life_skills_grid" ||
+        template.id === "transcript_grid") && (
+        <div className="mb-4 text-sm flex items-center justify-between gap-4">
+          <div>
+            <span className="mr-1">Name</span>
+            <span className="inline-block border-b border-current min-w-[140px]" />
+          </div>
+          <div>
+            <span className="mr-1">Date</span>
+            <span className="inline-block border-b border-current min-w-[120px]" />
+          </div>
+        </div>
+      )}
+
       {layout.header.showTitle && title && (
         <header className="border-b pb-2 mb-4" style={{ borderColor: styles.primaryColor }}>
           <h1

@@ -541,6 +541,19 @@
   text-wrap: auto !important;
 }
 
+.urdu {
+  direction: rtl;
+  unicode-bidi: embed;
+  text-align: right;
+  font-family: "Noto Nastaliq Urdu", serif;
+  line-height: 2;
+}
+
+.urdu .katex {
+  direction: ltr;
+  display: inline-block;
+}
+
 /* Worksheet Maker: print only the worksheet preview (template + content) */
 @media print {
   body * {

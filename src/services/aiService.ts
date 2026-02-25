@@ -394,7 +394,19 @@ Format the paper in markdown with:
 1. A title line (e.g. "${subject} - ${topic} - Grade ${gradeLevel}")
 2. Instructions for students (time, total marks, how to answer)
 3. Sections (e.g. Section A: Multiple Choice, Section B: Short Answer, Section C: Long Answer) with question numbers and marks per question
-4. Clear, unambiguous questions appropriate for the grade level`;
+4. Clear, unambiguous questions appropriate for the grade level
+
+IMPORTANT:
+- Do not return HTML.
+- Do not return markdown or code fences.
+- Return only valid JSON matching the schema below.
+Urdu text must be wrapped inside a custom block:
+:::urdu
+<Urdu text here>
+:::
+All mathematical expressions must use LaTeX inside $$ ... $$ on separate lines.
+Do not use inline math $...$, always use block math $$...$$
+`;
 
   return generateAI({
     taskType: 'paper_generation',

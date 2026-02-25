@@ -101,6 +101,66 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       headingSize: "1.5rem",
     },
   },
+  {
+    id: "simple_lined",
+    name: "Simple Lined",
+    type: "system",
+    layout: {
+      header: { showTitle: false, showLogo: false, showDate: false },
+      footer: { showPageNumber: false, customText: undefined },
+      margins: { top: 24, bottom: 24, left: 32, right: 32 },
+    },
+    styles: {
+      fontFamily: "Georgia, serif",
+      primaryColor: "#111827",
+      headingSize: "1.5rem",
+    },
+  },
+  {
+    id: "life_skills_grid",
+    name: "Life Skills Grid",
+    type: "system",
+    layout: {
+      header: { showTitle: true, showLogo: false, showDate: false },
+      footer: { showPageNumber: false, customText: "Notes:" },
+      margins: { top: 24, bottom: 24, left: 24, right: 24 },
+    },
+    styles: {
+      fontFamily: "system-ui, sans-serif",
+      primaryColor: "#111827",
+      headingSize: "1.25rem",
+    },
+  },
+  {
+    id: "transcript_grid",
+    name: "Transcript Grid",
+    type: "system",
+    layout: {
+      header: { showTitle: true, showLogo: false, showDate: false },
+      footer: { showPageNumber: true, customText: undefined },
+      margins: { top: 24, bottom: 24, left: 20, right: 20 },
+    },
+    styles: {
+      fontFamily: "system-ui, sans-serif",
+      primaryColor: "#111827",
+      headingSize: "1.25rem",
+    },
+  },
+  {
+    id: "english_color_blocks",
+    name: "English Color Blocks",
+    type: "system",
+    layout: {
+      header: { showTitle: true, showLogo: false, showDate: true },
+      footer: { showPageNumber: true, customText: undefined },
+      margins: { top: 24, bottom: 24, left: 20, right: 20 },
+    },
+    styles: {
+      fontFamily: "Inter, system-ui, sans-serif",
+      primaryColor: "#111827",
+      headingSize: "1.6rem",
+    },
+  },
 ];
 
 const VALID_QUESTION_TYPES: WorksheetQuestionType[] = [
