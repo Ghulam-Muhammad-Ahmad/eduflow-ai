@@ -1,25 +1,21 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { AppRole } from "@/types/auth";
+import type { AppRole, AccountType } from "@/types/auth";
 
 /**
- * Internal: Development logging helper.
- * Calls to localhost:7242 are only sent when NOT in production.
+ * Internal: Development logging helper (no-op to avoid ERR_CONNECTION_REFUSED in console).
+ * Re-enable and point to a real ingest URL if you need agent logging.
  */
-function devAgentLog(path: string, data: any) {
-  if (process.env.NODE_ENV !== "production") {
-    fetch(`http://127.0.0.1:7242/ingest/${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).catch(() => {});
-  }
+function devAgentLog(_path: string, _data: unknown) {
+  // no-op: was causing ERR_CONNECTION_REFUSED to 127.0.0.1:7242
 }
 
 interface UserProfile {
   display_name: string | null;
   avatar_url: string | null;
+  account_type: AccountType | null;
+  onboarding_completed_at: string | null;
 }
 
 interface AuthContextType {
@@ -28,17 +24,19 @@ interface AuthContextType {
   role: AppRole | null;
   profile: UserProfile | null;
   loading: boolean;
-  signUp: (email: string, password: string, displayName: string, role: AppRole) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, displayName: string, roleOrAccountType: AppRole | AccountType) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   setRoleForOAuthUser: (role: AppRole) => Promise<{ error: Error | null }>;
+  setAccountTypeForOAuthUser: (accountType: AccountType) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   updateProfile: (displayName: string) => Promise<{ error: Error | null }>;
   updateEmail: (newEmail: string) => Promise<{ error: Error | null }>;
   updateAvatar: (avatarUrl: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
+  completeOnboarding: () => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("display_name, avatar_url")
+        .select("display_name, avatar_url, account_type, onboarding_completed_at")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -83,7 +81,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return null;
       }
 
-      return (data ?? null) as UserProfile | null;
+      const raw = data as (UserProfile & { account_type?: string; onboarding_completed_at?: string }) | null;
+      if (!raw) return null;
+      return {
+        display_name: raw.display_name ?? null,
+        avatar_url: raw.avatar_url ?? null,
+        account_type: (raw.account_type as AccountType) ?? null,
+        onboarding_completed_at: raw.onboarding_completed_at ?? null,
+      };
     } catch (error) {
       console.error("Error fetching profile:", error);
       return null;
@@ -99,7 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       { onConflict: "user_id" }
     );
     if (profileError) console.error("Error upserting OAuth profile:", profileError);
-    else setProfile({ display_name: displayName, avatar_url: avatarUrl });
+    else setProfile((prev) => ({ display_name: displayName, avatar_url: avatarUrl, account_type: prev?.account_type ?? null, onboarding_completed_at: prev?.onboarding_completed_at ?? null }));
   };
 
   const setRoleForOAuthUser = async (selectedRole: AppRole) => {
@@ -111,6 +116,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       if (error) throw error;
       setRole(selectedRole);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const setAccountTypeForOAuthUser = async (accountType: AccountType) => {
+    if (!user) return { error: new Error("Not signed in") };
+    try {
+      const role: AppRole = accountType === "business" ? "admin" : accountType === "solo_tutor" ? "teacher" : "student";
+      const { error: roleError } = await supabase.from("user_roles").insert({
+        user_id: user.id,
+        role,
+      });
+      if (roleError) throw roleError;
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ account_type: accountType, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (profileError) throw profileError;
+      setRole(role);
+      setProfile((prev) => prev ? { ...prev, account_type: accountType } : null);
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -143,6 +170,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                       session.user.user_metadata?.avatar_url ||
                       session.user.user_metadata?.picture ||
                       null,
+                    account_type: null,
+                    onboarding_completed_at: null,
                   }
                 : null)
             );
@@ -179,6 +208,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   session.user.user_metadata?.avatar_url ||
                   session.user.user_metadata?.picture ||
                   null,
+                account_type: null,
+                onboarding_completed_at: null,
               }
             : null)
         );
@@ -190,7 +221,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, displayName: string, selectedRole: AppRole) => {
+  const signUp = async (email: string, password: string, displayName: string, roleOrAccountType: AppRole | AccountType) => {
+    const isAccountType = (v: string): v is AccountType =>
+      v === "business" || v === "solo_tutor" || v === "student";
+    const selectedRole: AppRole = isAccountType(roleOrAccountType)
+      ? roleOrAccountType === "business"
+        ? "admin"
+        : roleOrAccountType === "solo_tutor"
+          ? "teacher"
+          : "student"
+      : roleOrAccountType;
+    const accountType: AccountType | null = isAccountType(roleOrAccountType) ? roleOrAccountType : null;
     try {
       // #region agent log
       devAgentLog(
@@ -296,10 +337,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw roleError;
         }
 
-        // Update profile with display name
+        // Update profile with display name and optional account_type (onboarding_completed_at set by onboarding)
+        const profileUpdate: { display_name: string; account_type?: AccountType; updated_at: string } = {
+          display_name: displayName,
+          updated_at: new Date().toISOString(),
+        };
+        if (accountType) profileUpdate.account_type = accountType;
         const { error: profileError } = await supabase
           .from("profiles")
-          .update({ display_name: displayName })
+          .update(profileUpdate)
           .eq("user_id", data.user.id);
 
         if (profileError) {
@@ -307,6 +353,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         setRole(selectedRole);
+        setProfile((prev) => ({
+          ...prev,
+          display_name: displayName,
+          avatar_url: prev?.avatar_url ?? null,
+          account_type: accountType ?? prev?.account_type ?? null,
+          onboarding_completed_at: prev?.onboarding_completed_at ?? null,
+        }));
       }
 
       return { error: null };
@@ -422,6 +475,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile((prev) => ({
         display_name: displayName,
         avatar_url: prev?.avatar_url ?? null,
+        account_type: prev?.account_type ?? null,
+        onboarding_completed_at: prev?.onboarding_completed_at ?? null,
       }));
       return { error: null };
     } catch (error) {
@@ -457,6 +512,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile((prev) => ({
         display_name: prev?.display_name ?? null,
         avatar_url: avatarUrl,
+        account_type: prev?.account_type ?? null,
+        onboarding_completed_at: prev?.onboarding_completed_at ?? null,
       }));
       return { error: null };
     } catch (error) {
@@ -468,6 +525,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     const updatedProfile = await fetchUserProfile(user.id);
     setProfile(updatedProfile);
+  };
+
+  const completeOnboarding = async () => {
+    try {
+      if (!user) throw new Error("No user logged in");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ onboarding_completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setProfile((prev) => prev ? { ...prev, onboarding_completed_at: new Date().toISOString() } : null);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   return (
@@ -483,12 +555,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signInWithGoogle,
         signOut,
         setRoleForOAuthUser,
+        setAccountTypeForOAuthUser,
         resetPassword,
         updatePassword,
         updateProfile,
         updateEmail,
         updateAvatar,
         refreshProfile,
+        completeOnboarding,
       }}
     >
       {children}

@@ -19,7 +19,7 @@ export default function ChooseRole() {
     }
     if (role) {
       if (role === "teacher") router.replace("/dashboard/teacher");
-      else if (role === "admin") router.replace("/dashboard/admin");
+      else if (role === "admin") router.replace("/dashboard/owner");
       else router.replace("/dashboard/student");
     }
   }, [user, role, authLoading, router]);

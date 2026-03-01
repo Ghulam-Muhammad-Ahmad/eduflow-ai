@@ -16,7 +16,7 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
     const router = useRouter();
     
     // Check for exact match or if current path starts with nav item path (for nested routes)
-    const isDashboardRoot = to === '/dashboard/teacher' || to === '/dashboard/student' || to === '/dashboard/admin';
+    const isDashboardRoot = to === '/dashboard/teacher' || to === '/dashboard/student' || to === '/dashboard/owner';
     const isActive = 
       router.pathname === to || 
       router.asPath === to ||

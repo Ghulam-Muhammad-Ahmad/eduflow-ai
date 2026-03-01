@@ -440,6 +440,8 @@ export type Database = {
           id: string
           updated_at: string
           user_id: string
+          account_type: "business" | "solo_tutor" | "student" | null
+          onboarding_completed_at: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -449,6 +451,8 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id: string
+          account_type?: "business" | "solo_tutor" | "student" | null
+          onboarding_completed_at?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -458,6 +462,157 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+          account_type?: "business" | "solo_tutor" | "student" | null
+          onboarding_completed_at?: string | null
+        }
+        Relationships: []
+      }
+      workspaces: {
+        Row: {
+          id: string
+          name: string
+          type: "business" | "solo"
+          owner_id: string
+          created_at: string
+          updated_at: string
+          settings: Json
+          trial_ends_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          type: "business" | "solo"
+          owner_id: string
+          created_at?: string
+          updated_at?: string
+          settings?: Json
+          trial_ends_at?: string | null
+        }
+        Update: {
+          name?: string
+          type?: "business" | "solo"
+          owner_id?: string
+          updated_at?: string
+          settings?: Json
+          trial_ends_at?: string | null
+        }
+        Relationships: []
+      }
+      workspace_members: {
+        Row: {
+          id: string
+          workspace_id: string
+          user_id: string
+          role: "owner" | "tutor"
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          user_id: string
+          role: "owner" | "tutor"
+          created_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          user_id?: string
+          role?: "owner" | "tutor"
+        }
+        Relationships: []
+      }
+      tutor_student_assignments: {
+        Row: {
+          id: string
+          workspace_id: string
+          tutor_id: string
+          student_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          tutor_id: string
+          student_id: string
+          created_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          tutor_id?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      workspace_subscriptions: {
+        Row: {
+          id: string
+          workspace_id: string
+          paddle_subscription_id: string | null
+          paddle_customer_id: string | null
+          price_id: string | null
+          status: string
+          current_period_ends_at: string | null
+          trial_ends_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          paddle_subscription_id?: string | null
+          paddle_customer_id?: string | null
+          price_id?: string | null
+          status?: string
+          current_period_ends_at?: string | null
+          trial_ends_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          paddle_subscription_id?: string | null
+          paddle_customer_id?: string | null
+          price_id?: string | null
+          status?: string
+          current_period_ends_at?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          paddle_subscription_id: string | null
+          paddle_customer_id: string | null
+          price_id: string | null
+          status: string
+          current_period_ends_at: string | null
+          trial_ends_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          paddle_subscription_id?: string | null
+          paddle_customer_id?: string | null
+          price_id?: string | null
+          status?: string
+          current_period_ends_at?: string | null
+          trial_ends_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          paddle_subscription_id?: string | null
+          paddle_customer_id?: string | null
+          price_id?: string | null
+          status?: string
+          current_period_ends_at?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

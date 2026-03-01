@@ -27,3 +27,6 @@ out
 *.sln
 *.sw?
 .cursor/
+
+.env.local
+.env

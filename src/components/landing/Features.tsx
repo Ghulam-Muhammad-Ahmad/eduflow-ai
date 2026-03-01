@@ -14,7 +14,7 @@ const features = [
     icon: FileText,
     iconClass: "feature-icon-purple",
     title: "Document Management",
-    description: "Upload, organize, and version control all your teaching materials. AI-powered summarization and smart search by topic or learning objective."
+    description: "Upload, organize, and version control all your tutoring materials. AI-powered summarization and smart search by topic or learning objective."
   },
   {
     icon: ClipboardCheck,
@@ -26,7 +26,7 @@ const features = [
     icon: Brain,
     iconClass: "feature-icon-purple",
     title: "AI Paper Checking",
-    description: "Automated evaluation with rubric-based scoring, strengths analysis, and line-by-line feedback. Full teacher control to edit and override."
+    description: "Automated evaluation with rubric-based scoring, strengths analysis, and line-by-line feedback. Full tutor control to edit and override."
   },
   {
     icon: Calendar,
@@ -50,7 +50,7 @@ const features = [
     icon: Zap,
     iconClass: "feature-icon-purple",
     title: "Instant Feedback",
-    description: "Students receive immediate, actionable feedback on their work. Teachers save hours while improving learning outcomes."
+    description: "Students receive immediate, actionable feedback on their work. Tutors save hours while improving learning outcomes."
   },
   {
     icon: BarChart3,
@@ -71,11 +71,11 @@ const Features = () => {
           </span>
           <h2 className="text-3xl md:text-4xl font-bold mb-6 text-foreground">
             Everything You Need to{" "}
-            <span className="gradient-text">Teach Smarter</span>
+            <span className="gradient-text">Tutor Smarter</span>
           </h2>
           <p className="text-lg text-muted-foreground">
-            From lesson planning to grading, EduLabLoom provides AI-powered tools 
-            that save time while improving educational outcomes.
+            From lesson planning to grading, Edulabloom provides AI-powered tools 
+            that save time while improving tutoring outcomes.
           </p>
         </div>
 

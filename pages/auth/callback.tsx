@@ -26,11 +26,11 @@ export default function AuthCallback() {
             .maybeSingle();
           const role = roleRow?.role;
           if (!role && session.user.app_metadata?.provider) {
-            router.replace("/auth/choose-role");
+            router.replace("/auth/choose-account-type");
             return;
           }
           if (role === "teacher") router.replace("/dashboard/teacher");
-          else if (role === "admin") router.replace("/dashboard/admin");
+          else if (role === "admin") router.replace("/dashboard/owner");
           else router.replace("/dashboard/student");
           return;
         }

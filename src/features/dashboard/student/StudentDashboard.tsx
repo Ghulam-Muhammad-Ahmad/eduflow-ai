@@ -1,5 +1,10 @@
+import { useState } from "react";
+import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
+import JoinClassroomDialog from "@/components/student/JoinClassroomDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useHasClassrooms } from "@/hooks/useHasClassrooms";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +16,17 @@ import {
   Brain,
   TrendingUp,
   Lightbulb,
+  GraduationCap,
+  ClipboardList,
+  Library,
+  UserPlus,
 } from "lucide-react";
 
 const StudentDashboard = () => {
   const { user } = useAuth();
+  const { hasClassrooms, isLoading: enrollmentsLoading } = useHasClassrooms();
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const isSelfStudy = !enrollmentsLoading && !hasClassrooms;
 
   const stats = [
     {
@@ -60,6 +72,102 @@ const StudentDashboard = () => {
   ];
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Student";
+
+  const selfStudyChecklistItems = [
+    { label: "Try a practice test", done: false, href: "/dashboard/student/practice-tests" },
+    { label: "Add something to My Library", done: false, href: "/dashboard/student/library" },
+    { label: "Join a class with a code", done: hasClassrooms, href: "/dashboard/student" },
+  ];
+
+  if (isSelfStudy) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-8">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
+              Hello, {displayName}!
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Your self-study hub. Use Study Hub for AI-powered practice, then track progress in My Library and Progress.
+            </p>
+          </div>
+
+          <OnboardingChecklist title="Your first steps" items={selfStudyChecklistItems} hideWhenComplete={false} />
+
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <UserPlus className="h-5 w-5 text-primary" />
+                  Join a classroom
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Have a code from your tutor? Join their classroom to see assignments, quizzes, and course materials.
+                </p>
+              </div>
+              <Button onClick={() => setJoinDialogOpen(true)} className="shrink-0">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Join with code
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <Link
+              href="/dashboard/student/study"
+              className="rounded-2xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-md transition-all flex flex-col"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
+                <GraduationCap className="h-6 w-6" />
+              </div>
+              <h3 className="font-semibold text-foreground">Study Hub</h3>
+              <p className="text-sm text-muted-foreground mt-1 flex-1">
+                AI Study Coach: summaries, flashcards, practice questions from your materials.
+              </p>
+              <span className="text-primary text-sm font-medium mt-2 inline-flex items-center">Open Study Hub →</span>
+            </Link>
+            <Link
+              href="/dashboard/student/practice-tests"
+              className="rounded-2xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-md transition-all flex flex-col"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
+                <ClipboardList className="h-6 w-6" />
+              </div>
+              <h3 className="font-semibold text-foreground">Practice Tests</h3>
+              <p className="text-sm text-muted-foreground mt-1 flex-1">
+                Generate and take practice quizzes for self-assessment.
+              </p>
+              <span className="text-primary text-sm font-medium mt-2 inline-flex items-center">Practice Tests →</span>
+            </Link>
+            <Link
+              href="/dashboard/student/library"
+              className="rounded-2xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-md transition-all flex flex-col"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
+                <Library className="h-6 w-6" />
+              </div>
+              <h3 className="font-semibold text-foreground">My Library</h3>
+              <p className="text-sm text-muted-foreground mt-1 flex-1">
+                Your documents and saved AI outputs in one place.
+              </p>
+              <span className="text-primary text-sm font-medium mt-2 inline-flex items-center">My Library →</span>
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-2">Track your progress</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              See your study activity and goals on the Progress page.
+            </p>
+            <Button asChild variant="outline">
+              <Link href="/dashboard/student/progress">View Progress</Link>
+            </Button>
+          </div>
+        </div>
+        <JoinClassroomDialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen} />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

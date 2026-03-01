@@ -16,39 +16,44 @@ const Hero = () => {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8 animate-fade-in">
             <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-primary">AI-Powered Education Platform</span>
+            <span className="text-sm font-medium text-primary">Comprehensive system for online tutoring</span>
           </div>
 
           {/* Main Headline */}
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slide-up text-ink-black dark:text-platinum">
-            Transform Teaching with{" "}
-            <span className="gradient-text">Intelligent</span>{" "}
-            Learning Tools
+            Run your tutoring business, create materials faster, and track progress —{" "}
+            <span className="gradient-text">all in one place</span>
           </h1>
 
           {/* Subheadline */}
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 animate-slide-up" style={{ animationDelay: "0.1s" }}>
-            EduLabLoom streamlines lesson planning, assessment, and student preparation 
-            using AI-assisted workflows. Designed for schools, colleges, and online educators.
+            Edulabloom saves prep time, helps you manage students, and delivers better tutoring results 
+            with AI-assisted workflows for tutoring businesses and solo tutors.
           </p>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-slide-up" style={{ animationDelay: "0.2s" }}>
-            <Button variant="premium" size="xl">
-              Start Free Trial
-              <ArrowRight className="w-5 h-5" />
+          {/* CTA Buttons: three account types */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
+            <Button variant="premium" size="xl" asChild>
+              <a href="/auth?mode=signup&accountType=business">For Tutoring Businesses</a>
             </Button>
-            <Button variant="hero-outline" size="xl">
-              <Play className="w-5 h-5" />
-              Watch Demo
+            <Button variant="hero-outline" size="xl" asChild>
+              <a href="/auth?mode=signup&accountType=solo_tutor">For Solo Tutors</a>
+            </Button>
+            <Button variant="hero-outline" size="xl" asChild>
+              <a href="/auth?mode=signup&accountType=student">For Students</a>
             </Button>
           </div>
+          <p className="mb-16 animate-slide-up" style={{ animationDelay: "0.25s" }}>
+            <a href="#features" className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2">
+              See how it works
+            </a>
+          </p>
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto animate-slide-up" style={{ animationDelay: "0.3s" }}>
             <div className="text-center">
               <div className="text-3xl md:text-4xl font-bold gradient-text mb-1">10K+</div>
-              <div className="text-sm text-muted-foreground">Active Teachers</div>
+              <div className="text-sm text-muted-foreground">Active Tutors</div>
             </div>
             <div className="text-center">
               <div className="text-3xl md:text-4xl font-bold gradient-text mb-1">500K+</div>

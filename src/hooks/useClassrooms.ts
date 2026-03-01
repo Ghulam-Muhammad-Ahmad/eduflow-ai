@@ -328,6 +328,7 @@ export const useJoinClassroom = () => {
     },
     onSuccess: (classroom) => {
       queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["student-enrollments-count"] });
       toast({
         title: "Joined classroom!",
         description: `You are now enrolled in ${classroom.name}.`,
@@ -368,6 +369,7 @@ export const useLeaveClassroom = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classrooms"] });
       queryClient.invalidateQueries({ queryKey: ["student-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["student-enrollments-count"] });
       toast({
         title: "Left classroom",
         description: "You have been unenrolled from the classroom.",

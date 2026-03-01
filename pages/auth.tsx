@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
+import { useHasActiveSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { AppRole } from "@/types/auth";
+import type { AppRole, AccountType } from "@/types/auth";
 import { passwordSchema } from "@/lib/validation";
 
 type AuthMode = "signin" | "signup" | "forgot-password";
@@ -19,8 +20,9 @@ const signUpSchema = z.object({
   password: passwordSchema,
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  role: z.enum(["teacher", "student"]),
-});
+  role: z.enum(["teacher", "student"]).optional(),
+  accountType: z.enum(["business", "solo_tutor", "student"]).optional(),
+}).refine((d) => d.accountType != null || d.role != null, { message: "Choose how you'll use the platform", path: ["accountType"] });
 
 const signInSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -33,13 +35,26 @@ const forgotPasswordSchema = z.object({
 
 function getDashboardPathForRole(role: AppRole): string {
   if (role === "student") return "/dashboard/student";
-  if (role === "admin") return "/dashboard/admin";
+  if (role === "admin") return "/dashboard/owner";
   return "/dashboard/teacher";
 }
 
+function getOnboardingPathForAccountType(accountType: AccountType): string {
+  if (accountType === "business") return "/onboarding/business";
+  if (accountType === "solo_tutor") return "/onboarding/solo";
+  return "/onboarding/student";
+}
+
+const ACCOUNT_TYPES: { value: AccountType; label: string; description: string }[] = [
+  { value: "business", label: "Tutoring Business", description: "Manage tutors, students & billing" },
+  { value: "solo_tutor", label: "Solo Tutor", description: "One tutor, your students" },
+  { value: "student", label: "Student", description: "Self-study & join classes" },
+];
+
 export default function Auth() {
   const router = useRouter();
-  const { user, role, signIn, signUp, signInWithGoogle, resetPassword, loading: authLoading } = useAuth();
+  const { user, role, profile, signIn, signUp, signInWithGoogle, resetPassword, loading: authLoading } = useAuth();
+  const { hasAccess: hasSubscription, isLoading: subLoading } = useHasActiveSubscription();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,22 +62,43 @@ export default function Auth() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [authSuccess, setAuthSuccess] = useState(false);
 
+  const accountTypeFromQuery = (router.query.accountType as AccountType) || null;
+  const effectiveAccountType = accountTypeFromQuery && ACCOUNT_TYPES.some((a) => a.value === accountTypeFromQuery) ? accountTypeFromQuery : null;
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     firstName: "",
     lastName: "",
     role: "teacher" as AppRole,
+    accountType: null as AccountType | null,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (authLoading || !user) return;
-    if (role) {
+    if (authSuccess) return;
+    if (role && profile && !subLoading) {
+      const at = profile.account_type;
+      const completed = profile.onboarding_completed_at;
+      if (at && !completed) {
+        router.push(getOnboardingPathForAccountType(at));
+        return;
+      }
+      if (!hasSubscription) {
+        router.replace("/select-plan");
+        return;
+      }
       router.push(getDashboardPathForRole(role));
     }
-  }, [user, role, authLoading, router]);
+  }, [user, role, profile, authLoading, authSuccess, subLoading, hasSubscription, router]);
+
+  useEffect(() => {
+    if (mode === "signup" && effectiveAccountType) {
+      setFormData((prev) => ({ ...prev, accountType: effectiveAccountType }));
+    }
+  }, [mode, effectiveAccountType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,11 +152,12 @@ export default function Auth() {
         }
 
         const displayName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
+        const accountType: AccountType | AppRole = formData.accountType ?? (formData.role === "student" ? "student" : "solo_tutor");
         const { error } = await signUp(
           formData.email,
           formData.password,
           displayName,
-          formData.role
+          accountType
         );
         if (error) {
           toast.error(error.message || "Failed to sign up");
@@ -129,6 +166,11 @@ export default function Auth() {
 
         toast.success("Account created successfully!");
         setAuthSuccess(true);
+        const path = typeof accountType === "string" && (accountType === "business" || accountType === "solo_tutor" || accountType === "student")
+          ? getOnboardingPathForAccountType(accountType)
+          : getDashboardPathForRole(accountType as AppRole);
+        router.push(path);
+        return;
       } else if (mode === "forgot-password") {
         const validation = forgotPasswordSchema.safeParse({ email: formData.email });
 
@@ -159,7 +201,7 @@ export default function Auth() {
     }
   };
 
-  // Redirecting after successful sign-in/sign-up (role is loading)
+  // Redirecting after successful sign-in/sign-up
   if (authSuccess) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4" style={{ backgroundImage: "var(--gradient-hero)" }}>
@@ -350,30 +392,23 @@ export default function Auth() {
 
             {mode === "signup" && (
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground">I am a</Label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, role: "teacher" })}
-                    className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
-                      formData.role === "teacher"
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card text-muted-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    Teacher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, role: "student" })}
-                    className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
-                      formData.role === "student"
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card text-muted-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    Student
-                  </button>
+                <Label className="text-sm font-medium text-foreground">What are you here for?</Label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {ACCOUNT_TYPES.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, accountType: opt.value, role: opt.value === "student" ? "student" : "teacher" })}
+                      className={`rounded-lg border px-3 py-3 text-left text-sm transition-colors ${
+                        formData.accountType === opt.value
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-card text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      <span className="font-medium block">{opt.label}</span>
+                      <span className="text-xs opacity-90 block mt-0.5">{opt.description}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

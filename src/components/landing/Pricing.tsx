@@ -4,7 +4,7 @@ import { Check, Sparkles } from "lucide-react";
 const plans = [
   {
     name: "Starter",
-    description: "Perfect for individual educators",
+    description: "Perfect for solo tutors",
     price: "Free",
     priceDetail: "forever",
     features: [
@@ -20,7 +20,7 @@ const plans = [
   },
   {
     name: "Professional",
-    description: "For power users and departments",
+    description: "For power users and small teams",
     price: "$29",
     priceDetail: "per month",
     features: [
@@ -37,15 +37,15 @@ const plans = [
     popular: true,
   },
   {
-    name: "Institution",
-    description: "Enterprise features for schools",
+    name: "Business",
+    description: "For tutoring businesses",
     price: "Custom",
-    priceDetail: "per institution",
+    priceDetail: "per workspace",
     features: [
       "Everything in Professional",
       "SSO & LDAP integration",
       "Custom branding",
-      "Admin dashboard",
+      "Owner dashboard",
       "API access",
       "Dedicated support",
       "FERPA & GDPR compliant",
@@ -130,7 +130,7 @@ const Pricing = () => {
         {/* Trust Badge */}
         <div className="text-center mt-12">
           <p className="text-sm text-muted-foreground">
-            Trusted by <span className="font-semibold text-foreground">500+</span> institutions worldwide.
+            Trusted by <span className="font-semibold text-foreground">500+</span> tutoring businesses worldwide.
             All plans include a <span className="font-semibold text-foreground">14-day free trial</span>.
           </p>
         </div>

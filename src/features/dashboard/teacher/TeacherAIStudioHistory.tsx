@@ -143,7 +143,7 @@ const TeacherAIStudioHistory = () => {
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Studio">
+            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Content Generator">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
@@ -241,7 +241,7 @@ const TeacherAIStudioHistory = () => {
               <p className="text-muted-foreground">No generated content yet</p>
               <p className="text-sm text-muted-foreground mt-2">
                 <Link href="/dashboard/teacher/ai-studio" className="text-primary hover:underline">
-                  Go to AI Studio
+                  Go to AI Content Generator
                 </Link>{" "}
                 and use Smart Tutor or Rubric to create content
               </p>

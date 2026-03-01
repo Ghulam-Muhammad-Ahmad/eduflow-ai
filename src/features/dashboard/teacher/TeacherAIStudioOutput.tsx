@@ -36,7 +36,7 @@ const TeacherAIStudioOutput = () => {
       <DashboardLayout role="teacher">
         <div className="space-y-6">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Studio">
+            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Content Generator">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
@@ -62,13 +62,13 @@ const TeacherAIStudioOutput = () => {
       <DashboardLayout role="teacher">
         <div className="space-y-6">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Studio">
+            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Content Generator">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
           <p className="text-muted-foreground">Content not found or you don’t have access to it.</p>
           <Button asChild>
-            <Link href="/dashboard/teacher/ai-studio">Go to AI Studio</Link>
+            <Link href="/dashboard/teacher/ai-studio">Go to AI Content Generator</Link>
           </Button>
         </div>
       </DashboardLayout>
@@ -80,7 +80,7 @@ const TeacherAIStudioOutput = () => {
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Studio">
+            <Link href="/dashboard/teacher/ai-studio" aria-label="Back to AI Content Generator">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>

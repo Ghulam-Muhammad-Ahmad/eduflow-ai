@@ -1,7 +1,19 @@
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import type { AppRole } from "@/types/auth";
+import { useHasActiveSubscription } from "@/hooks/useSubscription";
+import type { AppRole, AccountType } from "@/types/auth";
+
+const ONBOARDING_PATH: Record<AccountType, string> = {
+  business: "/onboarding/business",
+  solo_tutor: "/onboarding/solo",
+  student: "/onboarding/student",
+};
+
+function getOnboardingPath(accountType: AccountType | null): string {
+  if (accountType && ONBOARDING_PATH[accountType]) return ONBOARDING_PATH[accountType];
+  return "/onboarding/business";
+}
 
 interface WithAuthOptions {
   allowedRoles?: AppRole[];
@@ -14,7 +26,8 @@ export function withAuth<P extends object>(
 ) {
   return function AuthenticatedComponent(props: P) {
     const router = useRouter();
-    const { user, role, loading } = useAuth();
+    const { user, role, profile, loading } = useAuth();
+    const { hasAccess, isLoading: subLoading } = useHasActiveSubscription();
     const { allowedRoles, redirectTo } = options;
 
     useEffect(() => {
@@ -34,14 +47,27 @@ export function withAuth<P extends object>(
             router.push("/dashboard/student");
             break;
           case "admin":
-            router.push("/dashboard/admin");
+            router.push("/dashboard/owner");
             break;
           default:
             router.push("/");
         }
         return;
       }
-    }, [user, role, loading, router, allowedRoles, redirectTo]);
+
+      if (!role) return;
+
+      const onboardingComplete = profile?.onboarding_completed_at != null;
+      if (!onboardingComplete && profile) {
+        const path = getOnboardingPath(profile.account_type ?? "business");
+        router.replace(path);
+        return;
+      }
+
+      if (!subLoading && !hasAccess) {
+        router.replace("/select-plan");
+      }
+    }, [user, role, profile, loading, subLoading, hasAccess, router, allowedRoles, redirectTo]);
 
     if (loading) {
       return (
@@ -59,6 +85,14 @@ export function withAuth<P extends object>(
     }
 
     if (allowedRoles && role && !allowedRoles.includes(role)) {
+      return null;
+    }
+
+    if (!profile?.onboarding_completed_at && profile) {
+      return null;
+    }
+
+    if (role && !subLoading && !hasAccess) {
       return null;
     }
 

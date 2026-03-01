@@ -114,8 +114,8 @@ const JoinClassroom = () => {
                 )}
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Teacher</span>
-                <Badge variant="secondary">{classroom.teacher_name || "Teacher"}</Badge>
+                <span className="text-muted-foreground">Tutor</span>
+                <Badge variant="secondary">{classroom.teacher_name || "Tutor"}</Badge>
               </div>
               {classroom.description && (
                 <p className="text-sm text-muted-foreground">{classroom.description}</p>

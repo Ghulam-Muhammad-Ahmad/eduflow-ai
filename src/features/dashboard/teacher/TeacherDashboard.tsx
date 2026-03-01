@@ -20,17 +20,30 @@ import {
   Clock,
   CheckCircle2,
   TrendingUp,
+  Sparkles,
+  FileSpreadsheet,
+  ListChecks,
+  BookOpen,
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
+import { useTutorOnboardingStats } from "@/hooks/useTutorOnboardingStats";
+import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { toast } from "sonner";
 
 const TeacherDashboard = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { fetchTeacherQuizzes } = useQuizzes();
+  const { classroomsCount, assignmentsCount, enrollmentsCount } = useTutorOnboardingStats();
   const [recentQuizzes, setRecentQuizzes] = useState<Quiz[]>([]);
+
+  const tutorChecklistItems = [
+    { label: "Create your first classroom", done: classroomsCount >= 1, href: "/dashboard/teacher/classrooms" },
+    { label: "Invite or add a student to a class", done: enrollmentsCount >= 1, href: "/dashboard/teacher/classrooms" },
+    { label: "Create your first assignment", done: assignmentsCount >= 1, href: "/dashboard/teacher/assignments" },
+  ];
   const stats = [
     {
       icon: FileText,
@@ -92,6 +105,13 @@ const TeacherDashboard = () => {
     { icon: Brain, label: "AI Checker", color: "text-brand-lime-dark", path: "/dashboard/teacher/checker" },
   ];
 
+  const quickGenerate = [
+    { icon: FileSpreadsheet, label: "Worksheet", path: "/dashboard/teacher/ai-studio/worksheet" },
+    { icon: ListChecks, label: "Quiz", path: "/dashboard/teacher/ai-studio/paper" },
+    { icon: BookOpen, label: "Lesson", path: "/dashboard/teacher/ai-studio/smart-tutor" },
+    { icon: Sparkles, label: "All tools", path: "/dashboard/teacher/ai-studio" },
+  ];
+
   const assignments = [
     { title: "Cell Structure Essay", due: "Due: March 15, 2025", students: 42, submitted: 28, status: "Pending", statusVariant: "neutral" as const },
     { title: "Chemical Reactions Lab Report", due: "Due: March 20, 2025", students: 38, submitted: 15, status: "Active", statusVariant: "default" as const },
@@ -143,6 +163,8 @@ const TeacherDashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-4">
+        <OnboardingChecklist title="Get started as a tutor" items={tutorChecklistItems} hideWhenComplete />
+
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {stats.map((stat) => (
@@ -179,6 +201,26 @@ const TeacherDashboard = () => {
                 className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 cursor-pointer"
               >
                 <action.icon className={`w-4 h-4 ${action.color}`} />
+                <span className="text-sm font-medium text-foreground">{action.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Generate - AI Content Generator shortcuts */}
+        <div className="bg-card rounded-xl border border-border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Quick Generate</h2>
+            <span className="text-xs text-muted-foreground">AI Content Generator</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {quickGenerate.map((action, index) => (
+              <button
+                key={index}
+                onClick={() => router.push(action.path)}
+                className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 cursor-pointer"
+              >
+                <action.icon className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium text-foreground">{action.label}</span>
               </button>
             ))}

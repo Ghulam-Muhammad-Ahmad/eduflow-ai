@@ -13,7 +13,7 @@ const Navbar = () => {
 
   const navLinks = [
     { label: "Features", href: "#features" },
-    { label: "For Teachers", href: "#teachers" },
+    { label: "For Tutors", href: "#tutors" },
     { label: "For Students", href: "#students" },
     { label: "Pricing", href: "#pricing" },
   ];
@@ -25,7 +25,7 @@ const Navbar = () => {
       case "student":
         return "/dashboard/student";
       case "admin":
-        return "/dashboard/admin";
+        return "/dashboard/owner";
       default:
         return "/";
     }

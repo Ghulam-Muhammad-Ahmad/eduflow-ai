@@ -33,7 +33,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
           router.replace("/dashboard/student");
           break;
         case "admin":
-          router.replace("/dashboard/admin");
+          router.replace("/dashboard/owner");
           break;
         default:
           router.replace("/");

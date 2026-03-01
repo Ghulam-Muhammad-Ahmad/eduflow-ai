@@ -4,6 +4,7 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
+import { useHasClassrooms } from "@/hooks/useHasClassrooms";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +41,10 @@ import {
   GraduationCap,
   ScrollText,
   ChevronDown,
+  Library,
+  ClipboardList,
+  TrendingUp,
+  CreditCard,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -49,18 +54,21 @@ interface DashboardLayoutProps {
 
 const roleConfig = {
   teacher: {
-    title: "Teacher Dashboard",
+    title: "Tutor Dashboard",
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/teacher" },
-      { icon: School, label: "Classrooms", path: "/dashboard/teacher/classrooms" },
-      { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
-      { icon: Sparkles, label: "AI Studio", path: "/dashboard/teacher/ai-studio" },
+      { icon: Users, label: "My Students", path: "/dashboard/teacher/students" },
+      { icon: School, label: "My Classes", path: "/dashboard/teacher/classrooms" },
+      { icon: FileText, label: "Materials", path: "/dashboard/teacher/documents" },
+      { icon: Sparkles, label: "AI Content Generator", path: "/dashboard/teacher/ai-studio" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
       { icon: ListChecks, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
       { icon: ScrollText, label: "Student Records", path: "/dashboard/teacher/student-records" },
       { icon: Brain, label: "AI Checker", path: "/dashboard/teacher/checker" },
       { icon: BookOpen, label: "Lesson Planner", path: "/dashboard/teacher/lesson-planner" },
       { icon: Calendar, label: "Calendar", path: "/dashboard/teacher/calendar" },
+      { icon: CreditCard, label: "Billing & Plan", path: "/dashboard/teacher/billing" },
+      { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],
   },
   student: {
@@ -73,12 +81,32 @@ const roleConfig = {
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
       { icon: ListChecks, label: "Quizzes", path: "/dashboard/student/quizzes" },
       { icon: GraduationCap, label: "Study Hub", path: "/dashboard/student/study" },
+      { icon: CreditCard, label: "Billing", path: "/dashboard/student/billing" },
+    ],
+  },
+  studentSelfStudy: {
+    title: "Self-Study Dashboard",
+    navItems: [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/student" },
+      { icon: GraduationCap, label: "Study Hub", path: "/dashboard/student/study" },
+      { icon: ClipboardList, label: "Practice Tests", path: "/dashboard/student/practice-tests" },
+      { icon: Library, label: "My Library", path: "/dashboard/student/library" },
+      { icon: TrendingUp, label: "Progress", path: "/dashboard/student/progress" },
+      { icon: CreditCard, label: "Billing", path: "/dashboard/student/billing" },
+      { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],
   },
   admin: {
-    title: "Admin Dashboard",
+    title: "Owner Dashboard",
     navItems: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/admin" },
+      { icon: LayoutDashboard, label: "Overview", path: "/dashboard/owner" },
+      { icon: Users, label: "Tutors", path: "/dashboard/owner/tutors" },
+      { icon: GraduationCap, label: "Students", path: "/dashboard/owner/students" },
+      { icon: School, label: "Classes", path: "/dashboard/owner/classrooms" },
+      { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/owner/assignments" },
+      { icon: ListChecks, label: "Quizzes", path: "/dashboard/owner/quizzes" },
+      { icon: FileText, label: "Documents", path: "/dashboard/owner/documents" },
+      { icon: CreditCard, label: "Billing & Plan", path: "/dashboard/owner/billing" },
       { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],
   },
@@ -86,11 +114,18 @@ const roleConfig = {
 
 const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
   const { user, role, profile, signOut } = useAuth();
+  const { hasClassrooms, isLoading: enrollmentsLoading } = useHasClassrooms();
   const { usage, loading: usageLoading } = useAIUsage();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const config = role ? roleConfig[role] : null;
+  // Students with no classrooms see Self-Study nav; once they join a class, they see Classroom nav
+  const studentConfigKey =
+    role === "student" && !enrollmentsLoading && !hasClassrooms ? "studentSelfStudy" : role;
+  const config =
+    studentConfigKey && studentConfigKey in roleConfig
+      ? roleConfig[studentConfigKey as keyof typeof roleConfig]
+      : null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -115,7 +150,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
       (item) => 
         item.path !== '/dashboard/teacher' && 
         item.path !== '/dashboard/student' && 
-        item.path !== '/dashboard/admin' &&
+        item.path !== '/dashboard/owner' &&
         (router.pathname.startsWith(item.path + '/') || router.asPath.startsWith(item.path + '/'))
     );
     
@@ -185,7 +220,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
                 router.asPath === item.path ||
                 (item.path !== '/dashboard/teacher' && 
                  item.path !== '/dashboard/student' && 
-                 item.path !== '/dashboard/admin' &&
+                 item.path !== '/dashboard/owner' &&
                  (router.pathname.startsWith(item.path + '/') || router.asPath.startsWith(item.path + '/')));
               
               return (

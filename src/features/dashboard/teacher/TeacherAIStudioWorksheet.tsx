@@ -23,7 +23,7 @@ const TeacherAIStudioWorksheet = () => {
           <Button variant="ghost" size="icon" asChild>
             <Link
               href="/dashboard/teacher/ai-studio"
-              aria-label="Back to AI Studio"
+              aria-label="Back to AI Content Generator"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>

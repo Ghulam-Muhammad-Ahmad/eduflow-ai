@@ -47,7 +47,7 @@ const TeacherAIStudioHub = () => {
     <DashboardLayout role="teacher">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">AI Studio</h1>
+          <h1 className="text-3xl font-bold text-foreground">AI Content Generator</h1>
           <p className="text-muted-foreground mt-1">
             Generate educational content with AI assistance. Choose a tool to get started.
           </p>

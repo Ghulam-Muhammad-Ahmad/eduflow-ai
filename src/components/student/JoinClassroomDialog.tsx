@@ -48,7 +48,7 @@ const JoinClassroomDialog = ({ open, onOpenChange }: JoinClassroomDialogProps) =
           </div>
           <DialogTitle className="text-center">Join a Classroom</DialogTitle>
           <DialogDescription className="text-center">
-            Enter the 6-character code provided by your teacher to join their
+            Enter the 6-character code provided by your tutor to join their
             classroom.
           </DialogDescription>
         </DialogHeader>

@@ -29,18 +29,18 @@ const RoleSection = () => {
   return (
     <section className="py-24">
       <div className="container mx-auto px-4">
-        {/* Teachers Section */}
-        <div id="teachers" className="grid lg:grid-cols-2 gap-16 items-center mb-32">
+        {/* Tutors Section */}
+        <div id="tutors" className="grid lg:grid-cols-2 gap-16 items-center mb-32">
           <div>
             <span className="text-sm font-semibold text-primary uppercase tracking-wider mb-4 block">
-              For Teachers
+              For Tutors
             </span>
             <h2 className="text-3xl md:text-4xl font-bold mb-6 text-foreground">
               Reclaim Your Time,{" "}
               <span className="gradient-text">Amplify Your Impact</span>
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              EduLabLoom handles the repetitive tasks so you can focus on what matters most: 
+              Edulabloom handles the repetitive tasks so you can focus on what matters most: 
               inspiring and connecting with your students.
             </p>
             
@@ -55,9 +55,8 @@ const RoleSection = () => {
               ))}
             </div>
 
-            <Button variant="hero" size="lg">
-              Start Teaching Smarter
-              <ArrowRight className="w-5 h-5" />
+            <Button variant="hero" size="lg" asChild>
+              <a href="/auth?mode=signup&accountType=solo_tutor">Start Tutoring Smarter</a>
             </Button>
           </div>
 
@@ -163,9 +162,8 @@ const RoleSection = () => {
               ))}
             </div>
 
-            <Button variant="premium" size="lg">
-              Start Learning Today
-              <ArrowRight className="w-5 h-5" />
+            <Button variant="premium" size="lg" asChild>
+              <a href="/auth?mode=signup&accountType=student">Start Learning Today</a>
             </Button>
           </div>
         </div>
