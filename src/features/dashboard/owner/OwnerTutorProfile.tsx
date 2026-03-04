@@ -4,6 +4,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, School, ClipboardCheck } from "lucide-react";
+import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
 
 export default function OwnerTutorProfile() {
   const router = useRouter();
@@ -57,6 +58,13 @@ export default function OwnerTutorProfile() {
             </div>
           </div>
         </div>
+
+        {tutorId && (
+          <MemberCreditsCard
+            memberUserId={tutorId}
+            memberLabel={tutor?.profile?.display_name ?? "Tutor"}
+          />
+        )}
 
         <div className="grid sm:grid-cols-3 gap-4">
           <div className="rounded-xl border border-border bg-card p-4">

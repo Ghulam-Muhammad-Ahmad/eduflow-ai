@@ -6,44 +6,27 @@ import type { AITaskType } from '@/types/ai';
 export type AIProvider = 'openai';
 export type { AITaskType } from '@/types/ai';
 
-// Check if user can make AI request
+// Optional pre-check for UX (get remaining credits). Enforcement is server-side.
 export const checkAIUsageLimit = async (userId: string) => {
   try {
-    const { data, error } = await (supabase.rpc as (name: string, args: { _user_id: string }) => ReturnType<typeof supabase.rpc>)('can_make_ai_request', {
+    const { data, error } = await (supabase.rpc as (name: string, args: { _user_id: string }) => ReturnType<typeof supabase.rpc>)('get_credit_context', {
       _user_id: userId,
     });
     if (error) throw error;
-    return (typeof data === 'object' && data !== null && 'can_request' in data ? data : { can_request: false, reason: 'Unknown', current_usage: 0, limit: 0 }) as { can_request: boolean; reason?: string; current_usage: number; limit: number; remaining?: number };
+    const row = Array.isArray(data) ? data[0] : data;
+    const limit = row?.credits_limit ?? 0;
+    const used = row?.credits_used ?? 0;
+    const remaining = row?.remaining ?? Math.max(0, limit - used);
+    return {
+      can_request: remaining > 0,
+      reason: remaining <= 0 ? 'Insufficient credits' : undefined,
+      current_usage: used,
+      limit,
+      remaining,
+    };
   } catch (error: unknown) {
     console.error('Error checking AI usage limit:', error);
-    return { can_request: false, reason: 'Failed to check usage limit', current_usage: 0, limit: 0 };
-  }
-};
-
-// Record AI interaction in database
-const recordInteraction = async (
-  userId: string,
-  interactionType: AITaskType,
-  provider: AIProvider,
-  model: string,
-  tokensUsed: number,
-  cost: number,
-  success: boolean,
-  errorMessage?: string
-) => {
-  try {
-    await (supabase.rpc as (name: string, args: Record<string, unknown>) => ReturnType<typeof supabase.rpc>)('record_ai_interaction', {
-      _user_id: userId,
-      _interaction_type: interactionType,
-      _provider: provider,
-      _model: model,
-      _tokens_used: tokensUsed,
-      _cost: cost,
-      _success: success,
-      _error_message: errorMessage || null,
-    });
-  } catch (error) {
-    console.error('Error recording AI interaction:', error);
+    return { can_request: false, reason: 'Failed to check usage limit', current_usage: 0, limit: 0, remaining: 0 };
   }
 };
 
@@ -115,22 +98,12 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to generate content');
+      const errorData = await response.json().catch(() => ({}));
+      const msg = errorData?.error || (response.status === 402 ? 'Insufficient credits' : 'Failed to generate content');
+      throw new Error(msg);
     }
 
     const result = await response.json();
-
-    // Record successful interaction
-    await recordInteraction(
-      userId,
-      taskType,
-      result.provider,
-      result.model,
-      result.tokens,
-      result.cost,
-      true
-    );
 
     return {
       ...result,
@@ -138,25 +111,11 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
       feedback: result.feedback,
     };
   } catch (error: any) {
-    const errorMessage = error.message || 'Unknown error';
-    const selectedModel = model || 'gpt-4';
-
-    // Record failed interaction
-    await recordInteraction(
-      userId,
-      taskType,
-      'openai',
-      selectedModel,
-      0,
-      0,
-      false,
-      errorMessage
-    );
-
+    const errorMessage = error?.message || 'Unknown error';
     return {
       content: '',
       provider: 'openai',
-      model: selectedModel,
+      model: model || 'gpt-4',
       tokens: 0,
       cost: 0,
       success: false,
@@ -691,20 +650,14 @@ export const generateLessonPlanFromSyllabus = async (
     });
     const data = await response.json();
     if (!response.ok) {
-      return { success: false, error: data.error || 'Request failed' };
+      return { success: false, error: data.error || (response.status === 402 ? 'Insufficient credits' : 'Request failed') };
     }
     if (!data.success || !data.plan) {
       return { success: false, error: data.error || 'Invalid response' };
     }
-    const tokens = data.tokens ?? 0;
-    const inputT = data.inputTokens ?? 0;
-    const outputT = data.outputTokens ?? 0;
-    const cost = (inputT / 1000) * 0.03 + (outputT / 1000) * 0.06;
-    await recordInteraction(userId, 'lesson_planning', 'openai', 'gpt-4', tokens, cost, true);
-    return { success: true, plan: data.plan, tokens };
+    return { success: true, plan: data.plan, tokens: data.tokens };
   } catch (e: any) {
-    await recordInteraction(userId, 'lesson_planning', 'openai', 'gpt-4', 0, 0, false, e.message);
-    return { success: false, error: e.message || 'Failed to generate plan' };
+    return { success: false, error: e?.message || 'Failed to generate plan' };
   }
 };
 

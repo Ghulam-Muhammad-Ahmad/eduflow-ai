@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { useDocStorageLimit } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -52,6 +53,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { parsePageRange, validatePageNumbers } from "@/lib/pageRange";
 
 interface DocumentType {
@@ -130,6 +132,7 @@ function getUniqueDocumentName(originalName: string, existingNames: string[]): s
 const TeacherDocuments = () => {
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
+  const { limitBytes: storageLimit } = useDocStorageLimit();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [tags, setTags] = useState<TagType[]>([]);
@@ -155,7 +158,6 @@ const TeacherDocuments = () => {
   const [documentToMove, setDocumentToMove] = useState<DocumentType | null>(null);
   const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
-  const storageLimit = 100 * 1024 * 1024; // 100 MB
   // Tags: edit tags on document
   const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
   const [documentToTag, setDocumentToTag] = useState<DocumentType | null>(null);
@@ -718,9 +720,15 @@ const TeacherDocuments = () => {
     }
   };
 
+  /** Normalize to 6-digit hex for tag color (no alpha). */
+  const normalizeTagColor = (hex: string): string => {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})/i.exec(hex);
+    return m ? `#${m[1]}${m[2]}${m[3]}` : TAG_COLORS[0];
+  };
+
   const createTag = async (name?: string, color?: string) => {
     const tagName = (name ?? newTagName).trim();
-    const tagColor = color ?? newTagColor;
+    const tagColor = normalizeTagColor(color ?? newTagColor);
     if (!user || !tagName) return;
     setCreateTagLoading(true);
     try {
@@ -798,7 +806,7 @@ const TeacherDocuments = () => {
       ? currentFolder.name
       : "All documents";
 
-  const storagePercentage = (storageUsed / storageLimit) * 100;
+  const storagePercentage = storageLimit > 0 ? (storageUsed / storageLimit) * 100 : 0;
 
   return (
     <DashboardLayout>
@@ -1638,37 +1646,33 @@ const TeacherDocuments = () => {
                 ))}
               </div>
             )}
-            <div className="border-t pt-4 space-y-2">
+            <div className="border-t pt-4 space-y-3">
               <Label className="text-xs font-medium text-muted-foreground">Create new tag and add to this document</Label>
-              <div className="flex gap-2 flex-wrap">
-                <Input
-                  placeholder="Tag name"
-                  value={newTagName}
-                  onChange={(e) => setNewTagName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateTagAndAddToDoc()}
-                  className="flex-1 min-w-[120px]"
+              <Input
+                placeholder="Tag name"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateTagAndAddToDoc()}
+                className="w-full"
+              />
+              <div className="rounded-lg border border-border p-2 bg-muted/30">
+                <span className="text-xs text-muted-foreground block mb-1.5">Color</span>
+                <ColorPicker
+                  value={newTagColor}
+                  onChange={(hex) => setNewTagColor(normalizeTagColor(hex))}
+                  showAlpha={false}
+                  className="space-y-2"
                 />
-                <div className="flex gap-1">
-                  {TAG_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setNewTagColor(c)}
-                      className={`w-6 h-6 rounded-full border-2 transition-transform ${newTagColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"}`}
-                      style={{ backgroundColor: c }}
-                      aria-label={`Color ${c}`}
-                    />
-                  ))}
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleCreateTagAndAddToDoc}
-                  disabled={!newTagName.trim() || createTagLoading}
-                >
-                  {createTagLoading ? "…" : "Create & add"}
-                </Button>
               </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCreateTagAndAddToDoc}
+                disabled={!newTagName.trim() || createTagLoading}
+                className="w-full"
+              >
+                {createTagLoading ? "…" : "Create & add"}
+              </Button>
             </div>
           </div>
           <DialogFooter>
@@ -1693,7 +1697,7 @@ const TeacherDocuments = () => {
           setNewTagDialogOpen(open);
         }}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Create tag</DialogTitle>
             <DialogDescription>
@@ -1714,17 +1718,12 @@ const TeacherDocuments = () => {
             </div>
             <div>
               <Label className="text-sm">Color</Label>
-              <div className="flex gap-2 flex-wrap mt-1.5">
-                {TAG_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setNewTagColor(c)}
-                    className={`w-8 h-8 rounded-full border-2 transition-transform ${newTagColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"}`}
-                    style={{ backgroundColor: c }}
-                    aria-label={`Color ${c}`}
-                  />
-                ))}
+              <div className="mt-1.5">
+                <ColorPicker
+                  value={newTagColor}
+                  onChange={(hex) => setNewTagColor(normalizeTagColor(hex))}
+                  showAlpha={false}
+                />
               </div>
             </div>
           </div>

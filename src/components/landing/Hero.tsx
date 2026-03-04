@@ -34,13 +34,13 @@ const Hero = () => {
           {/* CTA Buttons: three account types */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
             <Button variant="premium" size="xl" asChild>
-              <a href="/auth?mode=signup&accountType=business">For Tutoring Businesses</a>
+              <a href="/auth/register?accountType=business">For Tutoring Businesses</a>
             </Button>
             <Button variant="hero-outline" size="xl" asChild>
-              <a href="/auth?mode=signup&accountType=solo_tutor">For Solo Tutors</a>
+              <a href="/auth/register?accountType=solo_tutor">For Solo Tutors</a>
             </Button>
             <Button variant="hero-outline" size="xl" asChild>
-              <a href="/auth?mode=signup&accountType=student">For Students</a>
+              <a href="/auth/register?accountType=student">For Students</a>
             </Button>
           </div>
           <p className="mb-16 animate-slide-up" style={{ animationDelay: "0.25s" }}>

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/useAuth";
+import { useDocStorageLimit } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -119,6 +120,7 @@ function getUniqueDocumentName(originalName: string, existingNames: string[]): s
 
 const StudentDocuments = () => {
   const { user } = useAuth();
+  const { limitBytes: storageLimit } = useDocStorageLimit();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +143,6 @@ const StudentDocuments = () => {
   const [documentToMove, setDocumentToMove] = useState<DocumentType | null>(null);
   const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
-  const storageLimit = 50 * 1024 * 1024; // 50 MB for students
   // Split PDF dialog
   const [splitDialogOpen, setSplitDialogOpen] = useState(false);
   const [documentToSplit, setDocumentToSplit] = useState<DocumentType | null>(null);
@@ -542,7 +543,7 @@ const StudentDocuments = () => {
     return matchesSearch && matchesFolder;
   });
 
-  const storagePercentage = (storageUsed / storageLimit) * 100;
+  const storagePercentage = storageLimit > 0 ? (storageUsed / storageLimit) * 100 : 0;
 
   const renderDocuments = () => {
     if (filteredDocuments.length === 0) {

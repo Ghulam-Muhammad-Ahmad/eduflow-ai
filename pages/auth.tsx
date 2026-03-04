@@ -1,28 +1,18 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
+import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasActiveSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { AppRole, AccountType } from "@/types/auth";
-import { passwordSchema } from "@/lib/validation";
+import type { AppRole } from "@/types/auth";
 
-type AuthMode = "signin" | "signup" | "forgot-password";
-
-const signUpSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: passwordSchema,
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  role: z.enum(["teacher", "student"]).optional(),
-  accountType: z.enum(["business", "solo_tutor", "student"]).optional(),
-}).refine((d) => d.accountType != null || d.role != null, { message: "Choose how you'll use the platform", path: ["accountType"] });
+type AuthMode = "signin" | "forgot-password";
 
 const signInSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -39,51 +29,40 @@ function getDashboardPathForRole(role: AppRole): string {
   return "/dashboard/teacher";
 }
 
-function getOnboardingPathForAccountType(accountType: AccountType): string {
-  if (accountType === "business") return "/onboarding/business";
-  if (accountType === "solo_tutor") return "/onboarding/solo";
-  return "/onboarding/student";
-}
-
-const ACCOUNT_TYPES: { value: AccountType; label: string; description: string }[] = [
-  { value: "business", label: "Tutoring Business", description: "Manage tutors, students & billing" },
-  { value: "solo_tutor", label: "Solo Tutor", description: "One tutor, your students" },
-  { value: "student", label: "Student", description: "Self-study & join classes" },
-];
-
 export default function Auth() {
   const router = useRouter();
-  const { user, role, profile, signIn, signUp, signInWithGoogle, resetPassword, loading: authLoading } = useAuth();
+  const { user, role, profile, signIn, signInWithGoogle, resetPassword, loading: authLoading } = useAuth();
   const { hasAccess: hasSubscription, isLoading: subLoading } = useHasActiveSubscription();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const [termsAgreed, setTermsAgreed] = useState(false);
   const [authSuccess, setAuthSuccess] = useState(false);
-
-  const accountTypeFromQuery = (router.query.accountType as AccountType) || null;
-  const effectiveAccountType = accountTypeFromQuery && ACCOUNT_TYPES.some((a) => a.value === accountTypeFromQuery) ? accountTypeFromQuery : null;
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    firstName: "",
-    lastName: "",
-    role: "teacher" as AppRole,
-    accountType: null as AccountType | null,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Redirect old /auth?mode=signup links to register page
+  useEffect(() => {
+    const q = router.query;
+    if (q.mode === "signup") {
+      const accountType = q.accountType ? `?accountType=${q.accountType}` : "";
+      router.replace(`/auth/register${accountType}`);
+    }
+  }, [router]);
+
   useEffect(() => {
     if (authLoading || !user) return;
-    if (authSuccess) return;
     if (role && profile && !subLoading) {
       const at = profile.account_type;
       const completed = profile.onboarding_completed_at;
       if (at && !completed) {
-        router.push(getOnboardingPathForAccountType(at));
+        const path = at === "business" ? "/onboarding/business" : at === "solo_tutor" ? "/onboarding/solo" : "/onboarding/student";
+        router.push(path);
         return;
       }
       if (!hasSubscription) {
@@ -94,20 +73,9 @@ export default function Auth() {
     }
   }, [user, role, profile, authLoading, authSuccess, subLoading, hasSubscription, router]);
 
-  useEffect(() => {
-    if (mode === "signup" && effectiveAccountType) {
-      setFormData((prev) => ({ ...prev, accountType: effectiveAccountType }));
-    }
-  }, [mode, effectiveAccountType]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-
-    if (!termsAgreed && mode !== "forgot-password") {
-      toast.error("Please agree to the Terms & Conditions");
-      return;
-    }
 
     setLoading(true);
 
@@ -137,40 +105,6 @@ export default function Auth() {
 
         toast.success("Signed in successfully!");
         setAuthSuccess(true);
-      } else if (mode === "signup") {
-        const validation = signUpSchema.safeParse(formData);
-
-        if (!validation.success) {
-          const fieldErrors: Record<string, string> = {};
-          validation.error.errors.forEach((err) => {
-            if (err.path[0]) {
-              fieldErrors[err.path[0].toString()] = err.message;
-            }
-          });
-          setErrors(fieldErrors);
-          return;
-        }
-
-        const displayName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
-        const accountType: AccountType | AppRole = formData.accountType ?? (formData.role === "student" ? "student" : "solo_tutor");
-        const { error } = await signUp(
-          formData.email,
-          formData.password,
-          displayName,
-          accountType
-        );
-        if (error) {
-          toast.error(error.message || "Failed to sign up");
-          return;
-        }
-
-        toast.success("Account created successfully!");
-        setAuthSuccess(true);
-        const path = typeof accountType === "string" && (accountType === "business" || accountType === "solo_tutor" || accountType === "student")
-          ? getOnboardingPathForAccountType(accountType)
-          : getDashboardPathForRole(accountType as AppRole);
-        router.push(path);
-        return;
       } else if (mode === "forgot-password") {
         const validation = forgotPasswordSchema.safeParse({ email: formData.email });
 
@@ -244,16 +178,23 @@ export default function Auth() {
   // Two-column layout: image left, form right
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4" style={{ backgroundImage: "var(--gradient-hero)" }}>
-      <div className="flex w-full max-w-5xl overflow-hidden rounded-3xl bg-card shadow-large border border-border">
-        {/* Left panel - visual (project gradient) */}
-        <div className="relative hidden w-[42%] lg:block bg-gradient-to-br from-primary via-primary/90 to-accent">
+      <div className="flex w-full max-w-6xl overflow-hidden rounded-3xl bg-card shadow-large border border-[#cececf]">
+        {/* Left panel - image */}
+        <div className="relative hidden min-h-[520px] w-[50%] lg:block overflow-hidden">
+          <Image
+            src="/engineer-talking-with-management-videocall-about-errors-found-code.jpg"
+            alt="Professional collaboration"
+            fill
+            className="object-cover"
+            sizes="42vw"
+            priority
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-          {/* Logo */}
           <div className="absolute left-8 top-8 flex h-16 w-16 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 p-2">
-            <Image 
-              src="/mainlogo.svg" 
-              alt="EduLabLoom Logo" 
-              width={48} 
+            <Image
+              src="/mainlogo.svg"
+              alt="EduLabLoom Logo"
+              width={48}
               height={48}
               className="w-full h-full"
             />
@@ -261,11 +202,11 @@ export default function Auth() {
         </div>
 
         {/* Right panel - form */}
-        <div className="flex w-full flex-col justify-center px-8 py-10 lg:w-[58%] lg:px-12 lg:py-14">
+        <div className="flex w-full flex-col justify-center px-[15px] py-[15px] lg:w-[50%] lg:px-8 lg:py-8 rounded-[15px]">
           <button
             type="button"
             onClick={() => (mode === "forgot-password" ? setMode("signin") : router.push("/"))}
-            className="mb-6 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+            className="mb-6 flex items-center justify-start gap-1.5 text-sm font-medium text-[#595959] transition-colors hover:text-primary"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -273,7 +214,6 @@ export default function Auth() {
 
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             {mode === "signin" && "Log in"}
-            {mode === "signup" && "Create an Account"}
             {mode === "forgot-password" && "Reset Password"}
           </h1>
 
@@ -281,32 +221,19 @@ export default function Auth() {
             {mode === "signin" && (
               <>
                 Don&apos;t have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("signup")}
+                <Link
+                  href="/auth/register"
                   className="font-semibold text-primary underline underline-offset-2 hover:text-primary/90"
                 >
                   Create an Account
-                </button>
-              </>
-            )}
-            {mode === "signup" && (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("signin")}
-                  className="font-semibold text-primary underline underline-offset-2 hover:text-primary/90"
-                >
-                  Log in
-                </button>
+                </Link>
               </>
             )}
             {mode === "forgot-password" && "Enter your email to receive a reset link."}
           </p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            {/* Social login at top - only for login and signup */}
+            {/* Social login - only for login */}
             {mode !== "forgot-password" && (
               <>
                 <Button
@@ -347,70 +274,6 @@ export default function Auth() {
                   </div>
                 </div>
               </>
-            )}
-
-            {mode === "signup" && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName" className="text-sm font-medium text-foreground">
-                    First Name
-                  </Label>
-                  <Input
-                    id="firstName"
-                    type="text"
-                    placeholder="John"
-                    value={formData.firstName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, firstName: e.target.value })
-                    }
-                    className={`rounded-xl border-input ${errors.firstName ? "border-destructive" : ""}`}
-                  />
-                  {errors.firstName && (
-                    <p className="text-xs text-destructive">{errors.firstName}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName" className="text-sm font-medium text-foreground">
-                    Last Name
-                  </Label>
-                  <Input
-                    id="lastName"
-                    type="text"
-                    placeholder="Last Name"
-                    value={formData.lastName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lastName: e.target.value })
-                    }
-                    className={`rounded-xl border-input ${errors.lastName ? "border-destructive" : ""}`}
-                  />
-                  {errors.lastName && (
-                    <p className="text-xs text-destructive">{errors.lastName}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {mode === "signup" && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground">What are you here for?</Label>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {ACCOUNT_TYPES.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, accountType: opt.value, role: opt.value === "student" ? "student" : "teacher" })}
-                      className={`rounded-lg border px-3 py-3 text-left text-sm transition-colors ${
-                        formData.accountType === opt.value
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-card text-muted-foreground hover:bg-secondary"
-                      }`}
-                    >
-                      <span className="font-medium block">{opt.label}</span>
-                      <span className="text-xs opacity-90 block mt-0.5">{opt.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             )}
 
             <div className="space-y-2">
@@ -475,28 +338,6 @@ export default function Auth() {
               </div>
             )}
 
-            {mode !== "forgot-password" && (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="terms"
-                  checked={termsAgreed}
-                  onCheckedChange={(checked) =>
-                    setTermsAgreed(checked === true)
-                  }
-                  className="rounded border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary"
-                />
-                <label
-                  htmlFor="terms"
-                  className="text-sm text-muted-foreground cursor-pointer"
-                >
-                  I agree to the{" "}
-                  <span className="font-semibold text-primary underline underline-offset-2">
-                    Terms & Condition
-                  </span>
-                </label>
-              </div>
-            )}
-
             <Button
               type="submit"
               className="w-full rounded-xl bg-primary py-6 text-base font-medium text-primary-foreground hover:bg-primary/90"
@@ -506,8 +347,6 @@ export default function Auth() {
                 ? "Loading..."
                 : mode === "signin"
                 ? "Log in"
-                : mode === "signup"
-                ? "Create Account"
                 : "Send Reset Email"}
             </Button>
           </form>

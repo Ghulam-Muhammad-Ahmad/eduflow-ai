@@ -5,6 +5,7 @@ import path from "path";
 import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
 import type { AITaskType } from "@/types/ai";
+import { deductCreditsForRequest } from "@/lib/ai-credits-deduct";
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -210,6 +211,11 @@ export default async function handler(
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    const creditError = await deductCreditsForRequest(user.id, taskType);
+    if (creditError) {
+      return res.status(creditError.status).json(creditError.body);
+    }
+
     const selectedModel = model || "gpt-4";
     const isPaperWithPdf = taskType === "paper_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
     const isWorksheetWithPdf = taskType === "worksheet_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
@@ -243,7 +249,6 @@ export default async function handler(
           )
         : await generateWithOpenAI(prompt, checkerSystem, selectedModel);
     const totalTokens = result.inputTokens + result.outputTokens;
-    const cost = calculateCost(selectedModel, result.inputTokens, result.outputTokens);
 
     const payload: Record<string, unknown> = {
       content: result.content,
@@ -252,7 +257,6 @@ export default async function handler(
       tokens: totalTokens,
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
-      cost,
       success: true,
     };
     if (isCheckerWithGrade) {

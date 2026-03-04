@@ -552,6 +552,7 @@ export type Database = {
           status: string
           current_period_ends_at: string | null
           trial_ends_at: string | null
+          doc_storage_limit_mb: number | null
           created_at: string
           updated_at: string
         }
@@ -564,6 +565,7 @@ export type Database = {
           status?: string
           current_period_ends_at?: string | null
           trial_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -575,6 +577,72 @@ export type Database = {
           status?: string
           current_period_ends_at?: string | null
           trial_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workspace_credit_pools: {
+        Row: {
+          id: string
+          workspace_id: string
+          period: string
+          credits_allocated: number
+          credits_assigned_out: number
+          credits_used_direct: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          period: string
+          credits_allocated?: number
+          credits_assigned_out?: number
+          credits_used_direct?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          period?: string
+          credits_allocated?: number
+          credits_assigned_out?: number
+          credits_used_direct?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_credit_allocations: {
+        Row: {
+          id: string
+          user_id: string
+          period: string
+          source_type: string
+          source_id: string
+          credits_limit: number
+          credits_used: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          period: string
+          source_type: string
+          source_id: string
+          credits_limit?: number
+          credits_used?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          period?: string
+          source_type?: string
+          source_id?: string
+          credits_limit?: number
+          credits_used?: number
           updated_at?: string
         }
         Relationships: []
@@ -589,6 +657,7 @@ export type Database = {
           status: string
           current_period_ends_at: string | null
           trial_ends_at: string | null
+          doc_storage_limit_mb: number | null
           created_at: string
           updated_at: string
         }
@@ -601,6 +670,7 @@ export type Database = {
           status?: string
           current_period_ends_at?: string | null
           trial_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -612,6 +682,7 @@ export type Database = {
           status?: string
           current_period_ends_at?: string | null
           trial_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
           updated_at?: string
         }
         Relationships: []

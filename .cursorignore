@@ -35,11 +35,11 @@ yarn.lock
 
 
 # Supabase noise
-supabase/migrations/**
+# supabase/migrations/**
 supabase/.temp/**
 supabase/.temp/**/*
 supabase/config.toml
 
 src/test/**
 
-src/components/ui/**
+# src/components/ui/**

@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/integrations/supabase/server";
+import { deductCreditsForRequest } from "@/lib/ai-credits-deduct";
 
 const MAX_PDF_BASE64_MB = 20;
 const MAX_PDF_BYTES = MAX_PDF_BASE64_MB * 1024 * 1024;
@@ -193,23 +193,10 @@ export default async function handler(
     }
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: "Server not configured" });
-  }
-
-  const supabase = createClient(supabaseUrl, serviceKey);
-
-  const usageCheck = await supabase.rpc("can_make_ai_request", {
-    _user_id: userId,
-  });
-  const usageData = usageCheck.data as
-    | { can_request?: boolean; reason?: string }
-    | null;
-  if (!usageData?.can_request) {
-    return res.status(403).json({
-      error: usageData?.reason || "AI usage limit reached",
+  const creditError = await deductCreditsForRequest(userId, "checker");
+  if (creditError) {
+    return res.status(creditError.status).json({
+      error: creditError.body.error,
     });
   }
 
@@ -226,21 +213,6 @@ export default async function handler(
         instructionsStr,
         rubricCategories
       );
-      const totalTokens = result.inputTokens + result.outputTokens;
-      const cost =
-        (result.inputTokens / 1000) * 0.0025 +
-        (result.outputTokens / 1000) * 0.01;
-
-      await supabase.rpc("record_ai_interaction", {
-        _user_id: userId,
-        _interaction_type: "checker",
-        _provider: "openai",
-        _model: "gpt-4o",
-        _tokens_used: totalTokens,
-        _cost: cost,
-        _success: true,
-        _error_message: null,
-      });
 
       return res.status(200).json({
         success: true,
@@ -259,22 +231,6 @@ export default async function handler(
 
     const result = await checkPastedText(openai, pasted, instructionsStr, rubricCategories);
 
-    const totalTokens = result.inputTokens + result.outputTokens;
-    const cost =
-      (result.inputTokens / 1000) * 0.00015 +
-      (result.outputTokens / 1000) * 0.0006;
-
-    await supabase.rpc("record_ai_interaction", {
-      _user_id: userId,
-      _interaction_type: "checker",
-      _provider: "openai",
-      _model: "gpt-4o-mini",
-      _tokens_used: totalTokens,
-      _cost: cost,
-      _success: true,
-      _error_message: null,
-    });
-
     return res.status(200).json({
       success: true,
       grade: result.grade,
@@ -286,16 +242,6 @@ export default async function handler(
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Check paper failed";
     console.error("Check paper error:", error);
-    await supabase.rpc("record_ai_interaction", {
-      _user_id: userId,
-      _interaction_type: "checker",
-      _provider: "openai",
-      _model: "gpt-4o",
-      _tokens_used: 0,
-      _cost: 0,
-      _success: false,
-      _error_message: errorMessage,
-    });
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "Failed to check paper",

@@ -13,6 +13,7 @@ const bodySchema = {
   lastName: (v: unknown) => typeof v === "string" && v.trim().length > 0,
   role: (v: unknown): v is CreateUserRole => v === "tutor" || v === "student",
   tutorId: (v: unknown) => v === undefined || (typeof v === "string" && v.length > 0),
+  initialCredits: (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0) || (typeof v === "string" && /^\d+$/.test(v)),
 };
 
 /**
@@ -42,6 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     lastName?: unknown;
     role?: unknown;
     tutorId?: unknown;
+    initialCredits?: unknown;
   };
 
   if (
@@ -63,6 +65,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const displayName = `${(body.firstName as string).trim()} ${(body.lastName as string).trim()}`;
   const role: CreateUserRole = body.role;
   const tutorId = body.tutorId as string | undefined;
+  const initialCredits = bodySchema.initialCredits(body.initialCredits)
+    ? (typeof body.initialCredits === "number" ? body.initialCredits : parseInt(String(body.initialCredits), 10))
+    : 0;
 
   // Resolve caller role and workspace
   const { data: roleRow } = await supabaseAdmin
@@ -211,6 +216,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (assignErr) {
       console.error("[tenant/create-user] tutor_student_assignments insert:", assignErr);
       return res.status(500).json({ error: "Failed to assign student to tutor" });
+    }
+  }
+
+  if (initialCredits > 0) {
+    // Assign credits from workspace pool to the new member (tutor or student)
+    const { data: assignData, error: creditErr } = await supabaseAdmin.rpc("assign_credits_to_member", {
+      _workspace_id: workspaceId,
+      _member_user_id: newUserId,
+      _credits: initialCredits,
+      _caller_user_id: caller.id,
+    });
+    if (creditErr) {
+      console.error("[tenant/create-user] assign_credits_to_member error:", creditErr);
+    }
+    const assignOk = (assignData as { ok?: boolean })?.ok;
+    if (!assignOk && creditErr) {
+      return res.status(200).json({
+        success: true,
+        userId: newUserId,
+        email,
+        role,
+        message:
+          role === "tutor"
+            ? "Tutor account created. Share the login details with them."
+            : "Student account created. Share the login details with them.",
+        warning: "Account created but initial credits could not be assigned. You can assign credits from the member profile.",
+      });
     }
   }
 

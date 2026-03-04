@@ -13,6 +13,7 @@ export default function OwnerInviteTutor() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [initialCredits, setInitialCredits] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -36,16 +37,19 @@ export default function OwnerInviteTutor() {
     }
     setCreating(true);
     try {
+      const body: Record<string, unknown> = {
+        email: email.trim().toLowerCase(),
+        password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        role: "tutor",
+      };
+      const creditsNum = initialCredits.trim() ? parseInt(initialCredits.trim(), 10) : 0;
+      if (Number.isInteger(creditsNum) && creditsNum > 0) body.initialCredits = creditsNum;
       const res = await fetch("/api/tenant/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          role: "tutor",
-        }),
+        body: JSON.stringify(body),
         credentials: "include",
       });
       const data = await res.json().catch(() => ({}));
@@ -59,6 +63,7 @@ export default function OwnerInviteTutor() {
       setPassword("");
       setFirstName("");
       setLastName("");
+      setInitialCredits("");
     } catch {
       toast.error("Failed to create tutor account");
     } finally {
@@ -142,6 +147,19 @@ export default function OwnerInviteTutor() {
                 </button>
               </div>
               {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
+            </div>
+            <div>
+              <Label htmlFor="initialCredits">Initial AI credits (optional)</Label>
+              <Input
+                id="initialCredits"
+                type="number"
+                min={0}
+                placeholder="0"
+                value={initialCredits}
+                onChange={(e) => setInitialCredits(e.target.value)}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Deduct from workspace pool and assign to this tutor.</p>
             </div>
             <Button type="submit" disabled={creating}>
               {creating ? "Creating..." : "Create tutor account"}

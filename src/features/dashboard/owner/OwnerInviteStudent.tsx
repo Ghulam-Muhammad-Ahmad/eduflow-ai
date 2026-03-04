@@ -16,6 +16,7 @@ export default function OwnerInviteStudent() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [tutorId, setTutorId] = useState("");
+  const [initialCredits, setInitialCredits] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -51,6 +52,8 @@ export default function OwnerInviteStudent() {
         role: "student",
       };
       if (tutorId) body.tutorId = tutorId;
+      const creditsNum = initialCredits.trim() ? parseInt(initialCredits.trim(), 10) : 0;
+      if (Number.isInteger(creditsNum) && creditsNum > 0) body.initialCredits = creditsNum;
       const res = await fetch("/api/tenant/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,6 +73,7 @@ export default function OwnerInviteStudent() {
       setFirstName("");
       setLastName("");
       setTutorId("");
+      setInitialCredits("");
     } catch {
       toast.error("Failed to create student account");
     } finally {
@@ -180,6 +184,19 @@ export default function OwnerInviteStudent() {
                 Add at least one tutor first so you can assign this student to them.
               </p>
             )}
+            <div>
+              <Label htmlFor="initialCredits">Initial AI credits (optional)</Label>
+              <Input
+                id="initialCredits"
+                type="number"
+                min={0}
+                placeholder="0"
+                value={initialCredits}
+                onChange={(e) => setInitialCredits(e.target.value)}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Deduct from workspace pool and assign to this student.</p>
+            </div>
             <Button type="submit" disabled={creating || (!!workspaceId && !hasTutors)}>
               {creating ? "Creating..." : "Create student account"}
             </Button>

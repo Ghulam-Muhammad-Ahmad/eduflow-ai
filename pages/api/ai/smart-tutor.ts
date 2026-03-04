@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/integrations/supabase/server";
 import { stripMarkdownCodeFence } from "@/lib/utils";
+import { deductCreditsForRequest } from "@/lib/ai-credits-deduct";
 
 const MAX_PDF_BASE64_MB = 20;
 const MAX_PDF_BYTES = MAX_PDF_BASE64_MB * 1024 * 1024;
@@ -184,23 +184,10 @@ export default async function handler(
     throw new Error("Unsupported file type for text extraction. Use PDF, DOCX, DOC, or TXT.");
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: "Server not configured" });
-  }
-
-  const supabase = createClient(supabaseUrl, serviceKey);
-
-  const usageCheck = await supabase.rpc("can_make_ai_request", {
-    _user_id: user.id,
-  });
-  const usageData = usageCheck.data as
-    | { can_request?: boolean; reason?: string }
-    | null;
-  if (!usageData?.can_request) {
-    return res.status(403).json({
-      error: usageData?.reason || "AI usage limit reached",
+  const creditError = await deductCreditsForRequest(user.id, "differentiation");
+  if (creditError) {
+    return res.status(creditError.status).json({
+      error: creditError.body.error,
     });
   }
 
@@ -262,39 +249,12 @@ export default async function handler(
       model = "gpt-4o-mini";
     }
 
-    const totalTokens = result.inputTokens + result.outputTokens;
-    const cost =
-      model === "gpt-4o"
-        ? (result.inputTokens / 1000) * 0.0025 + (result.outputTokens / 1000) * 0.01
-        : (result.inputTokens / 1000) * 0.00015 + (result.outputTokens / 1000) * 0.0006;
-
-    await supabase.rpc("record_ai_interaction", {
-      _user_id: user.id,
-      _interaction_type: "differentiation",
-      _provider: "openai",
-      _model: model,
-      _tokens_used: totalTokens,
-      _cost: cost,
-      _success: true,
-      _error_message: null,
-    });
-
     return res.status(200).json({
       success: true,
       content: stripMarkdownCodeFence(result.content),
     });
   } catch (error: unknown) {
     console.error("Smart tutor error:", error);
-    await supabase.rpc("record_ai_interaction", {
-      _user_id: user.id,
-      _interaction_type: "differentiation",
-      _provider: "openai",
-      _model: "gpt-4o",
-      _tokens_used: 0,
-      _cost: 0,
-      _success: false,
-      _error_message: error instanceof Error ? error.message : "Smart tutor failed",
-    });
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "Failed to adapt content",

@@ -14,12 +14,7 @@ export default function App({ Component, pageProps }: AppProps) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Head>
-            <link
-              href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu&display=swap"
-              rel="stylesheet"
-            />
-          </Head>
+          <Head />
           <Toaster />
           <Sonner />
           <Component {...pageProps} />

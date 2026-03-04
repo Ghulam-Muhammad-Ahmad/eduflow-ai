@@ -305,7 +305,10 @@ const CheckPaperFlow = () => {
   <meta charset="UTF-8" />
   <title>Checked Paper - Grade: ${result.grade}/100</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+    @font-face { font-family: "SF Pro Display"; src: url("/fonts/SFPRODISPLAYREGULAR.OTF") format("opentype"); font-weight: 400; font-style: normal; }
+    @font-face { font-family: "SF Pro Display"; src: url("/fonts/SFPRODISPLAYMEDIUM.OTF") format("opentype"); font-weight: 500; font-style: normal; }
+    @font-face { font-family: "SF Pro Display"; src: url("/fonts/SFPRODISPLAYBOLD.OTF") format("opentype"); font-weight: 700; font-style: normal; }
+    body { font-family: "SF Pro Display", system-ui, sans-serif; margin: 40px; line-height: 1.6; }
     .header { border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 30px; }
     .grade { font-size: 24px; font-weight: bold; color: #059669; }
     .feedback { background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; }

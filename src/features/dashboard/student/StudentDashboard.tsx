@@ -74,9 +74,27 @@ const StudentDashboard = () => {
   const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Student";
 
   const selfStudyChecklistItems = [
-    { label: "Try a practice test", done: false, href: "/dashboard/student/practice-tests" },
-    { label: "Add something to My Library", done: false, href: "/dashboard/student/library" },
-    { label: "Join a class with a code", done: hasClassrooms, href: "/dashboard/student" },
+    {
+      label: "Try a practice test",
+      description: "Take a practice test to sharpen your skills.",
+      done: false,
+      href: "/dashboard/student/practice-tests",
+      icon: ClipboardList,
+    },
+    {
+      label: "Add something to My Library",
+      description: "Save materials to your library for later.",
+      done: false,
+      href: "/dashboard/student/library",
+      icon: Library,
+    },
+    {
+      label: "Join a class with a code",
+      description: "Enter a code from your tutor to join their class.",
+      done: hasClassrooms,
+      href: "/dashboard/student",
+      icon: UserPlus,
+    },
   ];
 
   if (isSelfStudy) {
@@ -92,7 +110,12 @@ const StudentDashboard = () => {
             </p>
           </div>
 
-          <OnboardingChecklist title="Your first steps" items={selfStudyChecklistItems} hideWhenComplete={false} />
+          <OnboardingChecklist
+            userName={displayName}
+            instructionText="Complete these steps to get the most out of your self-study hub."
+            items={selfStudyChecklistItems}
+            hideWhenComplete={false}
+          />
 
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

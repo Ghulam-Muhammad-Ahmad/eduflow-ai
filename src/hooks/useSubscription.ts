@@ -13,6 +13,8 @@ export interface SubscriptionRow {
   current_period_ends_at: string | null;
   trial_ends_at: string | null;
   paddle_subscription_id: string | null;
+  /** Max Doc Center storage in MB; from Paddle product custom_data.doc_storage (GB). */
+  doc_storage_limit_mb: number | null;
 }
 
 function isActive(status: SubscriptionStatus): boolean {
@@ -36,7 +38,7 @@ export function useWorkspaceSubscription(workspaceId: string | null) {
       if (!workspaceId) return null;
       const { data: row, error: e } = await supabase
         .from("workspace_subscriptions")
-        .select("id, status, price_id, current_period_ends_at, trial_ends_at, paddle_subscription_id")
+        .select("id, status, price_id, current_period_ends_at, trial_ends_at, paddle_subscription_id, doc_storage_limit_mb")
         .eq("workspace_id", workspaceId)
         .maybeSingle();
       if (e) throw e;
@@ -75,7 +77,7 @@ export function useUserSubscription() {
       if (!user?.id) return null;
       const { data: row, error: e } = await supabase
         .from("user_subscriptions")
-        .select("id, status, price_id, current_period_ends_at, trial_ends_at, paddle_subscription_id")
+        .select("id, status, price_id, current_period_ends_at, trial_ends_at, paddle_subscription_id, doc_storage_limit_mb")
         .eq("user_id", user.id)
         .maybeSingle();
       if (e) throw e;
@@ -173,5 +175,39 @@ export function useHasActiveSubscription(): { hasAccess: boolean; isLoading: boo
     return { hasAccess, isLoading };
   }
   return { hasAccess: false, isLoading: false };
+}
+
+/** Default Doc Center storage limits in bytes when no subscription limit is set. */
+const DEFAULT_DOC_STORAGE_STUDENT_BYTES = 50 * 1024 * 1024; // 50 MB
+const DEFAULT_DOC_STORAGE_TEACHER_BYTES = 100 * 1024 * 1024; // 100 MB
+
+/**
+ * Doc Center storage limit in bytes for the current user.
+ * Student: from user_subscriptions.doc_storage_limit_mb (default 50 MB).
+ * Teacher/Owner: from workspace_subscriptions.doc_storage_limit_mb (default 100 MB).
+ */
+export function useDocStorageLimit(): { limitBytes: number; isLoading: boolean } {
+  const { role } = useAuth();
+  const { workspace: ownerWorkspace, isLoading: ownerWorkspaceLoading } = useOwnerWorkspace();
+  const { workspaceId: tutorWorkspaceId, isLoading: tutorWorkspaceLoading } = useTutorWorkspace();
+  const workspaceId =
+    role === "admin" && ownerWorkspace?.id ? ownerWorkspace.id : role === "teacher" && tutorWorkspaceId ? tutorWorkspaceId : null;
+  const { subscription: workspaceSub, isLoading: workspaceSubLoading } = useWorkspaceSubscription(workspaceId);
+  const { subscription: userSub, isLoading: userSubLoading } = useUserSubscription();
+
+  if (role === "student") {
+    const mb = userSub?.doc_storage_limit_mb;
+    const limitBytes =
+      mb != null && Number.isFinite(mb) && mb > 0 ? mb * 1024 * 1024 : DEFAULT_DOC_STORAGE_STUDENT_BYTES;
+    return { limitBytes, isLoading: userSubLoading };
+  }
+  if (role === "admin" || role === "teacher") {
+    const mb = workspaceSub?.doc_storage_limit_mb;
+    const limitBytes =
+      mb != null && Number.isFinite(mb) && mb > 0 ? mb * 1024 * 1024 : DEFAULT_DOC_STORAGE_TEACHER_BYTES;
+    const isLoading = (role === "admin" ? ownerWorkspaceLoading : tutorWorkspaceLoading) || workspaceSubLoading;
+    return { limitBytes, isLoading };
+  }
+  return { limitBytes: DEFAULT_DOC_STORAGE_STUDENT_BYTES, isLoading: false };
 }
 

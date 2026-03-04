@@ -2,472 +2,557 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText,
   ClipboardCheck,
   Brain,
-  Calendar,
   Users,
-  Search,
-  Filter,
-  Plus,
-  Share2,
-  MoreVertical,
+  School,
+  UserPlus,
   HelpCircle,
   Clock,
   CheckCircle2,
+  BarChart3,
   TrendingUp,
-  Sparkles,
-  FileSpreadsheet,
-  ListChecks,
-  BookOpen,
+  Loader2,
+  FileCode,
+  Link2,
+  Calendar,
 } from "lucide-react";
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
 import { useTutorOnboardingStats } from "@/hooks/useTutorOnboardingStats";
+import { useTeacherDashboardStats } from "@/hooks/useTeacherDashboardStats";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
-import { toast } from "sonner";
+
+const chartColors = {
+  primary: "hsl(var(--primary))",
+  primaryMuted: "hsl(var(--primary) / 0.2)",
+  lime: "hsl(84 81% 44%)",
+  limeMuted: "hsl(84 81% 44% / 0.2)",
+  muted: "hsl(var(--muted-foreground))",
+};
 
 const TeacherDashboard = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { fetchTeacherQuizzes } = useQuizzes();
   const { classroomsCount, assignmentsCount, enrollmentsCount } = useTutorOnboardingStats();
+  const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats();
   const [recentQuizzes, setRecentQuizzes] = useState<Quiz[]>([]);
-
-  const tutorChecklistItems = [
-    { label: "Create your first classroom", done: classroomsCount >= 1, href: "/dashboard/teacher/classrooms" },
-    { label: "Invite or add a student to a class", done: enrollmentsCount >= 1, href: "/dashboard/teacher/classrooms" },
-    { label: "Create your first assignment", done: assignmentsCount >= 1, href: "/dashboard/teacher/assignments" },
-  ];
-  const stats = [
-    {
-      icon: FileText,
-      label: "Total Documents",
-      value: "248",
-      badge: "+12%",
-      badgeVariant: "success" as const,
-    },
-    {
-      icon: ClipboardCheck,
-      label: "Pending Assignments",
-      value: "34",
-      badge: "Active",
-      badgeVariant: "default" as const,
-    },
-    {
-      icon: Brain,
-      label: "Papers Graded",
-      value: "127",
-      badge: "AI",
-      badgeVariant: "default" as const,
-    },
-    {
-      icon: Users,
-      label: "Students Enrolled",
-      value: "342",
-      badge: "Total",
-      badgeVariant: "neutral" as const,
-    },
-  ];
-
-  const documents = [
-    { name: "Chemistry Chapter 5.pdf", updated: "Updated 2 hours ago", size: "2.4 MB", icon: "📕" },
-    { name: "Biology Assignment Template.docx", updated: "Updated yesterday", size: "1.8 MB", icon: "📄" },
-    { name: "Physics Lecture Slides.pptx", updated: "Updated 3 days ago", size: "5.2 MB", icon: "📊" },
-  ];
+  const [quizzesLoading, setQuizzesLoading] = useState(false);
 
   const loadQuizzes = useCallback(async () => {
     if (!user?.id) return;
+    setQuizzesLoading(true);
     try {
-      const quizzes = await fetchTeacherQuizzes(user.id);
-      // Get the 3 most recent quizzes
-      setRecentQuizzes(quizzes.slice(0, 3));
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to load quizzes");
+      const list = await fetchTeacherQuizzes(user.id);
+      setRecentQuizzes(list?.slice(0, 5) ?? []);
+    } catch {
+      setRecentQuizzes([]);
+    } finally {
+      setQuizzesLoading(false);
     }
   }, [fetchTeacherQuizzes, user?.id]);
 
   useEffect(() => {
-    if (user?.id) {
-      loadQuizzes();
-    }
-  }, [user, loadQuizzes]);
+    loadQuizzes();
+  }, [loadQuizzes]);
 
-  const quickActions = [
-    { icon: ClipboardCheck, label: "Create Assignment", color: "text-primary", path: "/dashboard/teacher/assignments" },
-    { icon: HelpCircle, label: "Create Quiz", color: "text-primary", path: "/dashboard/teacher/quizzes/create" },
-    { icon: Calendar, label: "Plan Lesson", color: "text-primary", path: "/dashboard/teacher/lesson-planner" },
-    { icon: Brain, label: "AI Checker", color: "text-brand-lime-dark", path: "/dashboard/teacher/checker" },
+  const displayName = user?.user_metadata?.display_name ?? user?.email?.split("@")[0] ?? "Tutor";
+
+  const tutorChecklistItems = [
+    {
+      label: "Create your first classroom",
+      description: "Set up a class to organize students and materials.",
+      done: classroomsCount >= 1,
+      href: "/dashboard/teacher/classrooms",
+      icon: School,
+    },
+    {
+      label: "Invite or add a student to a class",
+      description: "Add students to your classroom to assign work.",
+      done: enrollmentsCount >= 1,
+      href: "/dashboard/teacher/classrooms",
+      icon: UserPlus,
+    },
+    {
+      label: "Create your first assignment",
+      description: "Create an assignment and share it with your class.",
+      done: assignmentsCount >= 1,
+      href: "/dashboard/teacher/assignments",
+      icon: ClipboardCheck,
+    },
   ];
 
-  const quickGenerate = [
-    { icon: FileSpreadsheet, label: "Worksheet", path: "/dashboard/teacher/ai-studio/worksheet" },
-    { icon: ListChecks, label: "Quiz", path: "/dashboard/teacher/ai-studio/paper" },
-    { icon: BookOpen, label: "Lesson", path: "/dashboard/teacher/ai-studio/smart-tutor" },
-    { icon: Sparkles, label: "All tools", path: "/dashboard/teacher/ai-studio" },
-  ];
-
-  const assignments = [
-    { title: "Cell Structure Essay", due: "Due: March 15, 2025", students: 42, submitted: 28, status: "Pending", statusVariant: "neutral" as const },
-    { title: "Chemical Reactions Lab Report", due: "Due: March 20, 2025", students: 38, submitted: 15, status: "Active", statusVariant: "default" as const },
-    { title: "Physics Problem Set #3", due: "Due: March 25, 2025", students: 45, submitted: 8, status: "Active", statusVariant: "default" as const },
-  ];
-
-  const getStatusVariant = (status: Quiz['status']) => {
-    const variants: Record<Quiz['status'], 'live' | 'neutral' | 'default' | 'secondary'> = {
-      active: 'live',
-      scheduled: 'neutral',
-      draft: 'secondary',
-      closed: 'neutral',
+  const getStatusVariant = (status: string) => {
+    const v: Record<string, "live" | "neutral" | "default" | "secondary"> = {
+      published: "live",
+      draft: "secondary",
+      archived: "neutral",
     };
-    return variants[status];
+    return v[status] ?? "default";
+  };
+
+  const formatDueDate = (due: string | null) => {
+    if (!due) return "No due date";
+    return `Due: ${new Date(due).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   };
 
   const formatQuizDate = (quiz: Quiz) => {
     if (quiz.available_until) {
-      return `Due: ${new Date(quiz.available_until).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      return `Due: ${new Date(quiz.available_until).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
     }
-    return 'No due date';
+    return "No due date";
   };
 
-  const checkerStatus = [
-    { title: "Chemistry Exam", progress: 80, completed: 24, total: 30 },
-    { title: "Biology Quiz", progress: 72, completed: 18, total: 25 },
-    { title: "Physics Assignment", progress: 60, completed: 12, total: 20 },
-  ];
+  const teacherQuizzes = recentQuizzes;
 
-  const weeklyActivityData = [
-    { day: "Mon", submissions: 24, graded: 18 },
-    { day: "Tue", submissions: 32, graded: 28 },
-    { day: "Wed", submissions: 18, graded: 22 },
-    { day: "Thu", submissions: 45, graded: 35 },
-    { day: "Fri", submissions: 38, graded: 42 },
-    { day: "Sat", submissions: 12, graded: 15 },
-    { day: "Sun", submissions: 8, graded: 10 },
-  ];
-
-  const studentEngagementData = [
-    { month: "Jan", engagement: 65 },
-    { month: "Feb", engagement: 72 },
-    { month: "Mar", engagement: 85 },
-    { month: "Apr", engagement: 78 },
-    { month: "May", engagement: 92 },
-    { month: "Jun", engagement: 88 },
-  ];
+  const formatFileType = (fileType: string) => {
+    if (!fileType) return "File";
+    const mime = fileType.toLowerCase();
+    if (mime.includes("pdf")) return "PDF";
+    if (mime.includes("word") || mime.includes("document")) return "DOC";
+    if (mime.includes("sheet") || mime.includes("excel")) return "Sheet";
+    if (mime.includes("image") || mime.includes("png") || mime.includes("jpeg")) return "Image";
+    const ext = fileType.split(".").pop()?.toUpperCase();
+    return ext && ext.length <= 4 ? ext : "File";
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
-        <OnboardingChecklist title="Get started as a tutor" items={tutorChecklistItems} hideWhenComplete />
+      <div className="space-y-8">
+        <OnboardingChecklist
+          userName={displayName}
+          instructionText="Complete all steps to get the most out of your tutor dashboard."
+          items={tutorChecklistItems}
+          hideWhenComplete
+        />
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-card rounded-xl border border-border p-4 hover:shadow-medium hover:border-primary/20 transition-all duration-200"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <stat.icon className="w-4 h-4 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xl font-bold text-foreground">{stat.value}</div>
-                  <div className="text-xs text-muted-foreground truncate">{stat.label}</div>
-                </div>
-                <Badge variant={stat.badgeVariant}>
-                  {stat.badge}
-                </Badge>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Quick Actions - Full width, single row */}
-        <div className="bg-card rounded-xl border border-border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {quickActions.map((action, index) => (
-              <button
-                key={index}
-                onClick={() => router.push(action.path)}
-                className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 cursor-pointer"
-              >
-                <action.icon className={`w-4 h-4 ${action.color}`} />
-                <span className="text-sm font-medium text-foreground">{action.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Generate - AI Content Generator shortcuts */}
-        <div className="bg-card rounded-xl border border-border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Quick Generate</h2>
-            <span className="text-xs text-muted-foreground">AI Content Generator</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {quickGenerate.map((action, index) => (
-              <button
-                key={index}
-                onClick={() => router.push(action.path)}
-                className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 cursor-pointer"
-              >
-                <action.icon className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">{action.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Charts Row */}
-        <div className="grid lg:grid-cols-2 gap-3">
-          {/* Weekly Activity Chart */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">Weekly Activity</h2>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <span className="text-muted-foreground">Submissions</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-slime-lime" />
-                  <span className="text-muted-foreground">Graded</span>
-                </span>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={weeklyActivityData}>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={30} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px'
-                  }} 
-                />
-                <Bar dataKey="submissions" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="graded" fill="#A3E635" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Student Engagement Chart */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">Student Engagement</h2>
-              <span className="flex items-center gap-1 text-xs text-brand-lime-dark">
-                <TrendingUp className="w-3 h-3" />
-                +12% this month
-              </span>
-            </div>
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={studentEngagementData}>
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={30} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px'
-                  }} 
-                />
-                <defs>
-                  <linearGradient id="engagementGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <Area 
-                  type="monotone" 
-                  dataKey="engagement" 
-                  stroke="#8B5CF6" 
-                  strokeWidth={2}
-                  fill="url(#engagementGradient)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Main Content Grid - 2 columns */}
-        <div className="grid lg:grid-cols-3 gap-3">
-          {/* Document Management - Takes 2 columns */}
-          <div className="lg:col-span-2 bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">Document Management</h2>
-              <Button size="sm" className="gap-1.5 h-8 text-xs">
-                <Plus className="w-3.5 h-3.5" />
-                Upload
-              </Button>
-            </div>
-
-            {/* Search and Filter */}
-            <div className="flex gap-2 mb-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search documents..."
-                  className="pl-8 h-8 text-sm"
-                />
-              </div>
-              <Button variant="outline" size="icon" className="h-8 w-8">
-                <Filter className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-
-            {/* Document List */}
-            <div className="space-y-2">
-              {documents.map((doc, index) => (
+        {/* Stats – 2 per row */}
+        <section>
+          <h2 className="sr-only">Overview</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {statsLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
                 <div
-                  key={index}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/20 transition-all duration-200"
+                  key={i}
+                  className="bg-card rounded-xl border border-border shadow-sm p-5 flex items-center gap-3"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-sm">
-                    {doc.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{doc.name}</p>
-                    <p className="text-xs text-muted-foreground">{doc.updated} • {doc.size}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
-                      <Share2 className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
-                      <MoreVertical className="w-3.5 h-3.5" />
-                    </Button>
+                  <div className="w-12 h-12 rounded-xl bg-muted animate-pulse" />
+                  <div className="flex-1">
+                    <div className="h-7 w-14 bg-muted rounded animate-pulse mb-2" />
+                    <div className="h-4 w-28 bg-muted rounded animate-pulse" />
                   </div>
                 </div>
-              ))}
+              ))
+            ) : (
+              <>
+                <StatCard
+                  icon={FileText}
+                  label="Documents"
+                  value={stats?.documentsCount ?? 0}
+                  badge="Total"
+                />
+                <StatCard
+                  icon={ClipboardCheck}
+                  label="Active assignments"
+                  value={stats?.pendingAssignmentsCount ?? 0}
+                  badge="Published"
+                />
+                <StatCard
+                  icon={Brain}
+                  label="Papers graded"
+                  value={stats?.papersGradedCount ?? 0}
+                  badge="AI"
+                />
+                <StatCard
+                  icon={Users}
+                  label="Students"
+                  value={stats?.studentsEnrolledCount ?? 0}
+                  badge="Enrolled"
+                />
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* Charts */}
+        <section className="grid lg:grid-cols-2 gap-4">
+          <div className="bg-card rounded-xl border border-border shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                Weekly activity
+              </h3>
+              <div className="flex items-center gap-4 text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="w-2 h-2 rounded-full bg-primary" /> Submissions
+                </span>
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="w-2 h-2 rounded-full bg-[hsl(84_81%_44%)]" /> Graded
+                </span>
+              </div>
             </div>
+            {statsLoading ? (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={stats?.weeklyActivity ?? []} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="day"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    width={28}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))" }}
+                  />
+                  <Bar dataKey="submissions" fill={chartColors.primary} radius={[4, 4, 0, 0]} name="Submissions" />
+                  <Bar dataKey="graded" fill={chartColors.lime} radius={[4, 4, 0, 0]} name="Graded" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
-          {/* AI Checker Status */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <h2 className="text-sm font-semibold mb-3 text-foreground">AI Checker Status</h2>
-            <div className="space-y-4">
-              {checkerStatus.map((item, index) => (
-                <div key={index}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-foreground font-medium">{item.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {item.completed}/{item.total}
-                    </span>
-                  </div>
-                  <Progress value={item.progress} variant="gradient" className="h-2" />
-                </div>
-              ))}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                Monthly engagement
+              </h3>
+              <span className="text-xs text-muted-foreground">Last 6 months</span>
             </div>
+            {statsLoading ? (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={stats?.monthlyEngagement ?? []} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="engagementFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartColors.primary} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={chartColors.primary} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    width={28}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value: number) => [value, "Engagement %"]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="engagement"
+                    stroke={chartColors.primary}
+                    strokeWidth={2}
+                    fill="url(#engagementFill)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
-        </div>
+        </section>
 
-        {/* Bottom Grid - 2 columns */}
-        <div className="grid lg:grid-cols-2 gap-3">
-          {/* Recent Assignments */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">Recent Assignments</h2>
-              <Button variant="ghost" className="text-muted-foreground p-0 h-auto text-xs hover:text-primary">
-                View all
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {assignments.map((assignment, index) => (
-                <div key={index} className="pb-3 border-b border-border last:border-0 last:pb-0">
-                  <div className="flex items-start justify-between mb-1.5">
-                    <h3 className="text-sm font-medium text-foreground">{assignment.title}</h3>
-                    <Badge variant={assignment.statusVariant}>
-                      {assignment.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-1.5">{assignment.due}</p>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {assignment.students}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      {assignment.submitted} done
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Active Quizzes */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">Recent Quizzes</h2>
-              <Button 
-                variant="ghost" 
-                className="text-muted-foreground p-0 h-auto text-xs hover:text-primary"
-                onClick={() => router.push("/dashboard/teacher/quizzes")}
+        {/* Two columns: Recent assignments + Grading progress & Quizzes */}
+        <section className="grid lg:grid-cols-2 gap-4">
+          <div className="bg-card rounded-xl border border-border shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground">Recent assignments</h3>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/teacher/assignments")}
+                className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                aria-label="View all assignments"
               >
-                View all
-              </Button>
+                <Link2 className="w-5 h-5" />
+              </button>
             </div>
-            <div className="space-y-3">
-              {recentQuizzes.length === 0 ? (
-                <div className="text-center py-6">
+            {statsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 bg-muted/50 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : !stats?.recentAssignments?.length ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No assignments yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {stats.recentAssignments.map((a) => {
+                  const submittedPct = a.students > 0 ? Math.round((a.submitted / a.students) * 100) : 0;
+                  return (
+                    <li
+                      key={a.id}
+                      className="group flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/30 hover:bg-muted/60 hover:border-primary/30 cursor-pointer transition-all duration-200"
+                      onClick={() => router.push(`/dashboard/teacher/assignments`)}
+                    >
+                      {/* <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                        <ClipboardCheck className="w-5 h-5 text-primary" />
+                      </div> */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-semibold text-foreground line-clamp-1">{a.title}</span>
+                          <Badge variant={getStatusVariant(a.status)} className="shrink-0 text-[10px] capitalize">
+                            {a.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <Calendar className="w-3.5 h-3.5 shrink-0" />
+                          <span>{formatDueDate(a.due_date).replace("Due: ", "")}</span>
+                          {a.classroom_name && (
+                            <>
+                              <span className="text-border">·</span>
+                              <span className="truncate">{a.classroom_name}</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>{a.students} enrolled</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                            <span>{a.submitted} submitted</span>
+                          </span>
+                          {a.students > 0 && (
+                            <span className="text-[10px] font-medium text-primary tabular-nums">
+                              {submittedPct}%
+                            </span>
+                          )}
+                        </div>
+                        {a.students > 0 && (
+                          <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-primary/70 transition-all duration-300"
+                              style={{ width: `${submittedPct}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {/* Grading progress */}
+            <div className="bg-card rounded-xl border border-border shadow-sm p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Grading progress</h3>
+              {statsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-10 bg-muted/50 rounded animate-pulse" />
+                  ))}
+                </div>
+              ) : !stats?.gradingProgress?.length ? (
+                <p className="text-sm text-muted-foreground py-4">No submissions to grade yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {stats.gradingProgress.map((item) => (
+                    <div key={item.id}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-foreground truncate pr-2">{item.title}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {item.completed}/{item.total}
+                        </span>
+                      </div>
+                      <Progress value={item.progress} variant="gradient" className="h-2" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recent quizzes */}
+            <div className="bg-card rounded-xl border border-border shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-foreground">Recent quizzes</h3>
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/teacher/quizzes")}
+                  className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  aria-label="View all quizzes"
+                >
+                  <Link2 className="w-5 h-5" />
+                </button>
+              </div>
+              {quizzesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-14 bg-muted/50 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : !teacherQuizzes.length ? (
+                <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground mb-3">No quizzes yet</p>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="outline"
                     onClick={() => router.push("/dashboard/teacher/quizzes/create")}
                   >
                     <HelpCircle className="w-4 h-4 mr-2" />
-                    Create Your First Quiz
+                    Create quiz
                   </Button>
                 </div>
               ) : (
-                recentQuizzes.map((quiz) => (
-                  <div 
-                    key={quiz.id} 
-                    className="pb-3 border-b border-border last:border-0 last:pb-0 cursor-pointer hover:bg-accent/50 -mx-2 px-2 py-2 rounded transition-colors"
-                    onClick={() => router.push(`/dashboard/teacher/quizzes/${quiz.id}/results`)}
-                  >
-                    <div className="flex items-start justify-between mb-1.5">
-                      <h3 className="text-sm font-medium text-foreground">{quiz.title}</h3>
-                      <Badge variant={getStatusVariant(quiz.status)}>
-                        {quiz.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1.5">{formatQuizDate(quiz)}</p>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        {quiz.classroom?.name || 'No classroom'}
-                      </span>
-                      {quiz.time_limit_minutes && (
+                <ul className="space-y-3">
+                  {teacherQuizzes.slice(0, 3).map((quiz) => (
+                    <li
+                      key={quiz.id}
+                      className="pb-3 border-b border-border last:border-0 last:pb-0 cursor-pointer hover:bg-muted/30 -mx-2 px-2 py-2 rounded-lg transition-colors"
+                      onClick={() => router.push(`/dashboard/teacher/quizzes/${quiz.id}/results`)}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className="text-sm font-medium text-foreground line-clamp-1">{quiz.title}</span>
+                        <Badge variant={quiz.status === "active" ? "live" : "neutral"} className="shrink-0 text-xs">
+                          {quiz.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">{formatQuizDate(quiz)}</p>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {quiz.time_limit_minutes} min
+                          <Users className="w-3 h-3" />
+                          {quiz.classroom?.name ?? "No classroom"}
                         </span>
-                      )}
-                    </div>
-                  </div>
-                ))
+                        {quiz.time_limit_minutes && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {quiz.time_limit_minutes} min
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* Recent documents – dynamic, compact */}
+        {stats?.recentDocuments?.length ? (
+          <section className="bg-card rounded-xl border border-border shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <FileCode className="w-4 h-4 text-primary" />
+                Recent documents
+              </h3>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/teacher/documents")}
+                className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                aria-label="View all documents"
+              >
+                <Link2 className="w-5 h-5" />
+              </button>
+            </div>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {stats.recentDocuments.map((doc) => (
+                <li
+                  key={doc.id}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/20 transition-colors text-sm text-foreground"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium truncate block">{doc.name}</span>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                      <Badge variant="secondary" className="font-normal text-[10px] px-1.5 py-0">
+                        {formatFileType(doc.file_type)}
+                      </Badge>
+                      {doc.updated_at && (
+                        <span>{new Date(doc.updated_at).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
     </DashboardLayout>
   );
 };
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  badge,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  badge: string;
+}) {
+  return (
+    <div className="bg-card rounded-xl border border-border shadow-sm p-5 hover:border-primary/20 hover:shadow-md transition-all duration-200">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon className="w-6 h-6 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-2xl font-bold tabular-nums text-foreground">{value}</div>
+          <div className="text-xs text-muted-foreground truncate mt-0.5">{label}</div>
+        </div>
+        <Badge variant="neutral" className="shrink-0 text-xs">
+          {badge}
+        </Badge>
+      </div>
+    </div>
+  );
+}
 
 export default TeacherDashboard;

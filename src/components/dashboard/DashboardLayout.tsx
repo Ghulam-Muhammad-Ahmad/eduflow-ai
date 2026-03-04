@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import Image from "next/image";
@@ -30,8 +30,8 @@ import {
   Users,
   Settings,
   LogOut,
-  Menu,
-  X,
+  PanelLeftClose,
+  PanelLeftOpen,
   Bell,
   Sparkles,
   BookOpen,
@@ -45,7 +45,15 @@ import {
   ClipboardList,
   TrendingUp,
   CreditCard,
+  Search,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -59,7 +67,7 @@ const roleConfig = {
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/teacher" },
       { icon: Users, label: "My Students", path: "/dashboard/teacher/students" },
       { icon: School, label: "My Classes", path: "/dashboard/teacher/classrooms" },
-      { icon: FileText, label: "Materials", path: "/dashboard/teacher/documents" },
+      { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
       { icon: Sparkles, label: "AI Content Generator", path: "/dashboard/teacher/ai-studio" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
       { icon: ListChecks, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
@@ -117,7 +125,23 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
   const { hasClassrooms, isLoading: enrollmentsLoading } = useHasClassrooms();
   const { usage, loading: usageLoading } = useAIUsage();
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ⌘F / Ctrl+F to focus search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Students with no classrooms see Self-Study nav; once they join a class, they see Classroom nav
   const studentConfigKey =
@@ -186,32 +210,42 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
       <div className="h-screen flex bg-background overflow-hidden">
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static top-0 left-0 h-screen w-64 bg-card border-r border-border z-40 transform transition-transform duration-200 lg:translate-x-0 flex flex-col ${
+        className={`fixed top-0 left-0 border-r border-border h-screen w-64 bg-[#fafafa] z-40 transform transition-transform duration-200 flex flex-col p-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Logo */}
-        <div className="p-4 border-b border-border">
-          <Link href="/" className="flex flex-col group">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 flex items-center justify-center">
-                <Image 
-                  src="/mainlogo.svg" 
-                  alt="EduLabLoom Logo" 
-                  width={32} 
-                  height={32}
-                  className="w-8 h-8"
-                />
+        {/* Logo + close sidebar */}
+        <div className="pt-2.5 pr-2.5 pb-2.5 pl-2.5 h-[65px] border-b border-border">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex flex-col group">
+              <div className="flex items-center gap-[5px]">
+                <div className="w-6 h-6 flex items-center justify-center">
+                  <Image 
+                    src="/mainlogo.svg" 
+                    alt="EduLabLoom Logo" 
+                    width={25} 
+                    height={25}
+                    className="w-6 h-6"
+                  />
+                </div>
+                <span className="font-semibold text-[22px] tracking-tight text-foreground">
+                  EduLabLoom
+                </span>
               </div>
-              <span className="font-bold text-lg tracking-tight text-foreground">
-                EduLabLoom
-              </span>
-            </div>
-          </Link>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="p-2 -mr-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Close sidebar"
+            >
+              <PanelLeftClose className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-2 overflow-y-auto">
+        <nav className="sidebar-nav-scroll flex-1 pl-2.5 pr-2.5 pt-0 pb-0 mt-2.5 mb-2.5 overflow-y-auto">
           <div className="space-y-0.5">
             {config.navItems.map((item) => {
               // Check for exact match or if current path starts with nav item path (for nested routes)
@@ -228,8 +262,13 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
                   key={item.path}
                   href={item.path}
                   prefetch={false}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  onClick={() => {
+                    // Only close sidebar on mobile so it doesn't flick on laptop
+                    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                      setSidebarOpen(false);
+                    }
+                  }}
+                  className={`flex items-center gap-3 px-2.5 py-2.5 rounded-lg transition-all duration-200 ${
                     isActive
                       ? "bg-medium-slate-blue/10 text-medium-slate-blue font-medium border border-medium-slate-blue/20 shadow-sm"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -244,41 +283,53 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
         </nav>
 
         {/* AI Usage Bar */}
-        <div className="p-3 border-t border-border">
+        <div className="px-2.5 pb-2.5 border-t border-border mt-2.5">
           {!usageLoading && usage && (
-            <div className="px-2 py-2 bg-secondary/30 rounded-lg">
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Zap className={`h-3.5 w-3.5 ${
-                    usage.percentage >= 90 ? 'text-red-500' : 
-                    usage.percentage >= 70 ? 'text-yellow-500' : 
-                    'text-primary'
-                  }`} />
-                  <span className="text-xs font-medium text-foreground">AI Credits</span>
-                </div>
-                <span className={`text-xs font-medium ${
-                  usage.percentage >= 90 ? 'text-red-500' : 
-                  usage.percentage >= 70 ? 'text-yellow-500' : 
-                  'text-muted-foreground'
-                }`}>
-                  {usage.currentCredits}/{usage.limitCredits}
-                </span>
-              </div>
-              <Progress 
-                value={usage.percentage} 
-                className={`h-1.5 ${
-                  usage.percentage >= 90 ? '[&>div]:bg-red-500' : 
-                  usage.percentage >= 70 ? '[&>div]:bg-yellow-500' : 
-                  ''
-                }`}
-              />
-              <p className={`text-xs mt-1 ${
-                usage.percentage >= 90 ? 'text-red-500 font-medium' : 
-                usage.percentage >= 70 ? 'text-yellow-600 dark:text-yellow-500' : 
-                'text-muted-foreground'
-              }`}>
-                {usage.remainingCredits} remaining
+            <div className="px-3 py-3 bg-card rounded-xl border border-border shadow-sm mt-2.5">
+              <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground mb-0.5">
+                AI Credits
+              </h3>
+              <p className="text-sm text-muted-foreground mb-2">
+               {usage.remainingCredits} remaining
               </p>
+              </div>
+              {/* Segment-style progress: vertical bars */}
+              <div className="flex gap-0.5 mb-3" aria-hidden>
+                {Array.from({ length: 25 }).map((_, i) => {
+                  const usedRatio = usage.limitCredits > 0 ? 1 - usage.remainingCredits / usage.limitCredits : 0;
+                  const segmentThreshold = (i + 1) / 20;
+                  const filled = usedRatio >= segmentThreshold - 0.05;
+                  const segmentColor =
+                    usage.percentage >= 90
+                      ? "bg-red-500"
+                      : usage.percentage >= 70
+                        ? "bg-amber-500"
+                        : "bg-primary";
+                  return (
+                    <div
+                      key={i}
+                      className={`flex-1 min-w-[4px] rounded-sm transition-colors ${
+                        filled ? segmentColor : "bg-muted"
+                      }`}
+                      style={{ height: 20 }}
+                    />
+                  );
+                })}
+              </div>
+             
+              <Link
+                href={
+                  role === "teacher"
+                    ? "/dashboard/teacher/billing"
+                    : role === "student" || role === "studentSelfStudy"
+                      ? "/dashboard/student/billing"
+                      : "/dashboard/owner/billing"
+                }
+                className="block w-full text-center text-xs font-medium py-2 px-3 rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors"
+              >
+                View billing
+              </Link>
             </div>
           )}
         </div>
@@ -293,17 +344,91 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className={`flex-1 flex flex-col min-h-screen transition-[margin] duration-200 ${sidebarOpen ? "lg:ml-64" : ""}`}>
         {/* Top Header */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 sticky top-0 z-20">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-secondary rounded-lg lg:hidden transition-colors"
-            >
-              {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-            <h1 className="text-xl font-semibold text-foreground">{getPageTitle()}</h1>
+        <header className="h-[65px] bg-[#fafafa] border-b flex items-center justify-between px-6 sticky top-0 z-20">
+          <div className="flex items-center gap-4 flex-1 min-w-0 max-w-[300px]">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 hover:bg-secondary rounded-lg transition-colors shrink-0"
+                aria-label="Open sidebar"
+              >
+                <PanelLeftOpen className="w-5 h-5" />
+              </button>
+            )}
+            <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+              <button
+                type="button"
+                className="flex items-center gap-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm transition-colors text-left focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 hover:bg-muted/50"
+                onClick={() => {
+                  setSearchOpen(true);
+                  setTimeout(() => searchInputRef.current?.focus(), 0);
+                }}
+              >
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate text-muted-foreground">
+                  {searchQuery || "Search task"}
+                </span>
+<kbd className="pointer-events-none hidden sm:inline-flex h-6 select-none items-center justify-center rounded border border-border/80 bg-muted/80 px-2 font-mono text-xs font-medium text-muted-foreground">
+                    ⌘
+                  </kbd>
+              </button>
+              <DialogContent
+                className="max-w-md p-0 gap-0 overflow-hidden"
+                onOpenAutoFocus={(e) => {
+                  e.preventDefault();
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <DialogTitle className="sr-only">Search and navigate</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Search dashboard pages and navigate to them
+                </DialogDescription>
+                <div className="relative flex items-center gap-3 border-b border-border focus-visible:ring-0 bg-muted/30 px-4 py-3">
+                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <Input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search task"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-10 flex-1 border-0 bg-transparent pl-0 pr-10 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none shadow-none"
+                  />
+                  <kbd className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:inline-flex h-6 select-none items-center justify-center rounded border border-border/80 bg-background/95 px-2 font-mono text-xs font-medium text-muted-foreground shadow-sm">
+                    ⌘
+                  </kbd>
+                </div>
+                <div className="max-h-[50vh] overflow-y-auto py-2">
+                  {config.navItems
+                    .filter((item) =>
+                      item.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                    )
+                    .map((item) => (
+                      <button
+                        key={item.path}
+                        type="button"
+                        className="flex w-full items-center gap-3 rounded-none px-4 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => {
+                          router.push(item.path);
+                          setSearchQuery("");
+                          setSearchOpen(false);
+                        }}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        {item.label}
+                      </button>
+                    ))}
+                  {config.navItems.filter((item) =>
+                    item.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                  ).length === 0 && (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      No matches
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
           <TooltipProvider delayDuration={300}>
             <DropdownMenu>
@@ -350,7 +475,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto bg-secondary/30 min-w-0">
+        <main className="flex-1 p-6 overflow-auto bg-white min-w-0">
           {children}
         </main>
       </div>

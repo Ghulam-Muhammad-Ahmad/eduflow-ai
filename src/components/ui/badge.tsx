@@ -30,7 +30,7 @@ const badgeVariants = cva(
         premium: "border-transparent bg-gradient-premium text-ink-black font-bold",
         
         // Live/Active status
-        live: "border-transparent bg-slime-lime/20 text-brand-lime-dark animate-pulse",
+        live: "border-transparent bg-slime-lime/10 text-brand-lime-dark",
       },
     },
     defaultVariants: {

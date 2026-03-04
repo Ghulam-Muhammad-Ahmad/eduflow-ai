@@ -22,6 +22,24 @@ For each plan × cycle you use, set:
 - `NEXT_PUBLIC_PADDLE_PRICE_TUTOR_BASIC_MONTHLY` / `_ANNUAL` (and Pro, Plus)
 - `NEXT_PUBLIC_PADDLE_PRICE_BUSINESS_BASIC_MONTHLY` / `_ANNUAL` (and Pro, Plus)
 
+### AI Credits and Doc Storage (plan-linked)
+
+**Preferred: Paddle product/price custom data.** Set `custom_data` on the product or price in Paddle (e.g. `ai_credits: 100`, `doc_storage: 5`). The webhook reads these first; `doc_storage` is in **GB** and is stored as `doc_storage_limit_mb` in the DB. If `custom_data` is missing, the webhook falls back to env-based credits and does not set a doc storage limit (UI uses defaults: 50 MB student, 100 MB teacher).
+
+**Env fallback for AI credits** (used when product custom_data has no `ai_credits`). Credits per plan (monthly pool):
+
+- `AI_CREDITS_STUDENT_BASIC`, `AI_CREDITS_STUDENT_PRO`, `AI_CREDITS_STUDENT_PLUS`
+- `AI_CREDITS_TUTOR_BASIC`, `AI_CREDITS_TUTOR_PRO`, `AI_CREDITS_TUTOR_PLUS`
+- `AI_CREDITS_BUSINESS_BASIC`, `AI_CREDITS_BUSINESS_PRO`, `AI_CREDITS_BUSINESS_PLUS`
+- `AI_CREDITS_DEFAULT` – fallback when user/workspace has no subscription (e.g. 0)
+
+Feature weightage (credits per AI request). Default 1 if unset.
+
+- `AI_CREDIT_WEIGHT_CHECKER`, `AI_CREDIT_WEIGHT_PAPER_GENERATION`, `AI_CREDIT_WEIGHT_WORKSHEET_GENERATION`
+- `AI_CREDIT_WEIGHT_RUBRIC_GENERATION`, `AI_CREDIT_WEIGHT_CONTENT_GENERATION`, `AI_CREDIT_WEIGHT_LESSON_PLANNING`
+- `AI_CREDIT_WEIGHT_QUIZ_QUESTIONS`, `AI_CREDIT_WEIGHT_DIFFERENTIATION`, `AI_CREDIT_WEIGHT_STUDY_MATERIALS`
+- `AI_CREDIT_WEIGHT_CONCEPT_EXPLANATION`, `AI_CREDIT_WEIGHT_STUDY_PLAN`, `AI_CREDIT_WEIGHT_PRACTICE_QUESTIONS`, `AI_CREDIT_WEIGHT_FLASHCARDS`
+
 ### Supabase (webhook only)
 
 - **`SUPABASE_SERVICE_ROLE_KEY`** – Service role key so the webhook can write to `workspace_subscriptions` and `user_subscriptions` (bypasses RLS).
@@ -47,7 +65,7 @@ When opening checkout, we send:
 - **Owner / Tutor:** `customData.workspaceId` = current workspace ID.
 - **Student:** `customData.userId` = current user ID.
 
-The webhook uses these to upsert `workspace_subscriptions` or `user_subscriptions`.
+The webhook uses these to upsert `workspace_subscriptions` or `user_subscriptions`. It also reads **product/price custom_data** (from the payload or via Paddle API): `ai_credits` for the monthly credit pool and `doc_storage` (GB) for Doc Center storage limit (`doc_storage_limit_mb`). If `custom_data` is not in the payload, the webhook calls `GET /prices/{price_id}?include=product` to fetch it (requires `PADDLE_API_KEY`).
 
 ## Troubleshooting
 

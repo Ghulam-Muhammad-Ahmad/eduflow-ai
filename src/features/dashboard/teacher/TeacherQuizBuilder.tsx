@@ -440,7 +440,7 @@ const TeacherQuizBuilder = () => {
   return (
     <DashboardLayout>
       <TooltipProvider delayDuration={300}>
-        <div className="mx-auto max-w-4xl space-y-6 pb-28">
+        <div className="mx-auto max-w-4xl space-y-6 pb-6">
           {/* ── Header ─────────────────────────────────────────── */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -1184,11 +1184,9 @@ const TeacherQuizBuilder = () => {
               </CollapsibleContent>
             </Card>
           </Collapsible>
-        </div>
 
-        {/* ── Sticky bottom action bar ───────────────────────── */}
-        <div className="fixed flex justify-end inset-x-0 bottom-0 z-40 ">
-          <div className="w-[83%] flex border-t bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 items-center justify-between px-4 py-3 sm:px-6">
+          {/* ── Bottom action bar (in page flow) ───────────────── */}
+          <div className="flex bg-white/80 items-center justify-between p-0 rounded-b-lg">
             <div className="hidden items-center gap-3 sm:flex">
               {questions.length > 0 && (
                 <>
@@ -1203,7 +1201,7 @@ const TeacherQuizBuilder = () => {
                 </>
               )}
             </div>
-            <div className="flex w-full gap-2 sm:w-auto">
+            <div className="flex w-full gap-2 sm:w-auto sm:ml-auto">
               <Button
                 variant="outline"
                 onClick={() => handleSave(false)}

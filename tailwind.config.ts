@@ -88,7 +88,7 @@ export default {
       },
       fontFamily: {
         sans: [
-          'Inter',
+          '"SF Pro Display"',
           'ui-sans-serif',
           'system-ui',
           'sans-serif',
@@ -98,14 +98,13 @@ export default {
           'Noto Color Emoji'
         ],
         serif: [
+          '"SF Pro Display"',
           'ui-serif',
           'Georgia',
-          'Cambria',
-          'Times New Roman',
-          'Times',
           'serif'
         ],
         mono: [
+          '"SF Pro Display"',
           'ui-monospace',
           'SFMono-Regular',
           'Menlo',

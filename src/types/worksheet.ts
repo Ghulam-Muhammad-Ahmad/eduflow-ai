@@ -66,7 +66,7 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       margins: { top: 20, bottom: 20, left: 20, right: 20 },
     },
     styles: {
-      fontFamily: "Georgia, serif",
+      fontFamily: "SF Pro Display, system-ui, sans-serif",
       primaryColor: "#1e293b",
       headingSize: "1.5rem",
     },
@@ -81,7 +81,7 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       margins: { top: 24, bottom: 24, left: 24, right: 24 },
     },
     styles: {
-      fontFamily: "system-ui, sans-serif",
+      fontFamily: "SF Pro Display, system-ui, sans-serif",
       primaryColor: "#0f172a",
       headingSize: "1.25rem",
     },
@@ -96,7 +96,7 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       margins: { top: 18, bottom: 18, left: 22, right: 22 },
     },
     styles: {
-      fontFamily: "Inter, system-ui, sans-serif",
+      fontFamily: "SF Pro Display, system-ui, sans-serif",
       primaryColor: "#6366f1",
       headingSize: "1.5rem",
     },
@@ -111,7 +111,7 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       margins: { top: 24, bottom: 24, left: 32, right: 32 },
     },
     styles: {
-      fontFamily: "Georgia, serif",
+      fontFamily: "SF Pro Display, system-ui, sans-serif",
       primaryColor: "#111827",
       headingSize: "1.5rem",
     },
@@ -126,7 +126,7 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       margins: { top: 24, bottom: 24, left: 24, right: 24 },
     },
     styles: {
-      fontFamily: "system-ui, sans-serif",
+      fontFamily: "SF Pro Display, system-ui, sans-serif",
       primaryColor: "#111827",
       headingSize: "1.25rem",
     },
@@ -141,7 +141,7 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       margins: { top: 24, bottom: 24, left: 20, right: 20 },
     },
     styles: {
-      fontFamily: "system-ui, sans-serif",
+      fontFamily: "SF Pro Display, system-ui, sans-serif",
       primaryColor: "#111827",
       headingSize: "1.25rem",
     },
@@ -156,7 +156,7 @@ export const WORKSHEET_SYSTEM_TEMPLATES: WorksheetTemplate[] = [
       margins: { top: 24, bottom: 24, left: 20, right: 20 },
     },
     styles: {
-      fontFamily: "Inter, system-ui, sans-serif",
+      fontFamily: "SF Pro Display, system-ui, sans-serif",
       primaryColor: "#111827",
       headingSize: "1.6rem",
     },

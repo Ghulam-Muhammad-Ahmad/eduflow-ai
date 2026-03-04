@@ -20,9 +20,27 @@ const AdminDashboard = () => {
   const { workspace, stats, tutors, assignedStudents, assignments, isLoading } = useOwnerWorkspace();
 
   const ownerChecklistItems = [
-    { label: "Create your first tutor account", done: stats.tutorsCount >= 1, href: "/dashboard/owner/tutors/invite" },
-    { label: "Create your first student account", done: stats.studentsCount >= 1, href: "/dashboard/owner/students/invite" },
-    { label: "Assign a student to a tutor", done: stats.studentsCount >= 1, href: "/dashboard/owner/students" },
+    {
+      label: "Create your first tutor account",
+      description: "Invite a tutor to your workspace.",
+      done: stats.tutorsCount >= 1,
+      href: "/dashboard/owner/tutors/invite",
+      icon: Users,
+    },
+    {
+      label: "Create your first student account",
+      description: "Add a student to your workspace.",
+      done: stats.studentsCount >= 1,
+      href: "/dashboard/owner/students/invite",
+      icon: GraduationCap,
+    },
+    {
+      label: "Assign a student to a tutor",
+      description: "Link students to tutors for classes.",
+      done: stats.studentsCount >= 1,
+      href: "/dashboard/owner/students",
+      icon: ClipboardCheck,
+    },
   ];
 
   const statsCards = [
@@ -54,7 +72,12 @@ const AdminDashboard = () => {
         </div>
 
         {/* Onboarding checklist (hidden when complete) */}
-        <OnboardingChecklist title="Get your workspace ready" items={ownerChecklistItems} hideWhenComplete />
+        <OnboardingChecklist
+          title="Get your workspace ready"
+          instructionText="Complete these steps to set up your workspace."
+          items={ownerChecklistItems}
+          hideWhenComplete
+        />
 
         {/* Stats Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">

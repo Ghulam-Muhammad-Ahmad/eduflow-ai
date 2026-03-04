@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
 
 export default function OwnerStudentProfile() {
   const router = useRouter();
@@ -71,6 +72,13 @@ export default function OwnerStudentProfile() {
             </div>
           </div>
         </div>
+
+        {studentId && (
+          <MemberCreditsCard
+            memberUserId={studentId}
+            memberLabel={assignment?.student?.display_name ?? "Student"}
+          />
+        )}
 
         <div className="rounded-2xl border border-border bg-card p-6">
           <h2 className="font-semibold mb-4">Assigned tutor</h2>

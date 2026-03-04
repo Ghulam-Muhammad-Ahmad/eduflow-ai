@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
+import { deductCreditsForRequest } from "@/lib/ai-credits-deduct";
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -96,6 +97,14 @@ export default async function handler(
     return res.status(400).json({
       success: false,
       error: "subject is required; provide either text or pdfBase64 (syllabus content)",
+    });
+  }
+
+  const creditError = await deductCreditsForRequest(user.id, "lesson_planning");
+  if (creditError) {
+    return res.status(creditError.status).json({
+      success: false,
+      error: creditError.body.error,
     });
   }
 

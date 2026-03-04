@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Readable } from "stream";
 import { verifyPaddleSignature } from "@/lib/paddle-webhook";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
+import { getPlanFromPriceId, getCreditsForPlan } from "@/lib/ai-credits";
+import { getProductCustomData, docStorageGbToMb } from "@/lib/paddle-product";
 
 export const config = {
   api: { bodyParser: false },
@@ -69,7 +71,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       customer_id?: string;
       next_billed_at?: string;
       current_billing_period?: { ends_at?: string };
-      items?: Array<{ price?: { id?: string } }>;
+      items?: Array<{
+        price?: { id?: string; custom_data?: Record<string, unknown> };
+        product?: { id?: string; custom_data?: Record<string, unknown> };
+      }>;
     };
   };
 
@@ -149,46 +154,85 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const trialEndsAt = (data as { trial_dates?: { ends_at?: string } })?.trial_dates?.ends_at ?? null;
 
   if (isSubEvent) {
+    const periodStart = new Date();
+    periodStart.setUTCDate(1);
+    periodStart.setUTCHours(0, 0, 0, 0);
+    const periodStr = periodStart.toISOString().slice(0, 10);
+    const planFromPrice = priceId ? getPlanFromPriceId(priceId) : null;
+    const productCustomData = await getProductCustomData(priceId, data?.items?.[0]);
+    const creditsAllocated =
+      productCustomData.ai_credits != null
+        ? productCustomData.ai_credits
+        : planFromPrice
+          ? getCreditsForPlan(planFromPrice.planLine, planFromPrice.tier)
+          : 0;
+    const docStorageLimitMb = docStorageGbToMb(productCustomData.doc_storage_gb);
+    const isActiveOrTrialing = status === "active" || status === "trialing";
+
+    const workspaceSubscriptionRow: Record<string, unknown> = {
+      workspace_id: workspaceId,
+      paddle_subscription_id: subscriptionId,
+      paddle_customer_id: customerId,
+      price_id: priceId,
+      status,
+      current_period_ends_at: periodEndsAt,
+      trial_ends_at: trialEndsAt,
+      updated_at: new Date().toISOString(),
+    };
+    if (docStorageLimitMb != null) workspaceSubscriptionRow.doc_storage_limit_mb = docStorageLimitMb;
+
     if (workspaceId) {
       const { error } = await admin
         .from("workspace_subscriptions")
-        .upsert(
-          {
-            workspace_id: workspaceId,
-            paddle_subscription_id: subscriptionId,
-            paddle_customer_id: customerId,
-            price_id: priceId,
-            status,
-            current_period_ends_at: periodEndsAt,
-            trial_ends_at: trialEndsAt,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "workspace_id" }
-        );
+        .upsert(workspaceSubscriptionRow as Record<string, string | number | null>, {
+          onConflict: "workspace_id",
+        });
       if (error) {
         console.error("[paddle-webhook] workspace_subscriptions upsert error:", error);
         return res.status(500).json({ error: "Database error" });
       }
+      if (isActiveOrTrialing && creditsAllocated > 0) {
+        const { error: poolError } = await admin.rpc("upsert_workspace_credit_pool", {
+          _workspace_id: workspaceId,
+          _period: periodStr,
+          _credits_allocated: creditsAllocated,
+        });
+        if (poolError) {
+          console.error("[paddle-webhook] upsert_workspace_credit_pool error:", poolError);
+        }
+      }
     }
+    const userSubscriptionRow: Record<string, unknown> = {
+      user_id: userId,
+      paddle_subscription_id: subscriptionId,
+      paddle_customer_id: customerId,
+      price_id: priceId,
+      status,
+      current_period_ends_at: periodEndsAt,
+      trial_ends_at: trialEndsAt,
+      updated_at: new Date().toISOString(),
+    };
+    if (docStorageLimitMb != null) userSubscriptionRow.doc_storage_limit_mb = docStorageLimitMb;
+
     if (userId) {
       const { error } = await admin
         .from("user_subscriptions")
-        .upsert(
-          {
-            user_id: userId,
-            paddle_subscription_id: subscriptionId,
-            paddle_customer_id: customerId,
-            price_id: priceId,
-            status,
-            current_period_ends_at: periodEndsAt,
-            trial_ends_at: trialEndsAt,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
+        .upsert(userSubscriptionRow as Record<string, string | number | null>, {
+          onConflict: "user_id",
+        });
       if (error) {
         console.error("[paddle-webhook] user_subscriptions upsert error:", error);
         return res.status(500).json({ error: "Database error" });
+      }
+      if (isActiveOrTrialing && creditsAllocated > 0) {
+        const { error: allocError } = await admin.rpc("upsert_user_credit_allocation_subscription", {
+          _user_id: userId,
+          _period: periodStr,
+          _credits_limit: creditsAllocated,
+        });
+        if (allocError) {
+          console.error("[paddle-webhook] upsert_user_credit_allocation_subscription error:", allocError);
+        }
       }
     }
   }
