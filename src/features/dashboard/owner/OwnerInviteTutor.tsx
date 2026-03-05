@@ -3,20 +3,83 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, UserPlus, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { useAIUsage } from "@/hooks/useAIUsage";
+import { ArrowLeft, UserPlus, Eye, EyeOff, Copy, FileText } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { passwordSchema } from "@/lib/validation";
 
+type CreatedTutor = {
+  userId: string;
+  email: string;
+  displayName: string;
+  password: string;
+};
+
 export default function OwnerInviteTutor() {
+  const { usage, loading: usageLoading, refetch: refetchUsage } = useAIUsage();
+  const availableCredits = usage?.remainingCredits ?? 0;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [initialCredits, setInitialCredits] = useState("");
+  const [payType, setPayType] = useState<"hourly" | "per_session">("hourly");
+  const [rateAmount, setRateAmount] = useState("");
+  const [rateCurrency, setRateCurrency] = useState("GBP");
+  const [subjects, setSubjects] = useState("");
+  const [initialCredits, setInitialCredits] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [createdTutor, setCreatedTutor] = useState<CreatedTutor | null>(null);
+  const [copying, setCopying] = useState(false);
+
+  useEffect(() => {
+    if (availableCredits < initialCredits) setInitialCredits(availableCredits);
+  }, [availableCredits]);
+
+  const getFormattedDetails = () => {
+    if (!createdTutor) return "";
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    return [
+      "Tutor login details – send this to the tutor securely",
+      "",
+      `Name: ${createdTutor.displayName}`,
+      `Email: ${createdTutor.email}`,
+      `Temporary password: ${createdTutor.password}`,
+      "",
+      `Login URL: ${baseUrl}/auth`,
+      "",
+      "They should sign in and change their password after first login.",
+    ].join("\n");
+  };
+
+  const handleCopyDetails = async () => {
+    const text = getFormattedDetails();
+    if (!text) return;
+    setCopying(true);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Details copied to clipboard");
+    } catch {
+      toast.error("Failed to copy");
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  const handleCreateAnother = () => {
+    setCreatedTutor(null);
+    setEmail("");
+    setPassword("");
+    setFirstName("");
+    setLastName("");
+    setRateAmount("");
+    setSubjects("");
+    setInitialCredits(0);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,27 +106,48 @@ export default function OwnerInviteTutor() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         role: "tutor",
+        payType,
+        rateAmount: rateAmount === "" ? 0 : parseFloat(rateAmount) || 0,
+        rateCurrency: rateCurrency.trim() || "GBP",
+        subjects: subjects
+          .split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
       };
-      const creditsNum = initialCredits.trim() ? parseInt(initialCredits.trim(), 10) : 0;
-      if (Number.isInteger(creditsNum) && creditsNum > 0) body.initialCredits = creditsNum;
+      if (initialCredits > 0) body.initialCredits = initialCredits;
       const res = await fetch("/api/tenant/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         credentials: "include",
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({})) as { message?: string; error?: string; creditsAssigned?: boolean; creditsError?: string; userId?: string };
       if (!res.ok) {
         toast.error(data.error ?? "Failed to create tutor account");
         if (data.error?.toLowerCase().includes("email")) setErrors({ email: data.error });
         return;
       }
       toast.success(data.message ?? "Tutor account created. Share the login details with them.");
-      setEmail("");
-      setPassword("");
-      setFirstName("");
-      setLastName("");
-      setInitialCredits("");
+      if (data.creditsAssigned === false && data.creditsError) {
+        toast.warning(`Credits could not be assigned: ${data.creditsError}`);
+      }
+      void refetchUsage?.();
+      if (data.userId) {
+        setCreatedTutor({
+          userId: data.userId,
+          email: email.trim().toLowerCase(),
+          displayName: `${firstName.trim()} ${lastName.trim()}`,
+          password,
+        });
+      } else {
+        setEmail("");
+        setPassword("");
+        setFirstName("");
+        setLastName("");
+        setRateAmount("");
+        setSubjects("");
+        setInitialCredits(0);
+      }
     } catch {
       toast.error("Failed to create tutor account");
     } finally {
@@ -81,6 +165,35 @@ export default function OwnerInviteTutor() {
           </Link>
         </Button>
 
+        {createdTutor ? (
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <UserPlus className="h-8 w-8 text-primary" />
+              <h1 className="text-xl font-bold">Tutor created</h1>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Share the details below with the tutor. You can copy them to send by email or another channel.
+            </p>
+            <div className="rounded-lg border border-border bg-muted/30 p-4 font-mono text-sm whitespace-pre-wrap break-words">
+              {getFormattedDetails()}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="default" onClick={handleCopyDetails} disabled={copying}>
+                <Copy className="mr-2 h-4 w-4" />
+                {copying ? "Copied!" : "Copy details"}
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href={`/dashboard/owner/contracts/new?tutorId=${createdTutor.userId}`}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Make contract for this tutor
+                </Link>
+              </Button>
+              <Button type="button" variant="secondary" onClick={handleCreateAnother}>
+                Create another tutor
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="rounded-2xl border border-border bg-card p-6">
           <div className="flex items-center gap-3 mb-6">
             <UserPlus className="h-8 w-8 text-primary" />
@@ -148,17 +261,90 @@ export default function OwnerInviteTutor() {
               </div>
               {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="payType">Pay type</Label>
+                <Select value={payType} onValueChange={(v) => setPayType(v as "hourly" | "per_session")}>
+                  <SelectTrigger id="payType" className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hourly">Hourly</SelectItem>
+                    <SelectItem value="per_session">Per session</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="rateAmount">Rate amount</Label>
+                <Input
+                  id="rateAmount"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="0"
+                  value={rateAmount}
+                  onChange={(e) => setRateAmount(e.target.value)}
+                  className="mt-2"
+                />
+              </div>
+            </div>
             <div>
-              <Label htmlFor="initialCredits">Initial AI credits (optional)</Label>
+              <Label htmlFor="rateCurrency">Currency</Label>
               <Input
-                id="initialCredits"
-                type="number"
-                min={0}
-                placeholder="0"
-                value={initialCredits}
-                onChange={(e) => setInitialCredits(e.target.value)}
+                id="rateCurrency"
+                type="text"
+                placeholder="GBP"
+                value={rateCurrency}
+                onChange={(e) => setRateCurrency(e.target.value)}
+                className="mt-2 max-w-[120px]"
+              />
+            </div>
+            <div>
+              <Label htmlFor="subjects">Subjects (comma-separated)</Label>
+              <Input
+                id="subjects"
+                type="text"
+                placeholder="Math, English, Science"
+                value={subjects}
+                onChange={(e) => setSubjects(e.target.value)}
                 className="mt-2"
               />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mt-2">
+                <Label htmlFor="initialCredits">Initial AI credits (optional)</Label>
+                <span className="text-sm text-muted-foreground">
+                  {initialCredits} / {availableCredits} credits
+                </span>
+              </div>
+              <Slider
+                id="initialCredits"
+                min={0}
+                max={availableCredits <= 0 ? 1 : availableCredits}
+                step={1}
+                value={[initialCredits]}
+                onValueChange={([v]) => setInitialCredits(Math.min(v, availableCredits))}
+                disabled={usageLoading || availableCredits === 0}
+                className="mt-2"
+              />
+              {/* Segment bar: filled = assigned, muted = available */}
+              {availableCredits > 0 && (
+              <div className="flex gap-0.5 mt-2" aria-hidden>
+                {Array.from({ length: 20 }).map((_, i) => {
+                  const segmentThreshold = (i + 1) / 20;
+                  const filled = initialCredits / availableCredits >= segmentThreshold;
+                  return (
+                    <div
+                      key={i}
+                      className={`flex-1 min-w-[4px] rounded-sm transition-colors ${
+                        filled ? "bg-primary" : "bg-muted"
+                      }`}
+                      style={{ height: 8 }}
+                    />
+                  );
+                })}
+              </div>
+              )}
               <p className="text-xs text-muted-foreground mt-1">Deduct from workspace pool and assign to this tutor.</p>
             </div>
             <Button type="submit" disabled={creating}>
@@ -166,6 +352,7 @@ export default function OwnerInviteTutor() {
             </Button>
           </form>
         </div>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/admin";
 /**
  * POST: assign credits to a member (body: { memberUserId, credits }).
  * PATCH: update assigned credit limit (body: { memberUserId, creditsLimit }).
- * Caller must be owner or tutor of the workspace.
+ * Only workspace owners can assign or update credits.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST" && req.method !== "PATCH") {
@@ -28,23 +28,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "memberUserId is required" });
   }
 
-  // Resolve caller's workspace (owner or tutor)
   const { data: ownerWs } = await supabaseAdmin
     .from("workspaces")
     .select("id")
     .eq("owner_id", caller.id)
     .limit(1)
     .maybeSingle();
-  const { data: memberRow } = await supabaseAdmin
-    .from("workspace_members")
-    .select("workspace_id")
-    .eq("user_id", caller.id)
-    .limit(1)
-    .maybeSingle();
-
-  const workspaceId = ownerWs?.id ?? memberRow?.workspace_id ?? null;
+  const workspaceId = ownerWs?.id ?? null;
   if (!workspaceId) {
-    return res.status(403).json({ error: "No workspace found" });
+    return res.status(403).json({ error: "Only workspace owners can assign credits" });
   }
 
   if (req.method === "POST") {

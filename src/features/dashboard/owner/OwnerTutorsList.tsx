@@ -2,10 +2,19 @@ import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, UserPlus, Mail, GraduationCap, ChevronRight } from "lucide-react";
 
+const contractStatusLabel: Record<string, string> = {
+  draft: "Draft",
+  pending_signature: "Pending signature",
+  signed: "Signed",
+  change_requested: "Change requested",
+};
+
 export default function OwnerTutorsList() {
-  const { workspace, tutors, assignedStudents, isLoading } = useOwnerWorkspace();
+  const { workspace, tutors, assignedStudents, contractByTutorId, isLoading } = useOwnerWorkspace();
 
   const studentCountByTutor = (assignedStudents as Array<{ tutor_id: string }>).reduce(
     (acc, s) => {
@@ -54,6 +63,7 @@ export default function OwnerTutorsList() {
                   <tr className="border-b border-border bg-muted/30">
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Tutor</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm hidden sm:table-cell">Email</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Contract</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm text-center w-28">Students</th>
                     <th className="w-10 px-2" aria-hidden />
                   </tr>
@@ -63,6 +73,9 @@ export default function OwnerTutorsList() {
                     const studentCount = studentCountByTutor[t.user_id] ?? 0;
                     const name = t.profile?.display_name ?? "Tutor";
                     const email = t.profile?.email ?? "—";
+                    const contract = contractByTutorId.get(t.user_id);
+                    const status = contract?.contract_status ?? "—";
+                    const statusLabel = contractStatusLabel[status] ?? status;
                     return (
                       <tr key={t.id} className="border-b border-border last:border-b-0">
                         <td className="px-4 py-3">
@@ -70,9 +83,10 @@ export default function OwnerTutorsList() {
                             href={`/dashboard/owner/tutors/${t.user_id}`}
                             className="flex items-center gap-3 hover:opacity-80 transition-opacity group"
                           >
-                            <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                              {name[0].toUpperCase()}
-                            </div>
+                            <Avatar className="h-10 w-10 shrink-0">
+                              <AvatarImage src={(t.profile as { avatar_url?: string } | undefined)?.avatar_url} />
+                              <AvatarFallback className="text-primary font-semibold">{name[0].toUpperCase()}</AvatarFallback>
+                            </Avatar>
                             <div>
                               <p className="font-medium text-foreground group-hover:underline">{name}</p>
                               <p className="text-sm text-muted-foreground sm:hidden">{email}</p>
@@ -84,6 +98,11 @@ export default function OwnerTutorsList() {
                             <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
                             {email}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant={status === "signed" ? "default" : status === "change_requested" ? "secondary" : "outline"}>
+                            {statusLabel}
+                          </Badge>
                         </td>
                         <td className="px-4 py-3 text-center">
                           <Link

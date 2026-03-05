@@ -18,6 +18,13 @@ export default function OnboardingBusiness() {
   const [submitting, setSubmitting] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ businessName: "", primarySubjects: "", numTutors: "", numStudents: "" });
+
+  /** Restrict input to digits only (non-negative integers). Used for tutor/student counts. */
+  const handleNumericChange = (field: "numTutors" | "numStudents", value: string) => {
+    const digitsOnly = value.replace(/\D/g, "");
+    setFormData((prev) => ({ ...prev, [field]: digitsOnly }));
+  };
+
   const numTutorsN = formData.numTutors.trim() === "" ? NaN : parseInt(formData.numTutors, 10);
   const numStudentsN = formData.numStudents.trim() === "" ? NaN : parseInt(formData.numStudents, 10);
   const isStep1Valid =
@@ -181,13 +188,18 @@ export default function OnboardingBusiness() {
                     id="numTutors"
                     type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     value={formData.numTutors}
-                    onChange={(e) => setFormData({ ...formData, numTutors: e.target.value })}
+                    onChange={(e) => handleNumericChange("numTutors", e.target.value)}
                     placeholder="e.g. 5"
                     className="rounded-xl"
                     required
                     min={0}
+                    aria-describedby="numTutors-desc"
                   />
+                  <p id="numTutors-desc" className="text-xs text-muted-foreground">
+                    Used to tailor your workspace and recommend the right plan. Enter digits only.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="numStudents">Approx. number of students <span className="text-destructive">*</span></Label>
@@ -195,13 +207,16 @@ export default function OnboardingBusiness() {
                     id="numStudents"
                     type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     value={formData.numStudents}
-                    onChange={(e) => setFormData({ ...formData, numStudents: e.target.value })}
+                    onChange={(e) => handleNumericChange("numStudents", e.target.value)}
                     placeholder="e.g. 50"
                     className="rounded-xl"
                     required
                     min={0}
+                    aria-describedby="numStudents-desc"
                   />
+                 
                 </div>
               </div>
             </div>

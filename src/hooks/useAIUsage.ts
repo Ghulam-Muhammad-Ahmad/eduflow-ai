@@ -31,24 +31,27 @@ export const useAIUsage = () => {
 
       if (error) throw error;
 
+      // get_credit_context returns TABLE → array of rows; use first row
       const row = Array.isArray(data) ? data[0] : data;
-      if (row && typeof row === 'object') {
-        const limit = Number(row.credits_limit) || 0;
-        const used = Number(row.credits_used) || 0;
-        const remaining = Number(row.remaining) ?? Math.max(0, limit - used);
-        const percentage = limit > 0 ? (used / limit) * 100 : 0;
+      const limit = row && typeof row === 'object' ? Number(row.credits_limit) || 0 : 0;
+      const used = row && typeof row === 'object' ? Number(row.credits_used) || 0 : 0;
+      const rawRemaining = row && typeof row === 'object' ? (row as { remaining?: number }).remaining : undefined;
+      const remaining =
+        typeof rawRemaining === 'number' && Number.isFinite(rawRemaining)
+          ? rawRemaining
+          : Math.max(0, limit - used);
+      const percentage = limit > 0 ? (used / limit) * 100 : 0;
 
-        setUsage({
-          current: used,
-          current_usage: used,
-          limit,
-          remaining,
-          percentage,
-          currentCredits: used,
-          limitCredits: limit,
-          remainingCredits: remaining,
-        });
-      }
+      setUsage({
+        current: used,
+        current_usage: used,
+        limit,
+        remaining,
+        percentage,
+        currentCredits: used,
+        limitCredits: limit,
+        remainingCredits: remaining,
+      });
     } catch (error) {
       console.error('Error fetching AI usage:', error);
     } finally {

@@ -56,7 +56,7 @@ const RoleSection = () => {
             </div>
 
             <Button variant="hero" size="lg" asChild>
-              <a href="/auth/register?accountType=solo_tutor">Start Tutoring Smarter</a>
+              <a href="/auth/register">Get started</a>
             </Button>
           </div>
 
@@ -163,7 +163,7 @@ const RoleSection = () => {
             </div>
 
             <Button variant="premium" size="lg" asChild>
-              <a href="/auth/register?accountType=student">Start Learning Today</a>
+              <a href="/auth/register">Get started</a>
             </Button>
           </div>
         </div>

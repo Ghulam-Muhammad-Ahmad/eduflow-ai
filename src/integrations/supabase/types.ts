@@ -434,6 +434,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           created_at: string
           display_name: string | null
           email: string | null
@@ -445,6 +446,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -456,6 +458,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -464,6 +467,63 @@ export type Database = {
           user_id?: string
           account_type?: "business" | "solo_tutor" | "student" | null
           onboarding_completed_at?: string | null
+        }
+        Relationships: []
+      }
+      tutor_contracts: {
+        Row: {
+          id: string
+          workspace_id: string
+          tutor_id: string
+          contract_status: string
+          pay_type: string
+          rate_amount: number
+          rate_currency: string
+          subjects: Json
+          contract_body_text: string | null
+          contract_storage_path: string | null
+          contract_signed_at: string | null
+          tutor_signature_name: string | null
+          change_requested_at: string | null
+          change_request_note: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          tutor_id: string
+          contract_status?: string
+          pay_type?: string
+          rate_amount?: number
+          rate_currency?: string
+          subjects?: Json
+          contract_body_text?: string | null
+          contract_storage_path?: string | null
+          contract_signed_at?: string | null
+          tutor_signature_name?: string | null
+          change_requested_at?: string | null
+          change_request_note?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          tutor_id?: string
+          contract_status?: string
+          pay_type?: string
+          rate_amount?: number
+          rate_currency?: string
+          subjects?: Json
+          contract_body_text?: string | null
+          contract_storage_path?: string | null
+          contract_signed_at?: string | null
+          tutor_signature_name?: string | null
+          change_requested_at?: string | null
+          change_request_note?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

@@ -14,11 +14,18 @@ const bodySchema = {
   role: (v: unknown): v is CreateUserRole => v === "tutor" || v === "student",
   tutorId: (v: unknown) => v === undefined || (typeof v === "string" && v.length > 0),
   initialCredits: (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0) || (typeof v === "string" && /^\d+$/.test(v)),
+  payType: (v: unknown) => v === undefined || v === "hourly" || v === "per_session",
+  rateAmount: (v: unknown) => v === undefined || (typeof v === "number" && v >= 0) || (typeof v === "string" && /^\d+(\.\d+)?$/.test(v)),
+  rateCurrency: (v: unknown) => v === undefined || (typeof v === "string" && v.trim().length <= 10),
+  subjects: (v: unknown) =>
+    v === undefined ||
+    (Array.isArray(v) && v.every((s) => typeof s === "string")) ||
+    (typeof v === "string" && (v === "" || v.trim().length >= 0)),
 };
 
 /**
- * Tenant-style account creation: owner can create tutors and students;
- * tutor can create students only. Email is unique system-wide (enforced by Supabase Auth).
+ * Tenant-style account creation: only workspace owners can create tutors and students.
+ * Email is unique system-wide (enforced by Supabase Auth).
  * Creates auth user + profile + user_roles + workspace_members (tutor) or tutor_student_assignments (student).
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,6 +51,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     role?: unknown;
     tutorId?: unknown;
     initialCredits?: unknown;
+    payType?: unknown;
+    rateAmount?: unknown;
+    rateCurrency?: unknown;
+    subjects?: unknown;
   };
 
   if (
@@ -68,6 +79,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const initialCredits = bodySchema.initialCredits(body.initialCredits)
     ? (typeof body.initialCredits === "number" ? body.initialCredits : parseInt(String(body.initialCredits), 10))
     : 0;
+  const payType = bodySchema.payType(body.payType) ? (body.payType as "hourly" | "per_session") ?? "hourly" : "hourly";
+  const rateAmount = bodySchema.rateAmount(body.rateAmount)
+    ? typeof body.rateAmount === "number"
+      ? body.rateAmount
+      : parseFloat(String(body.rateAmount || 0))
+    : 0;
+  const rateCurrency = (bodySchema.rateCurrency(body.rateCurrency) ? (body.rateCurrency as string)?.trim() : null) || "GBP";
+  const subjectsRaw = body.subjects;
+  const subjects: string[] = Array.isArray(subjectsRaw)
+    ? (subjectsRaw as string[]).filter((s) => typeof s === "string")
+    : typeof subjectsRaw === "string"
+      ? subjectsRaw
+        .split(/[,;]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+      : [];
 
   // Resolve caller role and workspace
   const { data: roleRow } = await supabaseAdmin
@@ -78,68 +105,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const callerRole = roleRow?.role as AppRole | undefined;
 
-  if (!callerRole || (callerRole !== "admin" && callerRole !== "teacher")) {
-    return res.status(403).json({ error: "Only workspace owners and tutors can create accounts" });
+  if (callerRole !== "admin") {
+    return res.status(403).json({ error: "Only workspace owners can create tutors and students" });
   }
 
-  if (callerRole === "teacher" && role !== "student") {
-    return res.status(403).json({ error: "Tutors can only create student accounts" });
+  const { data: workspace, error: wsErr } = await supabaseAdmin
+    .from("workspaces")
+    .select("id")
+    .eq("owner_id", caller.id)
+    .limit(1)
+    .maybeSingle();
+  if (wsErr || !workspace) {
+    return res.status(403).json({ error: "No workspace found for owner" });
   }
-
-  let workspaceId: string;
+  const workspaceId = workspace.id;
   let assignmentTutorId: string;
-
-  if (callerRole === "admin") {
-    const { data: workspace, error: wsErr } = await supabaseAdmin
-      .from("workspaces")
-      .select("id")
-      .eq("owner_id", caller.id)
-      .limit(1)
-      .maybeSingle();
-    if (wsErr || !workspace) {
-      return res.status(403).json({ error: "No workspace found for owner" });
+  if (role === "student") {
+    if (!tutorId) {
+      return res.status(400).json({
+        error: "When creating a student, tutorId is required so the student is assigned to a tutor.",
+      });
     }
-    workspaceId = workspace.id;
-    if (role === "student") {
-      if (!tutorId) {
-        return res.status(400).json({
-          error: "When creating a student, tutorId is required so the student is assigned to a tutor.",
-        });
-      }
-      const { data: tutorMember } = await supabaseAdmin
-        .from("workspace_members")
-        .select("user_id")
-        .eq("workspace_id", workspaceId)
-        .eq("user_id", tutorId)
-        .eq("role", "tutor")
-        .maybeSingle();
-      if (!tutorMember) {
-        return res.status(400).json({ error: "Selected tutor is not in this workspace" });
-      }
-      assignmentTutorId = tutorId;
-    } else {
-      assignmentTutorId = ""; // unused for tutor
-    }
-  } else {
-    const { data: member, error: memberErr } = await supabaseAdmin
+    const { data: tutorMember } = await supabaseAdmin
       .from("workspace_members")
-      .select("workspace_id")
-      .eq("user_id", caller.id)
-      .limit(1)
+      .select("user_id")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", tutorId)
+      .eq("role", "tutor")
       .maybeSingle();
-    if (memberErr || !member) {
-      return res.status(403).json({ error: "You are not in a workspace" });
+    if (!tutorMember) {
+      return res.status(400).json({ error: "Selected tutor is not in this workspace" });
     }
-    workspaceId = member.workspace_id;
-    assignmentTutorId = caller.id;
+    assignmentTutorId = tutorId;
+  } else {
+    assignmentTutorId = ""; // unused for tutor
   }
 
-  // Create auth user (email is unique globally in auth.users)
+  const appRole: AppRole = role === "tutor" ? "teacher" : "student";
+  // Create auth user; trigger will create user_roles from user_metadata.role
   const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: { display_name: displayName },
+    user_metadata: { display_name: displayName, role: appRole },
   });
 
   if (createError) {
@@ -156,18 +164,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "User created but id missing" });
   }
 
-  const appRole: AppRole = role === "tutor" ? "teacher" : "student";
   const accountType = role === "tutor" ? "solo_tutor" : "student";
-
-  const { error: roleErr } = await supabaseAdmin.from("user_roles").insert({
-    user_id: newUserId,
-    role: appRole,
-  });
-  if (roleErr) {
-    console.error("[tenant/create-user] user_roles insert:", roleErr);
-    return res.status(500).json({ error: "Failed to set role" });
-  }
-
   const now = new Date().toISOString();
   const { error: profileErr } = await supabaseAdmin
     .from("profiles")
@@ -207,6 +204,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error("[tenant/create-user] workspace_members insert:", memberErr);
       return res.status(500).json({ error: "Failed to add tutor to workspace" });
     }
+    const { error: contractErr } = await supabaseAdmin.from("tutor_contracts").insert({
+      workspace_id: workspaceId,
+      tutor_id: newUserId,
+      contract_status: "draft",
+      pay_type: payType,
+      rate_amount: rateAmount,
+      rate_currency: rateCurrency,
+      subjects: subjects.length ? subjects : [],
+    });
+    if (contractErr) {
+      console.error("[tenant/create-user] tutor_contracts insert:", contractErr);
+      return res.status(500).json({ error: "Failed to create tutor contract record" });
+    }
   } else {
     const { error: assignErr } = await supabaseAdmin.from("tutor_student_assignments").insert({
       workspace_id: workspaceId,
@@ -219,8 +229,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  let creditsAssigned = true;
+  let creditsError: string | undefined;
+
   if (initialCredits > 0) {
-    // Assign credits from workspace pool to the new member (tutor or student)
     const { data: assignData, error: creditErr } = await supabaseAdmin.rpc("assign_credits_to_member", {
       _workspace_id: workspaceId,
       _member_user_id: newUserId,
@@ -229,20 +241,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     if (creditErr) {
       console.error("[tenant/create-user] assign_credits_to_member error:", creditErr);
-    }
-    const assignOk = (assignData as { ok?: boolean })?.ok;
-    if (!assignOk && creditErr) {
-      return res.status(200).json({
-        success: true,
-        userId: newUserId,
-        email,
-        role,
-        message:
-          role === "tutor"
-            ? "Tutor account created. Share the login details with them."
-            : "Student account created. Share the login details with them.",
-        warning: "Account created but initial credits could not be assigned. You can assign credits from the member profile.",
-      });
+      creditsAssigned = false;
+      creditsError = creditErr.message ?? "Failed to deduct credits from workspace pool.";
+    } else {
+      const result = assignData as { ok?: boolean; error?: string } | null;
+      if (!result?.ok) {
+        creditsAssigned = false;
+        creditsError = result?.error ?? "Insufficient credits in workspace pool or pool not set up.";
+      }
     }
   }
 
@@ -255,5 +261,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       role === "tutor"
         ? "Tutor account created. Share the login details with them."
         : "Student account created. Share the login details with them.",
+    creditsAssigned,
+    ...(creditsError && { creditsError }),
   });
 }

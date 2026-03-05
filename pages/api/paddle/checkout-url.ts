@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getAuthUser } from "@/integrations/supabase/server";
+import { supabaseAdmin } from "@/integrations/supabase/admin";
 
 const PADDLE_API_BASE =
   process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
@@ -7,12 +9,31 @@ const PADDLE_API_BASE =
 
 /**
  * Creates a Paddle transaction and returns the checkout URL.
- * Frontend redirects to this URL for full-page checkout (no overlay).
+ * Only workspace owners can start checkout; workspaceId in customData must be owned by the caller.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const { user: caller, error: authError } = await getAuthUser(req, res);
+  if (authError || !caller) {
+    return res.status(401).json({ error: authError?.message ?? "Unauthorized" });
+  }
+
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: "Server configuration error" });
+  }
+
+  const { data: roleRow } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", caller.id)
+    .maybeSingle();
+  const role = roleRow?.role;
+  if (role !== "admin") {
+    return res.status(403).json({ error: "Only workspace owners can start checkout" });
   }
 
   const apiKey = process.env.PADDLE_API_KEY?.trim();
@@ -31,11 +52,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "priceId is required" });
   }
 
-  // Use Paddle's default payment link (set in Dashboard → Checkout → Checkout settings).
-  // Passing a custom URL requires the domain to be approved; null avoids "domain not approved" errors.
+  const customData = body.customData ?? {};
+  const workspaceId = customData.workspaceId ?? customData.workspace_id ?? null;
+  if (workspaceId) {
+    const { data: workspace } = await supabaseAdmin
+      .from("workspaces")
+      .select("id")
+      .eq("id", workspaceId)
+      .eq("owner_id", caller.id)
+      .maybeSingle();
+    if (!workspace) {
+      return res.status(403).json({ error: "Workspace not found or you are not the owner" });
+    }
+  }
+
   const payload = {
     items: [{ price_id: priceId, quantity: 1 }],
-    custom_data: body.customData ?? {},
+    custom_data: customData,
     collection_mode: "automatic" as const,
     checkout: {
       url: null,

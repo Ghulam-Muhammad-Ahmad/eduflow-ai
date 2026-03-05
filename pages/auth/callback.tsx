@@ -25,8 +25,8 @@ export default function AuthCallback() {
             .eq("user_id", session.user.id)
             .maybeSingle();
           const role = roleRow?.role;
-          if (!role && session.user.app_metadata?.provider) {
-            router.replace("/auth/choose-account-type");
+          if (!role) {
+            router.replace("/onboarding/business");
             return;
           }
           if (role === "teacher") router.replace("/dashboard/teacher");

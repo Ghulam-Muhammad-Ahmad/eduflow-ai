@@ -11,7 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { AppRole, AccountType } from "@/types/auth";
 import { strongPasswordSchema } from "@/lib/validation";
 
 const signUpSchema = z.object({
@@ -19,27 +18,7 @@ const signUpSchema = z.object({
   password: strongPasswordSchema,
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  role: z.enum(["teacher", "student"]).optional(),
-  accountType: z.enum(["business", "solo_tutor", "student"]).optional(),
-}).refine((d) => d.accountType != null || d.role != null, { message: "Choose how you'll use the platform", path: ["accountType"] });
-
-function getDashboardPathForRole(role: AppRole): string {
-  if (role === "student") return "/dashboard/student";
-  if (role === "admin") return "/dashboard/owner";
-  return "/dashboard/teacher";
-}
-
-function getOnboardingPathForAccountType(accountType: AccountType): string {
-  if (accountType === "business") return "/onboarding/business";
-  if (accountType === "solo_tutor") return "/onboarding/solo";
-  return "/onboarding/student";
-}
-
-const ACCOUNT_TYPES: { value: AccountType; label: string; description: string }[] = [
-  { value: "business", label: "Tutoring Business", description: "Manage tutors & students" },
-  { value: "solo_tutor", label: "Solo Tutor", description: "One tutor, your students" },
-  { value: "student", label: "Student", description: "Self-study only" },
-];
+});
 
 export default function Register() {
   const router = useRouter();
@@ -50,41 +29,31 @@ export default function Register() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [authSuccess, setAuthSuccess] = useState(false);
 
-  const accountTypeFromQuery = (router.query.accountType as AccountType) || null;
-  const effectiveAccountType = accountTypeFromQuery && ACCOUNT_TYPES.some((a) => a.value === accountTypeFromQuery) ? accountTypeFromQuery : null;
-
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     firstName: "",
     lastName: "",
-    role: "teacher" as AppRole,
-    accountType: null as AccountType | null,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (effectiveAccountType) {
-      setFormData((prev) => ({ ...prev, accountType: effectiveAccountType }));
-    }
-  }, [effectiveAccountType]);
-
-  useEffect(() => {
     if (authLoading || !user) return;
     if (authSuccess) return;
     if (role && profile && !subLoading) {
-      const at = profile.account_type;
       const completed = profile.onboarding_completed_at;
-      if (at && !completed) {
-        router.push(getOnboardingPathForAccountType(at));
+      if (!completed) {
+        router.push("/onboarding/business");
         return;
       }
       if (!hasSubscription) {
         router.replace("/select-plan");
         return;
       }
-      router.push(getDashboardPathForRole(role));
+      if (role === "admin") router.push("/dashboard/owner");
+      else if (role === "teacher") router.push("/dashboard/teacher");
+      else router.push("/dashboard/student");
     }
   }, [user, role, profile, authLoading, authSuccess, subLoading, hasSubscription, router]);
 
@@ -114,12 +83,11 @@ export default function Register() {
       }
 
       const displayName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
-      const accountType: AccountType | AppRole = formData.accountType ?? (formData.role === "student" ? "student" : "solo_tutor");
       const { error } = await signUp(
         formData.email,
         formData.password,
         displayName,
-        accountType
+        "business"
       );
       if (error) {
         toast.error(error.message || "Failed to sign up");
@@ -128,10 +96,7 @@ export default function Register() {
 
       toast.success("Account created successfully!");
       setAuthSuccess(true);
-      const path = typeof accountType === "string" && (accountType === "business" || accountType === "solo_tutor" || accountType === "student")
-        ? getOnboardingPathForAccountType(accountType)
-        : getDashboardPathForRole(accountType as AppRole);
-      router.push(path);
+      router.push("/onboarding/business");
     } catch (error: unknown) {
       toast.error((error as Error)?.message || "An error occurred");
     } finally {
@@ -249,39 +214,6 @@ export default function Register() {
                 />
                 {errors.lastName && <p className="text-xs text-destructive">{errors.lastName}</p>}
               </div>
-            </div>
-
-            {/* What are you here for? - rewritten as single checkboxes */}
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold text-foreground">
-                What are you here for?
-              </h2>
-              <div className="flex gap-2">
-                {ACCOUNT_TYPES.map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={`flex items-start gap-3 rounded-lg border border-border px-3 py-3 cursor-pointer transition-colors bg-card hover:bg-primary/10 relative w-full ${formData.accountType === opt.value ? 'border-primary' : ''}`}
-                  >
-                    <Checkbox
-                      checked={formData.accountType === opt.value}
-                      onCheckedChange={(checked) => {
-                        setFormData({
-                          ...formData,
-                          accountType: checked ? opt.value : null,
-                          role: opt.value === "student" ? "student" : "teacher",
-                        });
-                      }}
-                      className="mt-[2px] rounded border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary absolute right-2 top-2"
-                      id={`accountType-${opt.value}`}
-                    />
-                    <div>
-                      <span className="font-medium text-sm text-foreground">{opt.label}</span>
-                      <span className="text-xs block text-muted-foreground mt-0.5">{opt.description}</span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              {errors.accountType && <p className="text-xs text-destructive">{errors.accountType}</p>}
             </div>
 
             <div className="space-y-2">

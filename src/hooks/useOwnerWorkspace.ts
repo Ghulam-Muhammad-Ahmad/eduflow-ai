@@ -18,7 +18,24 @@ export type WorkspaceMemberRow = {
   user_id: string;
   role: "owner" | "tutor";
   created_at: string;
-  profile?: { display_name: string | null; email: string | null };
+  profile?: { display_name: string | null; email: string | null; avatar_url?: string | null; bio?: string | null };
+};
+
+export type TutorContractRow = {
+  id: string;
+  workspace_id: string;
+  tutor_id: string;
+  contract_status: string;
+  pay_type: string;
+  rate_amount: number;
+  rate_currency: string;
+  subjects: unknown;
+  contract_body_text: string | null;
+  contract_storage_path: string | null;
+  contract_signed_at: string | null;
+  tutor_signature_name: string | null;
+  change_requested_at: string | null;
+  change_request_note: string | null;
 };
 
 /** Current user's workspace as owner (first one). Used only when role is admin. */
@@ -63,10 +80,11 @@ export function useOwnerWorkspace() {
         .eq("role", "tutor");
       if (error) throw error;
       if (!rows?.length) return [];
+      const userIds = rows.map((r) => r.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email")
-        .in("user_id", rows.map((r) => r.user_id));
+        .select("user_id, display_name, email, avatar_url, bio")
+        .in("user_id", userIds);
       const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
       return rows.map((r) => ({
         ...r,
@@ -75,6 +93,26 @@ export function useOwnerWorkspace() {
     },
     enabled: !!workspaceId,
   });
+
+  /** Tutor contracts for this workspace (tutor_id -> contract) */
+  const {
+    data: tutorContracts = [],
+    isLoading: contractsLoading,
+  } = useQuery({
+    queryKey: ["owner-workspace-contracts", workspaceId],
+    queryFn: async (): Promise<TutorContractRow[]> => {
+      if (!workspaceId) return [];
+      const { data, error } = await supabase
+        .from("tutor_contracts")
+        .select("*")
+        .eq("workspace_id", workspaceId);
+      if (error) throw error;
+      return (data ?? []) as TutorContractRow[];
+    },
+    enabled: !!workspaceId,
+  });
+
+  const contractByTutorId = new Map(tutorContracts.map((c) => [c.tutor_id, c]));
 
   /** All member user ids (owner + tutors) for this workspace */
   const memberUserIds = workspace
@@ -233,9 +271,12 @@ export function useOwnerWorkspace() {
     documents,
     stats,
     memberUserIds,
+    tutorContracts,
+    contractByTutorId,
     isLoading:
       workspaceLoading ||
       tutorsLoading ||
+      contractsLoading ||
       studentsLoading ||
       classroomsLoading ||
       assignmentsLoading ||

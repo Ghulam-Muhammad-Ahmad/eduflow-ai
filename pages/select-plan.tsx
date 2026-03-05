@@ -4,21 +4,6 @@ import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasActiveSubscription, useBillingWorkspaceId } from "@/hooks/useSubscription";
 import { BillingPlans } from "@/components/billing/BillingPlans";
-import type { AppRole } from "@/types/auth";
-import type { PlanLine } from "@/lib/billing";
-
-const ROLE_TO_PLAN_LINE: Record<AppRole, PlanLine> = {
-  admin: "business",
-  teacher: "tutor",
-  student: "student",
-};
-
-const ROLE_TO_ONBOARDING: Record<AppRole, string> = {
-  admin: "/onboarding/business",
-  teacher: "/onboarding/solo",
-  student: "/onboarding/student",
-};
-
 export default function SelectPlanPage() {
   const router = useRouter();
   const { user, role, profile, loading: authLoading } = useAuth();
@@ -32,22 +17,25 @@ export default function SelectPlanPage() {
       return;
     }
     if (!role) {
-      router.replace("/auth/choose-account-type");
+      router.replace("/onboarding/business");
       return;
     }
-    if (hasAccess) {
-      if (role === "admin") router.replace("/dashboard/owner");
-      else if (role === "teacher") router.replace("/dashboard/teacher");
+    if (role !== "admin") {
+      if (role === "teacher") router.replace("/dashboard/teacher");
       else router.replace("/dashboard/student");
       return;
     }
-    if (role !== "student" && !workspaceId && profile?.onboarding_completed_at == null) {
-      router.replace(ROLE_TO_ONBOARDING[role]);
+    if (hasAccess) {
+      router.replace("/dashboard/owner");
+      return;
+    }
+    if (!workspaceId && profile?.onboarding_completed_at == null) {
+      router.replace("/onboarding/business");
       return;
     }
   }, [user, role, profile, authLoading, hasAccess, workspaceId, router]);
 
-  if (authLoading || !user || !role || subLoading) {
+  if (authLoading || !user || role !== "admin" || subLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -57,7 +45,6 @@ export default function SelectPlanPage() {
 
   if (hasAccess) return null;
 
-  const planLine = ROLE_TO_PLAN_LINE[role];
   const successUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/select-plan?success=1`;
 
   return (
@@ -75,8 +62,8 @@ export default function SelectPlanPage() {
           </div>
         </div>
         <BillingPlans
-          planLine={planLine}
-          workspaceId={role === "student" ? null : workspaceId}
+          planLine="business"
+          workspaceId={workspaceId}
           userId={user.id}
           successUrl={successUrl}
         />

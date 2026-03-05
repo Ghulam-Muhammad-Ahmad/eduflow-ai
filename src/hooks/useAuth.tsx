@@ -14,6 +14,7 @@ function devAgentLog(_path: string, _data: unknown) {
 interface UserProfile {
   display_name: string | null;
   avatar_url: string | null;
+  bio: string | null;
   account_type: AccountType | null;
   onboarding_completed_at: string | null;
 }
@@ -35,6 +36,7 @@ interface AuthContextType {
   updateProfile: (displayName: string) => Promise<{ error: Error | null }>;
   updateEmail: (newEmail: string) => Promise<{ error: Error | null }>;
   updateAvatar: (avatarUrl: string) => Promise<{ error: Error | null }>;
+  updateBio: (bio: string | null) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   completeOnboarding: () => Promise<{ error: Error | null }>;
 }
@@ -72,7 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("display_name, avatar_url, account_type, onboarding_completed_at")
+        .select("display_name, avatar_url, bio, account_type, onboarding_completed_at")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -86,6 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return {
         display_name: raw.display_name ?? null,
         avatar_url: raw.avatar_url ?? null,
+        bio: raw.bio ?? null,
         account_type: (raw.account_type as AccountType) ?? null,
         onboarding_completed_at: raw.onboarding_completed_at ?? null,
       };
@@ -104,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       { onConflict: "user_id" }
     );
     if (profileError) console.error("Error upserting OAuth profile:", profileError);
-    else setProfile((prev) => ({ display_name: displayName, avatar_url: avatarUrl, account_type: prev?.account_type ?? null, onboarding_completed_at: prev?.onboarding_completed_at ?? null }));
+    else setProfile((prev) => ({ display_name: displayName, avatar_url: avatarUrl, bio: prev?.bio ?? null, account_type: prev?.account_type ?? null, onboarding_completed_at: prev?.onboarding_completed_at ?? null }));
   };
 
   const setRoleForOAuthUser = async (selectedRole: AppRole) => {
@@ -170,6 +173,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                       session.user.user_metadata?.avatar_url ||
                       session.user.user_metadata?.picture ||
                       null,
+                    bio: null,
                     account_type: null,
                     onboarding_completed_at: null,
                   }
@@ -208,6 +212,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   session.user.user_metadata?.avatar_url ||
                   session.user.user_metadata?.picture ||
                   null,
+                bio: null,
                 account_type: null,
                 onboarding_completed_at: null,
               }
@@ -260,6 +265,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           emailRedirectTo: redirectUrl,
           data: {
             display_name: displayName,
+            role: selectedRole,
           },
         },
       });
@@ -288,55 +294,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // #endregion
 
       if (data.user) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        // #region agent log
-        devAgentLog(
-          "c33afbad-741d-479c-95b3-1a38165830f0",
-          {
-            sessionId: "debug-session",
-            runId: "pre-fix",
-            hypothesisId: "B",
-            location: "useAuth.tsx:106",
-            message: "pre user_roles insert",
-            data: {
-              targetUserId: data.user.id,
-              sessionUserId: sessionData.session?.user?.id ?? null,
-              selectedRole,
-            },
-            timestamp: Date.now(),
-          }
-        );
-        // #endregion
-        // Create user role
-        const { error: roleError } = await supabase.from("user_roles").insert({
-          user_id: data.user.id,
-          role: selectedRole,
-        });
-
-        // #region agent log
-        devAgentLog(
-          "c33afbad-741d-479c-95b3-1a38165830f0",
-          {
-            sessionId: "debug-session",
-            runId: "pre-fix",
-            hypothesisId: "C",
-            location: "useAuth.tsx:112",
-            message: "user_roles insert result",
-            data: {
-              hasRoleError: Boolean(roleError),
-              roleErrorCode: roleError?.code ?? null,
-              roleErrorMessage: roleError?.message ?? null,
-            },
-            timestamp: Date.now(),
-          }
-        );
-        // #endregion
-
-        if (roleError) {
-          console.error("Error creating role:", roleError);
-          throw roleError;
-        }
-
+        // user_roles row is created by handle_new_user trigger (from options.data.role); no client insert needed (avoids RLS when session is null after signup)
         // Update profile with display name and optional account_type (onboarding_completed_at set by onboarding)
         const profileUpdate: { display_name: string; account_type?: AccountType; updated_at: string } = {
           display_name: displayName,
@@ -357,6 +315,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           ...prev,
           display_name: displayName,
           avatar_url: prev?.avatar_url ?? null,
+          bio: prev?.bio ?? null,
           account_type: accountType ?? prev?.account_type ?? null,
           onboarding_completed_at: prev?.onboarding_completed_at ?? null,
         }));
@@ -475,6 +434,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile((prev) => ({
         display_name: displayName,
         avatar_url: prev?.avatar_url ?? null,
+        bio: prev?.bio ?? null,
         account_type: prev?.account_type ?? null,
         onboarding_completed_at: prev?.onboarding_completed_at ?? null,
       }));
@@ -512,9 +472,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile((prev) => ({
         display_name: prev?.display_name ?? null,
         avatar_url: avatarUrl,
+        bio: prev?.bio ?? null,
         account_type: prev?.account_type ?? null,
         onboarding_completed_at: prev?.onboarding_completed_at ?? null,
       }));
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const updateBio = async (bio: string | null) => {
+    try {
+      if (!user) throw new Error("No user logged in");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ bio: bio ?? null, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setProfile((prev) => (prev ? { ...prev, bio: bio ?? null } : null));
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -561,6 +537,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         updateProfile,
         updateEmail,
         updateAvatar,
+        updateBio,
         refreshProfile,
         completeOnboarding,
       }}

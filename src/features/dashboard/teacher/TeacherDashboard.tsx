@@ -9,8 +9,6 @@ import {
   ClipboardCheck,
   Brain,
   Users,
-  School,
-  UserPlus,
   HelpCircle,
   Clock,
   CheckCircle2,
@@ -34,9 +32,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
-import { useTutorOnboardingStats } from "@/hooks/useTutorOnboardingStats";
 import { useTeacherDashboardStats } from "@/hooks/useTeacherDashboardStats";
-import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 
 const chartColors = {
   primary: "hsl(var(--primary))",
@@ -50,7 +46,6 @@ const TeacherDashboard = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { fetchTeacherQuizzes } = useQuizzes();
-  const { classroomsCount, assignmentsCount, enrollmentsCount } = useTutorOnboardingStats();
   const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats();
   const [recentQuizzes, setRecentQuizzes] = useState<Quiz[]>([]);
   const [quizzesLoading, setQuizzesLoading] = useState(false);
@@ -71,32 +66,6 @@ const TeacherDashboard = () => {
   useEffect(() => {
     loadQuizzes();
   }, [loadQuizzes]);
-
-  const displayName = user?.user_metadata?.display_name ?? user?.email?.split("@")[0] ?? "Tutor";
-
-  const tutorChecklistItems = [
-    {
-      label: "Create your first classroom",
-      description: "Set up a class to organize students and materials.",
-      done: classroomsCount >= 1,
-      href: "/dashboard/teacher/classrooms",
-      icon: School,
-    },
-    {
-      label: "Invite or add a student to a class",
-      description: "Add students to your classroom to assign work.",
-      done: enrollmentsCount >= 1,
-      href: "/dashboard/teacher/classrooms",
-      icon: UserPlus,
-    },
-    {
-      label: "Create your first assignment",
-      description: "Create an assignment and share it with your class.",
-      done: assignmentsCount >= 1,
-      href: "/dashboard/teacher/assignments",
-      icon: ClipboardCheck,
-    },
-  ];
 
   const getStatusVariant = (status: string) => {
     const v: Record<string, "live" | "neutral" | "default" | "secondary"> = {
@@ -135,13 +104,6 @@ const TeacherDashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <OnboardingChecklist
-          userName={displayName}
-          instructionText="Complete all steps to get the most out of your tutor dashboard."
-          items={tutorChecklistItems}
-          hideWhenComplete
-        />
-
         {/* Stats – 2 per row */}
         <section>
           <h2 className="sr-only">Overview</h2>

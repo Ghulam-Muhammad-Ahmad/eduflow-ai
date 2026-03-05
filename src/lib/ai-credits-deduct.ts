@@ -7,10 +7,9 @@ import { createClient } from "@supabase/supabase-js";
 import type { AITaskType } from "@/types/ai";
 import { getCreditWeight } from "./ai-credits";
 
-export interface DeductCreditsResult {
-  status: 402;
-  body: { error: string };
-} | null;
+export type DeductCreditsResult =
+  | { status: 402; body: { error: string } }
+  | null;
 
 /**
  * Deduct credits for the given user and task type. Uses env-based weight.

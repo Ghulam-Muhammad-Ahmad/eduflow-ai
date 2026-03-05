@@ -4,8 +4,7 @@ import { useTutorStudents, useTutorWorkspace } from "@/hooks/useTutorWorkspace";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Link from "next/link";
-import { Users, School, Mail, UserPlus } from "lucide-react";
+import { Users, School, Mail } from "lucide-react";
 
 const TeacherStudentsList = () => {
   const router = useRouter();
@@ -15,21 +14,13 @@ const TeacherStudentsList = () => {
   return (
     <DashboardLayout role="teacher">
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-foreground">My Students</h1>
-            <p className="text-muted-foreground mt-1">
-              {isBusinessTutor
-                ? "Students assigned to you. Create accounts for them or they can join via class code."
-                : "Students enrolled in your classrooms. Create accounts or share a class join code."}
-            </p>
-          </div>
-          <Button variant="outline" asChild>
-            <Link href="/dashboard/teacher/students/create">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Create student account
-            </Link>
-          </Button>
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold text-foreground">My Students</h1>
+          <p className="text-muted-foreground mt-1">
+            {isBusinessTutor
+              ? "Students assigned to you by your workspace owner. They can also join your classes via join code."
+              : "Students enrolled in your classrooms. Your workspace owner adds students; you can share a class join code."}
+          </p>
         </div>
 
         {isLoading && (
@@ -54,21 +45,13 @@ const TeacherStudentsList = () => {
               <h3 className="text-lg font-semibold mb-2">No students yet</h3>
               <p className="text-muted-foreground text-center mb-6 max-w-sm">
                 {isBusinessTutor
-                  ? "Create student accounts and share login details, or your owner can assign students to you."
-                  : "Create student accounts or create a classroom and share the join code."}
+                  ? "Students are added by your workspace owner. They can assign students to you. You can also create a classroom and share the join code."
+                  : "Your workspace owner adds students. Create a classroom and share the join code so students can join."}
               </p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                <Button asChild className="gap-2">
-                  <Link href="/dashboard/teacher/students/create">
-                    <UserPlus className="w-4 h-4" />
-                    Create student account
-                  </Link>
-                </Button>
-                <Button variant="outline" onClick={() => router.push("/dashboard/teacher/classrooms")} className="gap-2">
-                  <School className="w-4 h-4" />
-                  Go to My Classes
-                </Button>
-              </div>
+              <Button variant="outline" onClick={() => router.push("/dashboard/teacher/classrooms")} className="gap-2">
+                <School className="w-4 h-4" />
+                Go to My Classes
+              </Button>
             </CardContent>
           </Card>
         )}

@@ -1,7 +1,5 @@
 import { useState } from "react";
-import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import JoinClassroomDialog from "@/components/student/JoinClassroomDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasClassrooms } from "@/hooks/useHasClassrooms";
@@ -16,9 +14,6 @@ import {
   Brain,
   TrendingUp,
   Lightbulb,
-  GraduationCap,
-  ClipboardList,
-  Library,
   UserPlus,
 } from "lucide-react";
 
@@ -73,30 +68,6 @@ const StudentDashboard = () => {
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Student";
 
-  const selfStudyChecklistItems = [
-    {
-      label: "Try a practice test",
-      description: "Take a practice test to sharpen your skills.",
-      done: false,
-      href: "/dashboard/student/practice-tests",
-      icon: ClipboardList,
-    },
-    {
-      label: "Add something to My Library",
-      description: "Save materials to your library for later.",
-      done: false,
-      href: "/dashboard/student/library",
-      icon: Library,
-    },
-    {
-      label: "Join a class with a code",
-      description: "Enter a code from your tutor to join their class.",
-      done: hasClassrooms,
-      href: "/dashboard/student",
-      icon: UserPlus,
-    },
-  ];
-
   if (isSelfStudy) {
     return (
       <DashboardLayout>
@@ -106,16 +77,9 @@ const StudentDashboard = () => {
               Hello, {displayName}!
             </h1>
             <p className="text-muted-foreground mt-1">
-              Your self-study hub. Use Study Hub for AI-powered practice, then track progress in My Library and Progress.
+              You are not in any class yet. Join a classroom with a code from your tutor or school to see assignments, quizzes, and course materials.
             </p>
           </div>
-
-          <OnboardingChecklist
-            userName={displayName}
-            instructionText="Complete these steps to get the most out of your self-study hub."
-            items={selfStudyChecklistItems}
-            hideWhenComplete={false}
-          />
 
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -133,58 +97,6 @@ const StudentDashboard = () => {
                 Join with code
               </Button>
             </div>
-          </div>
-
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <Link
-              href="/dashboard/student/study"
-              className="rounded-2xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-md transition-all flex flex-col"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
-                <GraduationCap className="h-6 w-6" />
-              </div>
-              <h3 className="font-semibold text-foreground">Study Hub</h3>
-              <p className="text-sm text-muted-foreground mt-1 flex-1">
-                AI Study Coach: summaries, flashcards, practice questions from your materials.
-              </p>
-              <span className="text-primary text-sm font-medium mt-2 inline-flex items-center">Open Study Hub →</span>
-            </Link>
-            <Link
-              href="/dashboard/student/practice-tests"
-              className="rounded-2xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-md transition-all flex flex-col"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
-                <ClipboardList className="h-6 w-6" />
-              </div>
-              <h3 className="font-semibold text-foreground">Practice Tests</h3>
-              <p className="text-sm text-muted-foreground mt-1 flex-1">
-                Generate and take practice quizzes for self-assessment.
-              </p>
-              <span className="text-primary text-sm font-medium mt-2 inline-flex items-center">Practice Tests →</span>
-            </Link>
-            <Link
-              href="/dashboard/student/library"
-              className="rounded-2xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-md transition-all flex flex-col"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
-                <Library className="h-6 w-6" />
-              </div>
-              <h3 className="font-semibold text-foreground">My Library</h3>
-              <p className="text-sm text-muted-foreground mt-1 flex-1">
-                Your documents and saved AI outputs in one place.
-              </p>
-              <span className="text-primary text-sm font-medium mt-2 inline-flex items-center">My Library →</span>
-            </Link>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-2">Track your progress</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              See your study activity and goals on the Progress page.
-            </p>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/student/progress">View Progress</Link>
-            </Button>
           </div>
         </div>
         <JoinClassroomDialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen} />

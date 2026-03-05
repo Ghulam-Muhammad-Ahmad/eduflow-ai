@@ -4,7 +4,6 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
-import { useHasClassrooms } from "@/hooks/useHasClassrooms";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -41,11 +40,10 @@ import {
   GraduationCap,
   ScrollText,
   ChevronDown,
-  Library,
-  ClipboardList,
-  TrendingUp,
   CreditCard,
   Search,
+  PenLine,
+  User,
 } from "lucide-react";
 import {
   Dialog,
@@ -54,6 +52,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DashboardOnboardingChecklist } from "@/components/dashboard/DashboardOnboardingChecklist";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -68,6 +67,8 @@ const roleConfig = {
       { icon: Users, label: "My Students", path: "/dashboard/teacher/students" },
       { icon: School, label: "My Classes", path: "/dashboard/teacher/classrooms" },
       { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
+      { icon: PenLine, label: "Contract", path: "/dashboard/teacher/contract" },
+      { icon: User, label: "My profile", path: "/dashboard/teacher/profile" },
       { icon: Sparkles, label: "AI Content Generator", path: "/dashboard/teacher/ai-studio" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
       { icon: ListChecks, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
@@ -92,23 +93,12 @@ const roleConfig = {
       { icon: CreditCard, label: "Billing", path: "/dashboard/student/billing" },
     ],
   },
-  studentSelfStudy: {
-    title: "Self-Study Dashboard",
-    navItems: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/student" },
-      { icon: GraduationCap, label: "Study Hub", path: "/dashboard/student/study" },
-      { icon: ClipboardList, label: "Practice Tests", path: "/dashboard/student/practice-tests" },
-      { icon: Library, label: "My Library", path: "/dashboard/student/library" },
-      { icon: TrendingUp, label: "Progress", path: "/dashboard/student/progress" },
-      { icon: CreditCard, label: "Billing", path: "/dashboard/student/billing" },
-      { icon: Settings, label: "Settings", path: "/dashboard/settings" },
-    ],
-  },
   admin: {
     title: "Owner Dashboard",
     navItems: [
       { icon: LayoutDashboard, label: "Overview", path: "/dashboard/owner" },
       { icon: Users, label: "Tutors", path: "/dashboard/owner/tutors" },
+      { icon: PenLine, label: "Contracts", path: "/dashboard/owner/contracts" },
       { icon: GraduationCap, label: "Students", path: "/dashboard/owner/students" },
       { icon: School, label: "Classes", path: "/dashboard/owner/classrooms" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/owner/assignments" },
@@ -122,7 +112,6 @@ const roleConfig = {
 
 const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
   const { user, role, profile, signOut } = useAuth();
-  const { hasClassrooms, isLoading: enrollmentsLoading } = useHasClassrooms();
   const { usage, loading: usageLoading } = useAIUsage();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -143,13 +132,8 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Students with no classrooms see Self-Study nav; once they join a class, they see Classroom nav
-  const studentConfigKey =
-    role === "student" && !enrollmentsLoading && !hasClassrooms ? "studentSelfStudy" : role;
   const config =
-    studentConfigKey && studentConfigKey in roleConfig
-      ? roleConfig[studentConfigKey as keyof typeof roleConfig]
-      : null;
+    role && role in roleConfig ? roleConfig[role as keyof typeof roleConfig] : null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -291,15 +275,15 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
                 AI Credits
               </h3>
               <p className="text-sm text-muted-foreground mb-2">
-               {usage.remainingCredits} remaining
+                {usage.currentCredits} / {usage.limitCredits} credits
               </p>
               </div>
-              {/* Segment-style progress: vertical bars */}
+              {/* Segment-style progress: bars show credits used (0 used = empty, full = all used) */}
               <div className="flex gap-0.5 mb-3" aria-hidden>
                 {Array.from({ length: 25 }).map((_, i) => {
-                  const usedRatio = usage.limitCredits > 0 ? 1 - usage.remainingCredits / usage.limitCredits : 0;
-                  const segmentThreshold = (i + 1) / 20;
-                  const filled = usedRatio >= segmentThreshold - 0.05;
+                  const usedRatio = usage.limitCredits > 0 ? usage.currentCredits / usage.limitCredits : 0;
+                  const segmentThreshold = (i + 1) / 25;
+                  const filled = usedRatio >= segmentThreshold;
                   const segmentColor =
                     usage.percentage >= 90
                       ? "bg-red-500"
@@ -322,7 +306,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
                 href={
                   role === "teacher"
                     ? "/dashboard/teacher/billing"
-                    : role === "student" || role === "studentSelfStudy"
+                    : role === "student"
                       ? "/dashboard/student/billing"
                       : "/dashboard/owner/billing"
                 }
@@ -478,6 +462,8 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
         <main className="flex-1 p-6 overflow-auto bg-white min-w-0">
           {children}
         </main>
+
+        <DashboardOnboardingChecklist />
       </div>
     </div>
     </>

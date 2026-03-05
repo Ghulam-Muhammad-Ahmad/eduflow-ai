@@ -4,12 +4,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   PLAN_LIMITS,
   PLAN_DISPLAY_PRICES,
   PLAN_FEATURES,
   TIERS,
-  CYCLES,
   hasTrial,
   getCheckoutPriceId,
   type PlanLine,
@@ -68,22 +69,43 @@ export function BillingPlans({
     onSelectPlan?.();
   };
 
+  const isAnnual = cycle === "annual";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-center gap-2">
-        {CYCLES.map((c) => (
-          <Button
-            key={c}
-            variant={cycle === c ? "default" : "outline"}
-            size="sm"
-            onClick={() => setCycle(c)}
+      {/* Billing cycle toggle: pill layout with Monthly | Switch | Annually + save badge */}
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
+        <div className="flex items-center gap-0 rounded-none border-0 bg-white px-4 py-[3px]">
+          <Label
+            htmlFor="billing-cycle"
+            className={`cursor-pointer px-3 text-sm font-medium transition-colors ${!isAnnual ? "text-foreground" : "text-muted-foreground"}`}
+            onClick={() => setCycle("monthly")}
           >
-            {c === "monthly" ? "Monthly" : "Annual (save)"}
-          </Button>
-        ))}
+            Monthly
+          </Label>
+          <Switch
+            id="billing-cycle"
+            checked={isAnnual}
+            onCheckedChange={(checked) => setCycle(checked ? "annual" : "monthly")}
+            className="data-[state=checked]:bg-primary"
+          />
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="billing-cycle"
+              className={`cursor-pointer px-3 text-sm font-medium transition-colors ${isAnnual ? "text-foreground" : "text-muted-foreground"}`}
+              onClick={() => setCycle("annual")}
+            >
+              Annually
+            </Label>
+            <Badge variant="secondary" className="rounded-md border border-primary/30 bg-primary/10 text-primary text-xs font-medium">
+              Save
+            </Badge>
+          </div>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* Plan cards: title, description, price, billing note, features, CTA */}
+      <div className="grid gap-x-2 gap-y-6 md:grid-cols-3">
         {TIERS.map((tier) => {
           const limits = PLAN_LIMITS[planLine][tier];
           const prices = PLAN_DISPLAY_PRICES[planLine][tier];
@@ -92,6 +114,11 @@ export function BillingPlans({
           const isCurrent = currentPriceId && priceId === currentPriceId;
           const trial = hasTrial(tier);
           const displayPrice = cycle === "monthly" ? prices.monthly : prices.annual;
+          const priceSuffix = cycle === "monthly" ? "/month" : "/year";
+          const billingNote =
+            cycle === "annual"
+              ? `billed annually or ${prices.monthly}/month billed monthly`
+              : "billed monthly";
 
           return (
             <Card
@@ -103,23 +130,16 @@ export function BillingPlans({
                   14-day free trial
                 </Badge>
               )}
-              <CardHeader>
-                <CardTitle>{TIER_LABELS[tier]}</CardTitle>
+              <CardHeader className="space-y-1.5">
+                <CardTitle className="text-xl">{TIER_LABELS[tier]}</CardTitle>
                 <CardDescription>{limits.label}</CardDescription>
-                <div className="mt-2">
+                <div className="pt-1">
                   <span className="text-2xl font-bold text-foreground">{displayPrice}</span>
-                  <span className="text-sm text-muted-foreground">/{cycle === "monthly" ? "month" : "year"}</span>
+                  <span className="text-sm text-muted-foreground">{priceSuffix}</span>
                 </div>
-                {limits.tutors != null && (
-                  <p className="text-sm text-muted-foreground">
-                    Up to {limits.tutors} tutor{limits.tutors !== 1 ? "s" : ""}, {limits.students} students
-                  </p>
-                )}
-                {planLine === "student" && (
-                  <p className="text-sm text-muted-foreground">For self-study</p>
-                )}
+                <p className="text-xs text-muted-foreground">{billingNote}</p>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="flex flex-col gap-4">
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   {features.map((feature, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -134,7 +154,7 @@ export function BillingPlans({
                   </p>
                 ) : null}
                 <Button
-                  className="w-full"
+                  className="mt-auto w-full"
                   variant={isCurrent ? "secondary" : "default"}
                   disabled={isCurrent || redirecting}
                   onClick={() => handleSelect(tier, cycle)}
@@ -143,9 +163,11 @@ export function BillingPlans({
                     ? "Redirecting…"
                     : isCurrent
                       ? "Current plan"
-                      : status && (status === "active" || status === "trialing")
-                        ? "Upgrade"
-                        : "Continue to payment"}
+                      : trial
+                        ? "Try it for free"
+                        : status && (status === "active" || status === "trialing")
+                          ? "Upgrade"
+                          : "Continue to payment"}
                 </Button>
               </CardContent>
             </Card>

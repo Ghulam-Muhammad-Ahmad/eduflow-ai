@@ -35,23 +35,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let paddleSubscriptionId: string | null = null;
 
   if (workspaceId) {
-    const [memberResult, workspaceResult] = await Promise.all([
-      admin
-        .from("workspace_members")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      admin
-        .from("workspaces")
-        .select("owner_id")
-        .eq("id", workspaceId)
-        .maybeSingle(),
-    ]);
-    const isMember = !!memberResult.data;
-    const isOwner = workspaceResult.data?.owner_id === user.id;
-    if (!isMember && !isOwner) {
-      return res.status(403).json({ error: "Not a member of this workspace" });
+    const { data: workspace } = await admin
+      .from("workspaces")
+      .select("owner_id")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    if (workspace?.owner_id !== user.id) {
+      return res.status(403).json({ error: "Only the workspace owner can manage billing" });
     }
     const { data: sub, error: subError } = await admin
       .from("workspace_subscriptions")
@@ -64,6 +54,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     paddleCustomerId = sub.paddle_customer_id;
     paddleSubscriptionId = sub.paddle_subscription_id;
   } else {
+    const { data: roleRow } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (roleRow?.role !== "admin") {
+      return res.status(403).json({ error: "Only workspace owners can manage billing" });
+    }
     const { data: sub, error: subError } = await admin
       .from("user_subscriptions")
       .select("paddle_customer_id, paddle_subscription_id")

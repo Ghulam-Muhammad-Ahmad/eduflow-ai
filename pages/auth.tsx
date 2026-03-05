@@ -50,19 +50,16 @@ export default function Auth() {
   useEffect(() => {
     const q = router.query;
     if (q.mode === "signup") {
-      const accountType = q.accountType ? `?accountType=${q.accountType}` : "";
-      router.replace(`/auth/register${accountType}`);
+      router.replace("/auth/register");
     }
   }, [router]);
 
   useEffect(() => {
     if (authLoading || !user) return;
     if (role && profile && !subLoading) {
-      const at = profile.account_type;
       const completed = profile.onboarding_completed_at;
-      if (at && !completed) {
-        const path = at === "business" ? "/onboarding/business" : at === "solo_tutor" ? "/onboarding/solo" : "/onboarding/student";
-        router.push(path);
+      if (!completed) {
+        router.push("/onboarding/business");
         return;
       }
       if (!hasSubscription) {

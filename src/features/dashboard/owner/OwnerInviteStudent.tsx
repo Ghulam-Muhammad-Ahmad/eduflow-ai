@@ -1,25 +1,33 @@
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
+import { useAIUsage } from "@/hooks/useAIUsage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, UserPlus, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { passwordSchema } from "@/lib/validation";
 
 export default function OwnerInviteStudent() {
   const { tutors, workspaceId } = useOwnerWorkspace();
+  const { usage, loading: usageLoading, refetch: refetchUsage } = useAIUsage();
+  const availableCredits = usage?.remainingCredits ?? 0;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [tutorId, setTutorId] = useState("");
-  const [initialCredits, setInitialCredits] = useState("");
+  const [initialCredits, setInitialCredits] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (availableCredits < initialCredits) setInitialCredits(availableCredits);
+  }, [availableCredits]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,15 +60,14 @@ export default function OwnerInviteStudent() {
         role: "student",
       };
       if (tutorId) body.tutorId = tutorId;
-      const creditsNum = initialCredits.trim() ? parseInt(initialCredits.trim(), 10) : 0;
-      if (Number.isInteger(creditsNum) && creditsNum > 0) body.initialCredits = creditsNum;
+      if (initialCredits > 0) body.initialCredits = initialCredits;
       const res = await fetch("/api/tenant/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         credentials: "include",
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({})) as { message?: string; error?: string; creditsAssigned?: boolean; creditsError?: string };
       if (!res.ok) {
         toast.error(data.error ?? "Failed to create student account");
         if (data.error?.toLowerCase().includes("email")) setErrors({ email: data.error });
@@ -68,12 +75,16 @@ export default function OwnerInviteStudent() {
         return;
       }
       toast.success(data.message ?? "Student account created. Share the login details with them.");
+      if (data.creditsAssigned === false && data.creditsError) {
+        toast.warning(`Credits could not be assigned: ${data.creditsError}`);
+      }
+      void refetchUsage?.();
       setEmail("");
       setPassword("");
       setFirstName("");
       setLastName("");
       setTutorId("");
-      setInitialCredits("");
+      setInitialCredits(0);
     } catch {
       toast.error("Failed to create student account");
     } finally {
@@ -185,16 +196,37 @@ export default function OwnerInviteStudent() {
               </p>
             )}
             <div>
-              <Label htmlFor="initialCredits">Initial AI credits (optional)</Label>
-              <Input
+              <div className="flex items-center justify-between mt-2">
+                <Label htmlFor="initialCredits">Initial AI credits (optional)</Label>
+                <span className="text-sm text-muted-foreground">
+                  {initialCredits} / {availableCredits} credits
+                </span>
+              </div>
+              <Slider
                 id="initialCredits"
-                type="number"
                 min={0}
-                placeholder="0"
-                value={initialCredits}
-                onChange={(e) => setInitialCredits(e.target.value)}
+                max={availableCredits <= 0 ? 1 : availableCredits}
+                step={1}
+                value={[initialCredits]}
+                onValueChange={([v]) => setInitialCredits(Math.min(v, availableCredits))}
+                disabled={usageLoading || availableCredits === 0}
                 className="mt-2"
               />
+              {availableCredits > 0 && (
+                <div className="flex gap-0.5 mt-2" aria-hidden>
+                  {Array.from({ length: 20 }).map((_, i) => {
+                    const segmentThreshold = (i + 1) / 20;
+                    const filled = initialCredits / availableCredits >= segmentThreshold;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex-1 min-w-[4px] rounded-sm transition-colors ${filled ? "bg-primary" : "bg-muted"}`}
+                        style={{ height: 8 }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground mt-1">Deduct from workspace pool and assign to this student.</p>
             </div>
             <Button type="submit" disabled={creating || (!!workspaceId && !hasTutors)}>

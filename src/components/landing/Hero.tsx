@@ -31,16 +31,13 @@ const Hero = () => {
             with AI-assisted workflows for tutoring businesses and solo tutors.
           </p>
 
-          {/* CTA Buttons: three account types */}
+          {/* CTA: single signup path (owner/business) */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
             <Button variant="premium" size="xl" asChild>
-              <a href="/auth/register?accountType=business">For Tutoring Businesses</a>
+              <a href="/auth/register">Get started</a>
             </Button>
             <Button variant="hero-outline" size="xl" asChild>
-              <a href="/auth/register?accountType=solo_tutor">For Solo Tutors</a>
-            </Button>
-            <Button variant="hero-outline" size="xl" asChild>
-              <a href="/auth/register?accountType=student">For Students</a>
+              <a href="#features">See how it works</a>
             </Button>
           </div>
           <p className="mb-16 animate-slide-up" style={{ animationDelay: "0.25s" }}>
