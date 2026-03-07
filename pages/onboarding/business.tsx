@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, Building2 } from "lucide-react";
 import { BillingPlans } from "@/components/billing/BillingPlans";
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 2;
 
 export default function OnboardingBusiness() {
   const router = useRouter();
@@ -68,6 +68,27 @@ export default function OnboardingBusiness() {
     })();
   }, [user, isCheckoutSuccess, completedCheckout, completeOnboarding, router]);
 
+  /** Load existing workspace so we only allow one per owner; skip step 1 if they already have one. */
+  const [existingWorkspaceLoaded, setExistingWorkspaceLoaded] = useState(false);
+  useEffect(() => {
+    if (!user || role !== "admin") return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setExistingWorkspaceLoaded(true);
+      if (data?.id) {
+        setWorkspaceId(data.id);
+        setStep(2);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, role]);
+
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -78,6 +99,17 @@ export default function OnboardingBusiness() {
     }
     setSubmitting(true);
     try {
+      const { data: existing } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (existing?.id) {
+        setWorkspaceId(existing.id);
+        setStep(2);
+        toast.success("Welcome back. Continue to choose a plan.");
+        return;
+      }
       const { data: workspace, error: workspaceError } = await supabase
         .from("workspaces")
         .insert({
@@ -100,7 +132,7 @@ export default function OnboardingBusiness() {
 
       setWorkspaceId(workspace.id);
       toast.success("Workspace created!");
-      setStep(3);
+      setStep(2);
     } catch (err) {
       toast.error((err as Error)?.message || "Something went wrong");
     } finally {
@@ -143,13 +175,13 @@ export default function OnboardingBusiness() {
                   key={s}
                   type="button"
                   onClick={() => {
-                    if (s === 3 && !workspaceId) return;
+                    if (s === 2 && !workspaceId) return;
                     setStep(s);
                   }}
-                  disabled={s === 3 && !workspaceId}
+                  disabled={s === 2 && !workspaceId}
                   className={`h-2 flex-1 rounded-full transition-colors ${
                     step === s ? "bg-primary" : "bg-muted"
-                  } ${s === 3 && !workspaceId ? "cursor-not-allowed opacity-50" : "hover:bg-primary/70"}`}
+                  } ${s === 2 && !workspaceId ? "cursor-not-allowed opacity-50" : "hover:bg-primary/70"}`}
                   aria-label={`Go to step ${s}`}
                 />
               ))}
@@ -157,111 +189,114 @@ export default function OnboardingBusiness() {
           </div>
         </div>
 
-        {step === 1 && (
-          <>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="businessName">Business name <span className="text-destructive">*</span></Label>
-                <Input
-                  id="businessName"
-                  value={formData.businessName}
-                  onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                  placeholder="e.g. Acme Tutoring"
-                  className="rounded-xl"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="primarySubjects">Primary subjects (optional)</Label>
-                <Input
-                  id="primarySubjects"
-                  value={formData.primarySubjects}
-                  onChange={(e) => setFormData({ ...formData, primarySubjects: e.target.value })}
-                  placeholder="e.g. Math, Science"
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="numTutors">Approx. number of tutors <span className="text-destructive">*</span></Label>
-                  <Input
-                    id="numTutors"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={formData.numTutors}
-                    onChange={(e) => handleNumericChange("numTutors", e.target.value)}
-                    placeholder="e.g. 5"
-                    className="rounded-xl"
-                    required
-                    min={0}
-                    aria-describedby="numTutors-desc"
-                  />
-                  <p id="numTutors-desc" className="text-xs text-muted-foreground">
-                    Used to tailor your workspace and recommend the right plan. Enter digits only.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="numStudents">Approx. number of students <span className="text-destructive">*</span></Label>
-                  <Input
-                    id="numStudents"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={formData.numStudents}
-                    onChange={(e) => handleNumericChange("numStudents", e.target.value)}
-                    placeholder="e.g. 50"
-                    className="rounded-xl"
-                    required
-                    min={0}
-                    aria-describedby="numStudents-desc"
-                  />
-                 
-                </div>
-              </div>
-            </div>
-            <div className="mt-6 flex gap-3">
-              <Button type="button" variant="outline" className="rounded-xl" disabled>
-                Back
-              </Button>
-              <Button
-                type="button"
-                className="flex-1 rounded-xl"
-                onClick={() => setStep(2)}
-                disabled={!isStep1Valid}
-              >
-                Continue
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </>
+        {step === 1 && !workspaceId && !existingWorkspaceLoaded && (
+          <div className="flex justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
         )}
 
-        {step === 2 && (
+        {step === 1 && !workspaceId && existingWorkspaceLoaded && (
           <>
-            <p className="text-sm text-muted-foreground mb-6">
+            <p className="text-sm text-muted-foreground mb-4">
               We&apos;ll create your workspace. You can invite tutors and students from the Owner dashboard next.
             </p>
             <form onSubmit={handleCreateWorkspace} className="space-y-4">
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-xl"
-                  onClick={() => setStep(1)}
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="businessName">Business name <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="businessName"
+                    value={formData.businessName}
+                    onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                    placeholder="e.g. Acme Tutoring"
+                    className="rounded-xl"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="primarySubjects">Primary subjects (optional)</Label>
+                  <Input
+                    id="primarySubjects"
+                    value={formData.primarySubjects}
+                    onChange={(e) => setFormData({ ...formData, primarySubjects: e.target.value })}
+                    placeholder="e.g. Math, Science"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="numTutors">Approx. number of tutors <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="numTutors"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formData.numTutors}
+                      onChange={(e) => handleNumericChange("numTutors", e.target.value)}
+                      placeholder="e.g. 5"
+                      className="rounded-xl"
+                      required
+                      min={0}
+                      aria-describedby="numTutors-desc"
+                    />
+                    <p id="numTutors-desc" className="text-xs text-muted-foreground">
+                      Used to tailor your workspace and recommend the right plan. Enter digits only.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="numStudents">Approx. number of students <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="numStudents"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formData.numStudents}
+                      onChange={(e) => handleNumericChange("numStudents", e.target.value)}
+                      placeholder="e.g. 50"
+                      className="rounded-xl"
+                      required
+                      min={0}
+                      aria-describedby="numStudents-desc"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 flex gap-3">
+                <Button type="button" variant="outline" className="rounded-xl" disabled>
                   Back
                 </Button>
-                <Button type="submit" className="flex-1 rounded-xl" disabled={submitting}>
+                <Button
+                  type="submit"
+                  className="flex-1 rounded-xl"
+                  disabled={!isStep1Valid || submitting}
+                >
                   {submitting ? "Creating..." : "Create workspace"}
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </form>
           </>
         )}
 
-        {step === 3 && workspaceId && (
+        {step === 1 && workspaceId && (
+          <>
+            <p className="text-sm text-muted-foreground mb-4">
+              Your workspace is ready. Continue to choose a plan.
+            </p>
+            <div className="mt-6">
+              <Button
+                type="button"
+                className="rounded-xl"
+                onClick={() => setStep(2)}
+              >
+                Continue to plan selection
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && workspaceId && (
           <>
             <p className="text-sm text-muted-foreground mb-6">
               Choose a plan. You will be redirected to our secure payment page to complete checkout.
@@ -271,7 +306,7 @@ export default function OnboardingBusiness() {
                 type="button"
                 variant="outline"
                 className="rounded-xl"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(1)}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back

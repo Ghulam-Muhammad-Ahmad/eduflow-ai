@@ -17,9 +17,7 @@ const TeacherStudentsList = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground">My Students</h1>
           <p className="text-muted-foreground mt-1">
-            {isBusinessTutor
-              ? "Students assigned to you by your workspace owner. They can also join your classes via join code."
-              : "Students enrolled in your classrooms. Your workspace owner adds students; you can share a class join code."}
+            Students are added to your classes by your workspace owner.
           </p>
         </div>
 
@@ -44,9 +42,7 @@ const TeacherStudentsList = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2">No students yet</h3>
               <p className="text-muted-foreground text-center mb-6 max-w-sm">
-                {isBusinessTutor
-                  ? "Students are added by your workspace owner. They can assign students to you. You can also create a classroom and share the join code."
-                  : "Your workspace owner adds students. Create a classroom and share the join code so students can join."}
+                Students are added to your classes by your workspace owner. When they add students to a class you teach, they&apos;ll appear here.
               </p>
               <Button variant="outline" onClick={() => router.push("/dashboard/teacher/classrooms")} className="gap-2">
                 <School className="w-4 h-4" />

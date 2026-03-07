@@ -60,7 +60,7 @@ Hi {{first_name}},
 You're all set. Next steps:
 
 1. Create your first classroom
-2. Invite students (or share a join code)
+2. Create classes and add students to them
 3. Create assignments and quizzes — or use the AI Content Generator to create them in seconds
 
 Open your Tutor dashboard: {{dashboard_link}}

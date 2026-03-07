@@ -113,3 +113,72 @@ export function docStorageGbToMb(gb: number | null): number | null {
   if (gb == null || Number.isNaN(gb) || gb < 0) return null;
   return Math.round(gb * 1024);
 }
+
+/** Price details from Paddle (for display). */
+export interface PriceDetails {
+  price_id: string;
+  /** e.g. "$79.00" */
+  formatted: string;
+  currency_code: string;
+  ai_credits: number | null;
+  doc_storage_gb: number | null;
+}
+
+/** Format amount string (cents/smallest unit) to display string. */
+function formatPriceAmount(amountStr: string, currencyCode: string): string {
+  const amount = parseInt(amountStr, 10);
+  if (Number.isNaN(amount)) return amountStr;
+  const decimals = currencyCode === "JPY" ? 0 : 2;
+  const value = amount / Math.pow(10, decimals);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
+}
+
+/**
+ * Fetch a single price from Paddle API including product; returns display price and custom_data.
+ * Used by plan-prices API for dynamic UI.
+ */
+export async function fetchPriceDetails(priceId: string): Promise<PriceDetails | null> {
+  const apiKey = process.env.PADDLE_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const url = `${PADDLE_API_BASE}/prices/${encodeURIComponent(priceId)}?include=product`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as {
+    data?: {
+      id?: string;
+      unit_price?: { amount?: string; currency_code?: string };
+      custom_data?: Record<string, unknown>;
+      product?: { custom_data?: Record<string, unknown> };
+    };
+  };
+  const data = json?.data;
+  if (!data?.id) return null;
+
+  const unitPrice = data.unit_price;
+  const amountStr = unitPrice?.amount ?? "0";
+  const currencyCode = unitPrice?.currency_code ?? "USD";
+  const formatted = formatPriceAmount(amountStr, currencyCode);
+
+  const fromPrice = parseCustomData(data.custom_data);
+  const fromProduct = data.product
+    ? parseCustomData(data.product.custom_data as Record<string, unknown>)
+    : { ai_credits: null, doc_storage_gb: null };
+  const custom = mergeCustomData(fromProduct, fromPrice);
+
+  return {
+    price_id: data.id,
+    formatted,
+    currency_code: currencyCode,
+    ai_credits: custom.ai_credits,
+    doc_storage_gb: custom.doc_storage_gb,
+  };
+}

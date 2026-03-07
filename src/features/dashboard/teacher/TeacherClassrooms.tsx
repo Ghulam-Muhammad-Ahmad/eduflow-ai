@@ -4,7 +4,6 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,7 +20,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -41,12 +39,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
-  Plus,
   Users,
-  Copy,
-  Check,
   BookOpen,
   MoreVertical,
   Archive,
@@ -80,22 +74,15 @@ const defaultSettings: ClassroomSettings = {
 
 const TeacherClassrooms = () => {
   const router = useRouter();
-  const { classrooms, isLoading, createClassroom, archiveClassroom, removeStudent, updateClassroomSettings } = useClassrooms();
+  const { classrooms, isLoading, archiveClassroom, removeStudent, updateClassroomSettings } = useClassrooms();
   const { toast } = useToast();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [removeStudentDialogOpen, setRemoveStudentDialogOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [studentToRemove, setStudentToRemove] = useState<{ enrollmentId: string; name: string } | null>(null);
   const [classroomToArchive, setClassroomToArchive] = useState<{ id: string; name: string } | null>(null);
-
-  // Form state
-  const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
 
   // Settings form state
   const [settings, setSettings] = useState<ClassroomSettings>(defaultSettings);
@@ -111,64 +98,6 @@ const TeacherClassrooms = () => {
       setSettings(existingSettings ? { ...defaultSettings, ...existingSettings } : defaultSettings);
     }
   }, [settingsDialogOpen, selectedClassroom]);
-
-  const handleCreate = async () => {
-    if (!name.trim()) {
-      toast({
-        title: "Classroom name required",
-        description: "Please enter a classroom name to continue.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await createClassroom.mutateAsync({
-        name: name.trim(),
-        subject: subject.trim() || null,
-        description: description.trim() || null,
-      });
-
-      setName("");
-      setSubject("");
-      setDescription("");
-      setCreateDialogOpen(false);
-    } catch (error: unknown) {
-      toast({
-        title: "Failed to create classroom",
-        description: error instanceof Error ? error.message : "Please try again in a moment.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const copyJoinCode = async (code: string) => {
-    if (!navigator?.clipboard?.writeText) {
-      toast({
-        title: "Copy failed",
-        description: "Clipboard not supported. Please copy the code manually.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopiedCode(code);
-      toast({
-        title: "Code copied!",
-        description: "Share this code with your students.",
-      });
-      setTimeout(() => setCopiedCode(null), 2000);
-    } catch (error) {
-      console.error("Failed to copy join code:", error);
-      toast({
-        title: "Copy failed",
-        description: "Unable to copy the code. Please copy it manually.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const openRoster = (classroomId: string) => {
     setSelectedClassroomId(classroomId);
@@ -212,71 +141,11 @@ const TeacherClassrooms = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold">My Classrooms</h1>
-            <p className="text-muted-foreground mt-1">
-              Create and manage your classrooms
-            </p>
-          </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Classroom
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Classroom</DialogTitle>
-                <DialogDescription>
-                  Set up a new classroom for your students. You&apos;ll get a unique
-                  join code to share.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Classroom Name *</label>
-                  <Input
-                    placeholder="e.g., AP Calculus - Period 3"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Subject</label>
-                  <Input
-                    placeholder="e.g., Mathematics"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea
-                    placeholder="Brief description of the classroom..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setCreateDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreate}
-                  disabled={!name.trim() || createClassroom.isPending}
-                >
-                  {createClassroom.isPending ? "Creating..." : "Create Classroom"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold">My Classrooms</h1>
+          <p className="text-muted-foreground mt-1">
+            Classes are created by your workspace owner. You&apos;ll see them here when assigned.
+          </p>
         </div>
 
         {/* Loading State */}
@@ -305,13 +174,8 @@ const TeacherClassrooms = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2">No classrooms yet</h3>
               <p className="text-muted-foreground text-center mb-6 max-w-sm">
-                Create your first classroom to start sharing documents and
-                assignments with students.
+                Classes are created by your workspace owner. You&apos;ll see them here when you&apos;re assigned.
               </p>
-              <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Your First Classroom
-              </Button>
             </CardContent>
           </Card>
         )}
@@ -380,31 +244,6 @@ const TeacherClassrooms = () => {
                     </p>
                   )}
 
-                  {/* Join Code */}
-                  <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
-                    <span className="text-sm text-muted-foreground">
-                      Join Code:
-                    </span>
-                    <Badge
-                      variant="secondary"
-                      className="font-mono text-base tracking-widest"
-                    >
-                      {classroom.join_code}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-8 w-8"
-                      onClick={() => copyJoinCode(classroom.join_code)}
-                    >
-                      {copiedCode === classroom.join_code ? (
-                        <Check className="w-4 h-4 text-accent" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-
                   {/* Actions */}
                   <div className="flex gap-2">
                     <Button
@@ -452,7 +291,7 @@ const TeacherClassrooms = () => {
                     No students enrolled yet
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Share the join code with your students
+                    Students are added to your classes by your workspace owner
                   </p>
                 </div>
               )}
@@ -662,7 +501,7 @@ const TeacherClassrooms = () => {
               <AlertDialogDescription>
                 Are you sure you want to remove <span className="font-semibold">{studentToRemove?.name}</span> from this classroom? 
                 They will lose access to all classroom materials and assignments. 
-                They can rejoin using the classroom code.
+                Your workspace owner can add them again if needed.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

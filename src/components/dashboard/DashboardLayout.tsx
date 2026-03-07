@@ -44,6 +44,7 @@ import {
   Search,
   PenLine,
   User,
+  Building2,
 } from "lucide-react";
 import {
   Dialog,
@@ -76,7 +77,6 @@ const roleConfig = {
       { icon: Brain, label: "AI Checker", path: "/dashboard/teacher/checker" },
       { icon: BookOpen, label: "Lesson Planner", path: "/dashboard/teacher/lesson-planner" },
       { icon: Calendar, label: "Calendar", path: "/dashboard/teacher/calendar" },
-      { icon: CreditCard, label: "Billing & Plan", path: "/dashboard/teacher/billing" },
       { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],
   },
@@ -90,7 +90,6 @@ const roleConfig = {
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
       { icon: ListChecks, label: "Quizzes", path: "/dashboard/student/quizzes" },
       { icon: GraduationCap, label: "Study Hub", path: "/dashboard/student/study" },
-      { icon: CreditCard, label: "Billing", path: "/dashboard/student/billing" },
     ],
   },
   admin: {
@@ -101,9 +100,7 @@ const roleConfig = {
       { icon: PenLine, label: "Contracts", path: "/dashboard/owner/contracts" },
       { icon: GraduationCap, label: "Students", path: "/dashboard/owner/students" },
       { icon: School, label: "Classes", path: "/dashboard/owner/classrooms" },
-      { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/owner/assignments" },
-      { icon: ListChecks, label: "Quizzes", path: "/dashboard/owner/quizzes" },
-      { icon: FileText, label: "Documents", path: "/dashboard/owner/documents" },
+      { icon: Building2, label: "Workspace", path: "/dashboard/owner/workspace" },
       { icon: CreditCard, label: "Billing & Plan", path: "/dashboard/owner/billing" },
       { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],

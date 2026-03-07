@@ -11,4 +11,6 @@ export type AITaskType =
   | "concept_explanation"
   | "practice_questions"
   | "flashcards"
-  | "study_plan";
+  | "study_plan"
+  | "contract_generation"
+  | "contract_revision";

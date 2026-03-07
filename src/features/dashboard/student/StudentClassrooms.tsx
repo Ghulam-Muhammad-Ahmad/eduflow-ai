@@ -5,7 +5,6 @@ import { useClassrooms, useLeaveClassroom } from "@/hooks/useClassrooms";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import JoinClassroomDialog from "@/components/student/JoinClassroomDialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,7 +31,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus,
   BookOpen,
   Users,
   FileText,
@@ -47,7 +45,6 @@ const StudentClassrooms = () => {
   const { toast } = useToast();
   const leaveClassroom = useLeaveClassroom();
   const router = useRouter();
-  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [classroomToLeave, setClassroomToLeave] = useState<{ id: string; name: string } | null>(null);
   const [classroomStats, setClassroomStats] = useState<Record<string, { materials: number; due: number }>>({});
@@ -179,17 +176,11 @@ const StudentClassrooms = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold">My Classes</h1>
-            <p className="text-muted-foreground mt-1">
-              View your enrolled classrooms and access materials
-            </p>
-          </div>
-          <Button onClick={() => setJoinDialogOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Join Class
-          </Button>
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold">My Classes</h1>
+          <p className="text-muted-foreground mt-1">
+            View your enrolled classrooms and access materials
+          </p>
         </div>
 
         {/* Loading State */}
@@ -217,16 +208,11 @@ const StudentClassrooms = () => {
                 <Users className="w-8 h-8" />
               </div>
               <h3 className="text-lg font-semibold mb-2">
-                No classes joined yet
+                No classes yet
               </h3>
               <p className="text-muted-foreground text-center mb-6 max-w-sm">
-                Ask your teacher for a classroom code to join their class and
-                access assignments and materials.
+                You&apos;re not in any class yet. Your tutor or school will add you to a class.
               </p>
-              <Button onClick={() => setJoinDialogOpen(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Join Your First Class
-              </Button>
             </CardContent>
           </Card>
         )}
@@ -322,12 +308,6 @@ const StudentClassrooms = () => {
         )}
       </div>
 
-      {/* Join Dialog */}
-      <JoinClassroomDialog
-        open={joinDialogOpen}
-        onOpenChange={setJoinDialogOpen}
-      />
-
       {/* Leave Classroom Confirmation Dialog */}
       <AlertDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
         <AlertDialogContent>
@@ -336,7 +316,7 @@ const StudentClassrooms = () => {
             <AlertDialogDescription>
               Are you sure you want to leave <span className="font-semibold">{classroomToLeave?.name}</span>? 
               You will lose access to all classroom materials and assignments. 
-              You can rejoin later using the classroom code.
+              Your tutor or school can add you again if needed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

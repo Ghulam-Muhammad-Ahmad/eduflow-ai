@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
+import { OnboardingDismissedProvider } from "@/components/dashboard/OnboardingChecklist";
 import "@/index.css";
 
 export default function App({ Component, pageProps }: AppProps) {
@@ -14,10 +15,12 @@ export default function App({ Component, pageProps }: AppProps) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Head />
-          <Toaster />
-          <Sonner />
-          <Component {...pageProps} />
+          <OnboardingDismissedProvider>
+            <Head />
+            <Toaster />
+            <Sonner />
+            <Component {...pageProps} />
+          </OnboardingDismissedProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

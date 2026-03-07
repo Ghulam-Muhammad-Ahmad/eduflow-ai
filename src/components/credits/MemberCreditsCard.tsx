@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useAIUsage } from "@/hooks/useAIUsage";
 import { Coins, Loader2 } from "lucide-react";
 
 interface MemberCreditsCardProps {
@@ -22,8 +24,10 @@ interface MemberCreditsCardProps {
 
 export function MemberCreditsCard({ memberUserId, memberLabel }: MemberCreditsCardProps) {
   const queryClient = useQueryClient();
+  const { usage } = useAIUsage();
+  const availableCredits = usage?.remainingCredits ?? 0;
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [creditLimit, setCreditLimit] = useState("");
+  const [creditLimit, setCreditLimit] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,13 +47,13 @@ export function MemberCreditsCard({ memberUserId, memberLabel }: MemberCreditsCa
 
   useEffect(() => {
     if (dialogOpen) {
-      setCreditLimit(limit > 0 ? String(limit) : "");
+      setCreditLimit(limit);
       setError(null);
     }
   }, [dialogOpen, limit]);
 
   const handleSave = async () => {
-    const n = creditLimit.trim() === "" ? 0 : parseInt(creditLimit, 10);
+    const n = creditLimit;
     if (!Number.isInteger(n) || n < 0) {
       setError("Enter 0 or a positive number");
       return;
@@ -89,7 +93,7 @@ export function MemberCreditsCard({ memberUserId, memberLabel }: MemberCreditsCa
         }
       }
       setDialogOpen(false);
-      setCreditLimit("");
+      setCreditLimit(0);
       queryClient.invalidateQueries({ queryKey: ["member-credits", memberUserId] });
     } finally {
       setLoading(false);
@@ -128,15 +132,48 @@ export function MemberCreditsCard({ memberUserId, memberLabel }: MemberCreditsCa
                       : `Current limit: ${limit}. Set a new limit (min ${used} — already used this period).`}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="py-2">
-                  <Input
-                    type="number"
-                    min={limit === 0 ? 0 : used}
-                    placeholder={limit === 0 ? "e.g. 50" : String(limit)}
-                    value={creditLimit}
-                    onChange={(e) => setCreditLimit(e.target.value)}
-                  />
-                  {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+                <div className="py-2 space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mt-2">
+                      <Label htmlFor="credit-limit-slider">Credit limit</Label>
+                      <span className="text-sm text-muted-foreground">
+                        {creditLimit} / {limit === 0 ? Math.max(1, availableCredits) : Math.max(limit, availableCredits)} credits
+                      </span>
+                    </div>
+                    <Slider
+                      id="credit-limit-slider"
+                      min={limit === 0 ? 0 : used}
+                      max={limit === 0 ? Math.max(1, availableCredits) : Math.max(limit, availableCredits)}
+                      step={1}
+                      value={[creditLimit]}
+                      onValueChange={([v]) => setCreditLimit(v)}
+                      disabled={limit === 0 && availableCredits === 0}
+                      className="mt-2"
+                    />
+                    {/* Segment bar: filled = assigned, muted = available */}
+                    {(limit === 0 ? availableCredits > 0 : Math.max(limit, availableCredits) > 0) && (
+                      <div className="flex gap-0.5 mt-2" aria-hidden>
+                        {Array.from({ length: 20 }).map((_, i) => {
+                          const sliderMax = limit === 0 ? Math.max(1, availableCredits) : Math.max(limit, availableCredits);
+                          const segmentThreshold = (i + 1) / 20;
+                          const filled = creditLimit / sliderMax >= segmentThreshold;
+                          return (
+                            <div
+                              key={i}
+                              className={`flex-1 min-w-[4px] rounded-sm transition-colors ${
+                                filled ? "bg-primary" : "bg-muted"
+                              }`}
+                              style={{ height: 8 }}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Deduct from workspace pool and assign to this member.
+                    </p>
+                  </div>
+                  {error && <p className="text-sm text-destructive">{error}</p>}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDialogOpen(false)}>

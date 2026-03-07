@@ -5,9 +5,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, ChevronRight, Loader2, PenLine } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { FileText, ChevronRight, Loader2, PenLine } from "lucide-react";
 
 const contractStatusLabel: Record<string, string> = {
   draft: "Draft",
@@ -18,31 +16,10 @@ const contractStatusLabel: Record<string, string> = {
 
 export default function OwnerContractsList() {
   const { workspace, tutors, tutorContracts, isLoading } = useOwnerWorkspace();
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const getTutorName = (tutorId: string) => {
     const t = tutors.find((x) => x.user_id === tutorId);
     return (t?.profile?.display_name ?? t?.profile?.email ?? "Tutor") as string;
-  };
-
-  const handleDownload = async (tutorContractId: string) => {
-    setDownloadingId(tutorContractId);
-    try {
-      const res = await fetch(
-        `/api/contracts/download?tutor_contract_id=${encodeURIComponent(tutorContractId)}`,
-        { credentials: "include" }
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) {
-        toast.error(data.error ?? "Failed to get download link");
-        return;
-      }
-      window.open(data.url, "_blank");
-    } catch {
-      toast.error("Failed to download");
-    } finally {
-      setDownloadingId(null);
-    }
   };
 
   return (
@@ -132,25 +109,6 @@ export default function OwnerContractsList() {
                               <Link href={`/dashboard/owner/contracts/${c.id}`} className="inline-flex items-center gap-1">
                                 View contract
                                 <ChevronRight className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                            {c.contract_storage_path && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownload(c.id)}
-                                disabled={downloadingId === c.id}
-                              >
-                                {downloadingId === c.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/dashboard/owner/tutors/${c.tutor_id}`} className="text-muted-foreground text-xs">
-                                Tutor profile
                               </Link>
                             </Button>
                           </div>

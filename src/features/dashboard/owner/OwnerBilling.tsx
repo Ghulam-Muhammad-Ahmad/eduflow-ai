@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Coins } from "lucide-react";
+import { useWorkspaceCredits } from "@/hooks/useWorkspaceCredits";
 
 export default function OwnerBilling() {
   const [portalLoading, setPortalLoading] = useState(false);
@@ -40,6 +41,8 @@ export default function OwnerBilling() {
   const trialDaysLeft = workspaceSub ? workspaceTrialDaysLeft : userTrialDaysLeft;
   const periodDaysLeft = workspaceSub ? workspacePeriodDaysLeft : userPeriodDaysLeft;
   const isLoading = (workspaceId ? workspaceLoading : false) || userLoading;
+
+  const { workspaceCredits, isLoading: creditsLoading } = useWorkspaceCredits(!!workspaceId);
 
   const invalidate = () => {
     invalidateWorkspace();
@@ -123,6 +126,50 @@ export default function OwnerBilling() {
                 <p className="text-sm text-muted-foreground">
                   Every Basic plan includes a 14-day free trial. Select a plan to open checkout.
                 </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {workspaceId && (
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Coins className="h-5 w-5 text-muted-foreground" />
+                Workspace AI credits
+              </CardTitle>
+              <CardDescription>
+                Credits from your plan are shared by the workspace. You assign caps to tutors and students; all usage is deducted from this single pool.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {creditsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : workspaceCredits ? (
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total from plan (this period)</span>
+                    <span className="font-medium">{workspaceCredits.creditsAllocated}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Assigned to tutors/students</span>
+                    <span>{workspaceCredits.creditsAssignedOut}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Used by you</span>
+                    <span>{workspaceCredits.creditsUsedDirect}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Used by tutors/students</span>
+                    <span>{workspaceCredits.creditsUsedByMembers}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2 mt-2 font-medium">
+                    <span>Remaining</span>
+                    <span>{workspaceCredits.remaining}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No workspace credits data for this period.</p>
               )}
             </CardContent>
           </Card>

@@ -5,7 +5,6 @@ import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
 import { useAssignments } from "@/hooks/useAssignments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -28,8 +27,6 @@ import {
 import {
   ArrowLeft,
   Users,
-  Copy,
-  Check,
   Search,
   UserMinus,
   BookOpen,
@@ -47,9 +44,7 @@ const TeacherClassroomDetail = () => {
   const { assignments } = useAssignments(classroomId);
   const { toast } = useToast();
 
-  const [copiedCode, setCopiedCode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [copiedInvite, setCopiedInvite] = useState(false);
   const [removeStudentDialogOpen, setRemoveStudentDialogOpen] = useState(false);
   const [studentToRemove, setStudentToRemove] = useState<{ enrollmentId: string; name: string } | null>(null);
 
@@ -73,64 +68,9 @@ const TeacherClassroomDetail = () => {
     );
   }
 
-  const copyJoinCode = async (code: string) => {
-    if (!navigator?.clipboard?.writeText) {
-      setCopiedCode(false);
-      toast({
-        title: "Copy failed",
-        description: "Clipboard not supported. Please copy the code manually.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopiedCode(true);
-      toast({
-        title: "Code copied!",
-        description: "Share this code with your students.",
-      });
-      setTimeout(() => setCopiedCode(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy join code:", error);
-      setCopiedCode(false);
-      toast({
-        title: "Copy failed",
-        description: "Unable to copy the code. Please copy it manually.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleRemoveStudent = (enrollmentId: string, studentName: string) => {
     setStudentToRemove({ enrollmentId, name: studentName });
     setRemoveStudentDialogOpen(true);
-  };
-
-  const inviteLink =
-    typeof window !== "undefined" && classroom?.join_code
-      ? `${window.location.origin}/join/classroom/${classroom.join_code}`
-      : "";
-
-  const copyInviteLink = async () => {
-    if (!inviteLink) return;
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopiedInvite(true);
-      toast({
-        title: "Invite link copied!",
-        description: "Share this link to let students join your class.",
-      });
-      setTimeout(() => setCopiedInvite(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy invite link:", error);
-      toast({
-        title: "Copy failed",
-        description: "Unable to copy the invite link. Please copy it manually.",
-        variant: "destructive",
-      });
-    }
   };
 
   const confirmRemoveStudent = async () => {
@@ -192,56 +132,7 @@ const TeacherClassroomDetail = () => {
         </div>
 
         {/* Classroom Info Cards */}
-        <div className="grid md:grid-cols-3 gap-4">
-          {/* Join Code Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <BookOpen className="w-4 h-4" />
-                Join Code
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant="secondary"
-                  className="font-mono text-lg tracking-widest flex-1 justify-center py-2"
-                >
-                  {classroom?.join_code}
-                </Badge>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => classroom && copyJoinCode(classroom.join_code)}
-                >
-                  {copiedCode ? (
-                    <Check className="w-4 h-4 text-accent" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Invite link</Label>
-                <div className="flex items-center gap-2">
-                  <Input value={inviteLink} readOnly />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={copyInviteLink}
-                    disabled={!inviteLink}
-                  >
-                    {copiedInvite ? (
-                      <Check className="w-4 h-4 text-accent" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="grid md:grid-cols-2 gap-4">
           {/* Students Count Card */}
           <Card>
             <CardHeader className="pb-3">
@@ -322,16 +213,8 @@ const TeacherClassroomDetail = () => {
                 <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No students enrolled yet</h3>
                 <p className="text-muted-foreground mb-4">
-                  Share the join code with your students to get started
+                  Students are added to this class by your workspace owner.
                 </p>
-                <Button
-                  variant="outline"
-                  onClick={() => classroom && copyJoinCode(classroom.join_code)}
-                  className="gap-2"
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy Join Code
-                </Button>
               </div>
             )}
 
@@ -405,7 +288,7 @@ const TeacherClassroomDetail = () => {
               <AlertDialogDescription>
                 Are you sure you want to remove <span className="font-semibold">{studentToRemove?.name}</span> from this classroom? 
                 They will lose access to all classroom materials and assignments. 
-                They can rejoin using the classroom code.
+                Contact your workspace owner to be re-added to the class.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -1,10 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Circle, Minus, Maximize2, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+/** Persists across client-side navigations; resets on full page reload */
+const OnboardingDismissedContext = createContext<{
+  dismissed: boolean;
+  setDismissed: (dismissed: boolean) => void;
+  minimized: boolean;
+  setMinimized: (minimized: boolean) => void;
+}>({ dismissed: false, setDismissed: () => {}, minimized: false, setMinimized: () => {} });
+
+export function OnboardingDismissedProvider({ children }: { children: React.ReactNode }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+  return (
+    <OnboardingDismissedContext.Provider value={{ dismissed, setDismissed, minimized, setMinimized }}>
+      {children}
+    </OnboardingDismissedContext.Provider>
+  );
+}
+
+function useOnboardingDismissed() {
+  return useContext(OnboardingDismissedContext);
+}
 
 export type OnboardingItem = {
   label: string;
@@ -60,8 +82,7 @@ export function OnboardingChecklist({
   items,
   hideWhenComplete = true,
 }: OnboardingChecklistProps) {
-  const [minimized, setMinimized] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const { dismissed, setDismissed, minimized, setMinimized } = useOnboardingDismissed();
 
   const allDone = items.every((i) => i.done);
   if (hideWhenComplete && allDone) return null;

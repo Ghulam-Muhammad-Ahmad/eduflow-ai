@@ -212,38 +212,74 @@ export type Database = {
           description: string | null
           id: string
           is_archived: boolean | null
-          join_code: string
+          join_code: string | null
           name: string
           settings: Json | null
           subject: string | null
           teacher_id: string
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
           is_archived?: boolean | null
-          join_code: string
+          join_code?: string | null
           name: string
           settings?: Json | null
           subject?: string | null
           teacher_id: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
           is_archived?: boolean | null
-          join_code?: string
+          join_code?: string | null
           name?: string
           settings?: Json | null
           subject?: string | null
           teacher_id?: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Relationships: []
+      }
+      classroom_tutors: {
+        Row: {
+          classroom_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          classroom_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          classroom_id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_tutors_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classroom_tutors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       document_classroom_shares: {
         Row: {
@@ -441,7 +477,7 @@ export type Database = {
           id: string
           updated_at: string
           user_id: string
-          account_type: "business" | "solo_tutor" | "student" | null
+          account_type: "business" | "student" | "tutor" | null
           onboarding_completed_at: string | null
         }
         Insert: {
@@ -453,7 +489,7 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id: string
-          account_type?: "business" | "solo_tutor" | "student" | null
+          account_type?: "business" | "student" | "tutor" | null
           onboarding_completed_at?: string | null
         }
         Update: {
@@ -465,7 +501,7 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
-          account_type?: "business" | "solo_tutor" | "student" | null
+          account_type?: "business" | "student" | "tutor" | null
           onboarding_completed_at?: string | null
         }
         Relationships: []

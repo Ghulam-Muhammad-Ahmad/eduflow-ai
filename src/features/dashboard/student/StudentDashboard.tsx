@@ -1,6 +1,4 @@
-import { useState } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import JoinClassroomDialog from "@/components/student/JoinClassroomDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasClassrooms } from "@/hooks/useHasClassrooms";
 import { Button } from "@/components/ui/button";
@@ -20,7 +18,6 @@ import {
 const StudentDashboard = () => {
   const { user } = useAuth();
   const { hasClassrooms, isLoading: enrollmentsLoading } = useHasClassrooms();
-  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const isSelfStudy = !enrollmentsLoading && !hasClassrooms;
 
   const stats = [
@@ -77,29 +74,22 @@ const StudentDashboard = () => {
               Hello, {displayName}!
             </h1>
             <p className="text-muted-foreground mt-1">
-              You are not in any class yet. Join a classroom with a code from your tutor or school to see assignments, quizzes, and course materials.
+              You&apos;re not in any class yet. You&apos;ll see your classes here when your tutor or school adds you.
             </p>
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <UserPlus className="h-10 w-10 text-muted-foreground" />
               <div>
-                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                  <UserPlus className="h-5 w-5 text-primary" />
-                  Join a classroom
-                </h2>
+                <h2 className="text-lg font-semibold text-foreground">Waiting to be added to a class</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Have a code from your tutor? Join their classroom to see assignments, quizzes, and course materials.
+                  Your tutor or school will add you to a class. Then you&apos;ll see assignments, quizzes, and materials here.
                 </p>
               </div>
-              <Button onClick={() => setJoinDialogOpen(true)} className="shrink-0">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Join with code
-              </Button>
             </div>
           </div>
         </div>
-        <JoinClassroomDialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen} />
       </DashboardLayout>
     );
   }

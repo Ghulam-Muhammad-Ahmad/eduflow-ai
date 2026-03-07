@@ -91,7 +91,7 @@ export default function OnboardingStudent() {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Use Study Hub for practice, join a class with a code from your tutor, or explore on your own.
+              Use Study Hub for practice, get added to a class by your tutor or school, or explore on your own.
             </p>
             <Button type="submit" className="w-full rounded-xl" disabled={submitting || !goal.trim()}>
               {submitting ? "Saving..." : "Continue to dashboard"}

@@ -37,8 +37,8 @@ export function DashboardOnboardingChecklist() {
 
   if (role === "teacher") {
     const items: OnboardingItem[] = [
-      { label: "Create your first classroom", done: classroomsCount >= 1, href: "/dashboard/teacher/classrooms", icon: School },
-      { label: "Invite or add a student to a class", done: enrollmentsCount >= 1, href: "/dashboard/teacher/classrooms", icon: UserPlus },
+      { label: "Be assigned to a class by your workspace owner", done: classroomsCount >= 1, href: "/dashboard/teacher/classrooms", icon: School },
+      { label: "Students are added to classes by your workspace owner", done: enrollmentsCount >= 1, href: "/dashboard/teacher/classrooms", icon: UserPlus },
       { label: "Create your first assignment", done: assignmentsCount >= 1, href: "/dashboard/teacher/assignments", icon: ClipboardCheck },
     ];
     return (
@@ -53,14 +53,14 @@ export function DashboardOnboardingChecklist() {
 
   if (role === "student") {
     const items: OnboardingItem[] = [
-      { label: "Join a class with a code", done: hasClassrooms, href: "/dashboard/student", icon: UserPlus },
+      { label: "Get added to a class by your tutor or school", done: hasClassrooms, href: "/dashboard/student", icon: UserPlus },
     ];
     return (
       <OnboardingChecklist
         userName={displayName}
         instructionText="Join a class to get started and see assignments and materials."
         items={items}
-        hideWhenComplete={false}
+        hideWhenComplete
       />
     );
   }

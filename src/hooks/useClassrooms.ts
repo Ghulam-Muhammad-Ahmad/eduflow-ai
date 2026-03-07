@@ -23,15 +23,35 @@ export const useClassrooms = () => {
       if (!user) return [];
 
       if (role === "teacher") {
-        const { data, error } = await supabase
+        const [primaryRes, tutorsRes] = await Promise.all([
+          supabase
+            .from("classrooms")
+            .select("*")
+            .eq("teacher_id", user.id)
+            .eq("is_archived", false)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("classroom_tutors")
+            .select("classroom_id")
+            .eq("user_id", user.id),
+        ]);
+        if (primaryRes.error) throw primaryRes.error;
+        const primary = primaryRes.data ?? [];
+        const primaryIds = new Set(primary.map((c) => c.id));
+        const extraIds = (tutorsRes.data ?? [])
+          .map((r) => r.classroom_id)
+          .filter((id) => !primaryIds.has(id));
+        if (extraIds.length === 0) return primary;
+        const { data: extra, error: extraErr } = await supabase
           .from("classrooms")
           .select("*")
-          .eq("teacher_id", user.id)
+          .in("id", extraIds)
           .eq("is_archived", false)
           .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        return data;
+        if (extraErr) throw extraErr;
+        const combined = [...primary, ...(extra ?? [])];
+        combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return combined;
       } else if (role === "student") {
         const { data, error } = await supabase
           .from("enrollments")

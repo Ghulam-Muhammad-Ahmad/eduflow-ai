@@ -29,7 +29,7 @@ function daysLeft(endsAt: string | null): number | null {
   return days > 0 ? days : 0;
 }
 
-/** Workspace subscription (Owner / Solo Tutor). Use workspaceId from useOwnerWorkspace or useTutorWorkspace. */
+/** Workspace subscription (Owner). Use workspaceId from useOwnerWorkspace or useTutorWorkspace. */
 export function useWorkspaceSubscription(workspaceId: string | null) {
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({

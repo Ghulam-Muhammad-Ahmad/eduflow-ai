@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -147,25 +148,56 @@ export function useOwnerWorkspace() {
     enabled: !!workspaceId,
   });
 
-  /** Classrooms where teacher is in this workspace */
+  /** Classrooms in this workspace (owner-created, workspace_id set) */
   const {
     data: classrooms = [],
     isLoading: classroomsLoading,
   } = useQuery({
-    queryKey: ["owner-workspace-classrooms", workspaceId, memberUserIds],
+    queryKey: ["owner-workspace-classrooms", workspaceId],
     queryFn: async () => {
-      if (!workspaceId || memberUserIds.length === 0) return [];
+      if (!workspaceId) return [];
       const { data, error } = await supabase
         .from("classrooms")
         .select("*")
-        .in("teacher_id", memberUserIds)
+        .eq("workspace_id", workspaceId)
         .eq("is_archived", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!workspaceId && memberUserIds.length > 0,
+    enabled: !!workspaceId,
   });
+
+  /** classroom_tutors for workspace classrooms (classroom_id -> user_id[]) */
+  const classroomIds = classrooms.map((c) => c.id);
+  const {
+    data: classroomTutorsRows = [],
+  } = useQuery({
+    queryKey: ["owner-workspace-classroom-tutors", classroomIds],
+    queryFn: async () => {
+      if (!classroomIds.length) return [];
+      const { data, error } = await supabase
+        .from("classroom_tutors")
+        .select("classroom_id, user_id")
+        .in("classroom_id", classroomIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!workspaceId && classroomIds.length > 0,
+  });
+
+  /** Map classroom_id -> user_id[] for assigned tutors (including primary teacher_id) */
+  const tutorsByClassroomId = React.useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const c of classrooms) {
+      const fromTable = classroomTutorsRows
+        .filter((ct) => ct.classroom_id === c.id)
+        .map((ct) => ct.user_id);
+      const combined = [...new Set([c.teacher_id, ...fromTable])];
+      map.set(c.id, combined);
+    }
+    return map;
+  }, [classrooms, classroomTutorsRows]);
 
   /** Assignments in workspace (by teacher in workspace) */
   const {
@@ -260,12 +292,110 @@ export function useOwnerWorkspace() {
     queryClient.invalidateQueries({ queryKey: ["owner-workspace"] });
   };
 
+  /** Create classroom (owner): insert classroom with workspace_id, teacher_id, then classroom_tutors */
+  const createClassroom = useMutation({
+    mutationFn: async (params: {
+      name: string;
+      subject: string | null;
+      description: string | null;
+      teacher_id: string;
+      additionalTutorIds?: string[];
+    }) => {
+      if (!workspaceId) throw new Error("No workspace");
+      const { name, subject, description, teacher_id, additionalTutorIds = [] } = params;
+      const tutorIds = [teacher_id, ...additionalTutorIds.filter((id) => id !== teacher_id)];
+      const { data: classroom, error: classError } = await supabase
+        .from("classrooms")
+        .insert({
+          name,
+          subject,
+          description,
+          workspace_id: workspaceId,
+          teacher_id,
+          join_code: null,
+        })
+        .select()
+        .single();
+      if (classError) throw classError;
+      if (tutorIds.length > 0) {
+        const { error: ctError } = await supabase.from("classroom_tutors").insert(
+          tutorIds.map((user_id) => ({ classroom_id: classroom.id, user_id }))
+        );
+        if (ctError) throw ctError;
+      }
+      return classroom;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-classroom-tutors"] });
+      queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+    },
+  });
+
+  /** Update classroom tutors: set primary teacher_id, add/remove from classroom_tutors */
+  const updateClassroomTutors = useMutation({
+    mutationFn: async (params: {
+      classroomId: string;
+      teacher_id?: string;
+      addTutorIds?: string[];
+      removeTutorIds?: string[];
+    }) => {
+      const { classroomId, teacher_id, addTutorIds = [], removeTutorIds = [] } = params;
+      if (teacher_id !== undefined) {
+        const { error: upErr } = await supabase
+          .from("classrooms")
+          .update({ teacher_id })
+          .eq("id", classroomId);
+        if (upErr) throw upErr;
+        await supabase
+          .from("classroom_tutors")
+          .upsert({ classroom_id: classroomId, user_id: teacher_id }, { onConflict: "classroom_id,user_id" });
+      }
+      if (addTutorIds.length > 0) {
+        const { error: addErr } = await supabase
+          .from("classroom_tutors")
+          .upsert(
+            addTutorIds.map((user_id) => ({ classroom_id: classroomId, user_id })),
+            { onConflict: "classroom_id,user_id" }
+          );
+        if (addErr) throw addErr;
+      }
+      for (const user_id of removeTutorIds) {
+        await supabase.from("classroom_tutors").delete().eq("classroom_id", classroomId).eq("user_id", user_id);
+      }
+      return { classroomId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-classroom-tutors"] });
+      queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+    },
+  });
+
+  /** Add student to classroom (owner): insert enrollment */
+  const addStudentToClassroom = useMutation({
+    mutationFn: async ({ classroomId, studentId }: { classroomId: string; studentId: string }) => {
+      const { error } = await supabase.from("enrollments").insert({
+        classroom_id: classroomId,
+        student_id: studentId,
+      });
+      if (error) throw error;
+      return { classroomId, studentId };
+    },
+    onSuccess: ({ classroomId }) => {
+      queryClient.invalidateQueries({ queryKey: ["classroom-roster", classroomId] });
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+    },
+  });
+
   return {
     workspace,
     workspaceId,
     tutors,
     assignedStudents,
     classrooms,
+    tutorsByClassroomId,
     assignments,
     quizzes,
     documents,
@@ -273,6 +403,9 @@ export function useOwnerWorkspace() {
     memberUserIds,
     tutorContracts,
     contractByTutorId,
+    createClassroom,
+    updateClassroomTutors,
+    addStudentToClassroom,
     isLoading:
       workspaceLoading ||
       tutorsLoading ||

@@ -6,28 +6,22 @@ import {
   Users,
   GraduationCap,
   Building,
-  Activity,
-  ClipboardCheck,
-  FileText,
-  ListChecks,
   Shield,
   Settings,
 } from "lucide-react";
 
 const AdminDashboard = () => {
   useAuth();
-  const { workspace, stats, tutors, assignedStudents, assignments, isLoading } = useOwnerWorkspace();
+  const { stats, tutors, assignedStudents, isLoading } = useOwnerWorkspace();
 
   const statsCards = [
     { icon: Users, label: "Tutors", value: stats.tutorsCount, path: "/dashboard/owner/tutors", iconClass: "feature-icon-indigo" },
     { icon: GraduationCap, label: "Students", value: stats.studentsCount, path: "/dashboard/owner/students", iconClass: "feature-icon-teal" },
     { icon: Building, label: "Classrooms", value: stats.classroomsCount, path: "/dashboard/owner/classrooms", iconClass: "feature-icon-purple" },
-    { icon: ClipboardCheck, label: "Pending to grade", value: stats.pendingSubmissionsCount, path: "/dashboard/owner/assignments", iconClass: "feature-icon-amber" },
   ];
 
   const recentTutors = tutors.slice(0, 4);
   const recentStudents = assignedStudents.slice(0, 4);
-  const recentAssignments = assignments.slice(0, 5);
 
   return (
     <DashboardLayout>
@@ -113,43 +107,26 @@ const AdminDashboard = () => {
             )}
           </div>
 
-          {/* Recent activity / Assignments */}
+          {/* Quick links */}
           <div className="bg-card rounded-2xl border border-border p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-muted-foreground" />
-              Recent Assignments
+              <Settings className="w-5 h-5 text-muted-foreground" />
+              Quick links
             </h2>
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : (
-              <div className="space-y-3">
-                {recentAssignments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No assignments in this workspace yet.</p>
-                ) : (
-                  recentAssignments.map((a) => (
-                    <Link
-                      key={a.id}
-                      href="/dashboard/owner/assignments"
-                      className="block p-3 rounded-xl bg-secondary/30 border border-border hover:bg-secondary/50"
-                    >
-                      <p className="font-medium">{a.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(a as { classrooms?: { name: string } }).classrooms?.name ?? "—"} · {a.status}
-                      </p>
-                    </Link>
-                  ))
-                )}
-                <Link href="/dashboard/owner/assignments" className="text-sm text-primary font-medium hover:underline">
-                  View all assignments →
-                </Link>
-              </div>
-            )}
-            <Link href="/dashboard/settings" className="mt-4 block w-full p-3 rounded-xl bg-secondary hover:bg-secondary/80 border border-border font-medium transition-colors text-center">
-              <div className="flex items-center justify-center gap-2">
-                <Settings className="w-5 h-5" />
-                Settings
-              </div>
-            </Link>
+            <div className="space-y-3">
+              <Link href="/dashboard/owner/workspace" className="block p-3 rounded-xl bg-secondary/30 border border-border hover:bg-secondary/50 font-medium">
+                Workspace settings
+              </Link>
+              <Link href="/dashboard/owner/billing" className="block p-3 rounded-xl bg-secondary/30 border border-border hover:bg-secondary/50 font-medium">
+                Billing & Plan
+              </Link>
+              <Link href="/dashboard/settings" className="block w-full p-3 rounded-xl bg-secondary hover:bg-secondary/80 border border-border font-medium transition-colors text-center">
+                <div className="flex items-center justify-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Settings
+                </div>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

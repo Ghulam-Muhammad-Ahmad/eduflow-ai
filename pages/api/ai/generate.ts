@@ -5,7 +5,7 @@ import path from "path";
 import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
 import type { AITaskType } from "@/types/ai";
-import { deductCreditsForRequest } from "@/lib/ai-credits-deduct";
+import { deductCreditsForRequest, ensureOwnerWorkspaceCreditPool } from "@/lib/ai-credits-deduct";
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -211,6 +211,7 @@ export default async function handler(
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    await ensureOwnerWorkspaceCreditPool(user.id);
     const creditError = await deductCreditsForRequest(user.id, taskType);
     if (creditError) {
       return res.status(creditError.status).json(creditError.body);

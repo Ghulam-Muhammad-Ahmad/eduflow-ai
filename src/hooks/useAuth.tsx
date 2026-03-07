@@ -128,7 +128,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const setAccountTypeForOAuthUser = async (accountType: AccountType) => {
     if (!user) return { error: new Error("Not signed in") };
     try {
-      const role: AppRole = accountType === "business" ? "admin" : accountType === "solo_tutor" ? "teacher" : "student";
+      const role: AppRole = accountType === "business" ? "admin" : accountType === "tutor" ? "teacher" : "student";
       const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: user.id,
         role,
@@ -228,13 +228,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, displayName: string, roleOrAccountType: AppRole | AccountType) => {
     const isAccountType = (v: string): v is AccountType =>
-      v === "business" || v === "solo_tutor" || v === "student";
+      v === "business" || v === "student";
     const selectedRole: AppRole = isAccountType(roleOrAccountType)
       ? roleOrAccountType === "business"
         ? "admin"
-        : roleOrAccountType === "solo_tutor"
-          ? "teacher"
-          : "student"
+        : "student"
       : roleOrAccountType;
     const accountType: AccountType | null = isAccountType(roleOrAccountType) ? roleOrAccountType : null;
     try {

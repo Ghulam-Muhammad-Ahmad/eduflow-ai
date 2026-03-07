@@ -224,7 +224,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error("[paddle-webhook] user_subscriptions upsert error:", error);
         return res.status(500).json({ error: "Database error" });
       }
-      if (isActiveOrTrialing && creditsAllocated > 0) {
+      // Only give user-level credit allocation when this is NOT a workspace subscription.
+      // For workspace (business) plans, credits live only in workspace_credit_pools; owner/tutors/students use from that single pool.
+      if (isActiveOrTrialing && creditsAllocated > 0 && !workspaceId) {
         const { error: allocError } = await admin.rpc("upsert_user_credit_allocation_subscription", {
           _user_id: userId,
           _period: periodStr,

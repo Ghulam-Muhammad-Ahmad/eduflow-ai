@@ -164,7 +164,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "User created but id missing" });
   }
 
-  const accountType = role === "tutor" ? "solo_tutor" : "student";
+  const accountType = role === "tutor" ? "tutor" : "student";
   const now = new Date().toISOString();
   const { error: profileErr } = await supabaseAdmin
     .from("profiles")

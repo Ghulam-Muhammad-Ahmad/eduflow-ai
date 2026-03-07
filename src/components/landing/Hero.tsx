@@ -28,7 +28,7 @@ const Hero = () => {
           {/* Subheadline */}
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 animate-slide-up" style={{ animationDelay: "0.1s" }}>
             Edulabloom saves prep time, helps you manage students, and delivers better tutoring results 
-            with AI-assisted workflows for tutoring businesses and solo tutors.
+            with AI-assisted workflows for tutoring businesses and their tutors.
           </p>
 
           {/* CTA: single signup path (owner/business) */}

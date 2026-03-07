@@ -1,5 +1,13 @@
-import JoinClassroom from "@/features/JoinClassroom";
+import { useEffect } from "react";
+import { useRouter } from "next/router";
 
-export default function JoinClassroomPage() {
-  return <JoinClassroom />;
+/** Join-by-code is no longer used; redirect to student dashboard. */
+export default function JoinClassroomByCodePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/dashboard/student");
+  }, [router]);
+
+  return null;
 }

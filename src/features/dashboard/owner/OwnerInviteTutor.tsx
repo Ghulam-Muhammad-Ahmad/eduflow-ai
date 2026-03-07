@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useAIUsage } from "@/hooks/useAIUsage";
-import { ArrowLeft, UserPlus, Eye, EyeOff, Copy, FileText } from "lucide-react";
+import { ArrowLeft, UserPlus, Eye, EyeOff, Copy, FileText, CheckCircle2, KeyRound, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { passwordSchema } from "@/lib/validation";
@@ -166,30 +166,71 @@ export default function OwnerInviteTutor() {
         </Button>
 
         {createdTutor ? (
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <UserPlus className="h-8 w-8 text-primary" />
-              <h1 className="text-xl font-bold">Tutor created</h1>
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm max-w-lg">
+            {/* Success header */}
+            <div className="p-6 pb-4">
+              <div className="flex items-start gap-4">
+                <span className="flex shrink-0 items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary">
+                  <CheckCircle2 className="h-6 w-6" />
+                </span>
+                <div>
+                  <h1 className="text-xl font-semibold tracking-tight text-foreground">Tutor created</h1>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Share the login details below with the tutor securely (e.g. by email or in person).
+                  </p>
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Share the details below with the tutor. You can copy them to send by email or another channel.
-            </p>
-            <div className="rounded-lg border border-border bg-muted/30 p-4 font-mono text-sm whitespace-pre-wrap break-words">
-              {getFormattedDetails()}
+
+            {/* Login details block */}
+            <div className="mx-6 mb-6">
+              <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/80 bg-muted/60">
+                  <KeyRound className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">Tutor login details</span>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Name</span>
+                    <span className="text-sm font-medium text-foreground break-all">{createdTutor.displayName}</span>
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Email</span>
+                    <span className="text-sm font-medium text-foreground break-all">{createdTutor.email}</span>
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Temporary password</span>
+                    <span className="text-sm font-mono text-foreground break-all">{createdTutor.password}</span>
+                  </div>
+                  <div className="pt-2 border-t border-border/80">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Login URL</span>
+                    <a
+                      href="/auth"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 flex items-center gap-1.5 text-sm text-primary hover:underline"
+                    >
+                      {typeof window !== "undefined" ? window.location.origin : ""}/auth
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    </a>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    They should sign in and change their password after first login.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="default" onClick={handleCopyDetails} disabled={copying}>
-                <Copy className="mr-2 h-4 w-4" />
-                {copying ? "Copied!" : "Copy details"}
+
+            {/* Actions */}
+            <div className="px-6 pb-6 pt-0 grid grid-cols-2 gap-3">
+              <Button type="button" variant="default" onClick={handleCopyDetails} disabled={copying} className="w-full">
+                <Copy className="mr-2 h-4 w-4 shrink-0" />
+                <span className="truncate">{copying ? "Copied!" : "Copy all details"}</span>
               </Button>
-              <Button variant="outline" asChild>
-                <Link href={`/dashboard/owner/contracts/new?tutorId=${createdTutor.userId}`}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Make contract for this tutor
+              <Button variant="outline" asChild className="w-full">
+                <Link href={`/dashboard/owner/contracts/new?tutorId=${createdTutor.userId}`} className="flex items-center justify-center">
+                  <FileText className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="truncate">Create AI contract</span>
                 </Link>
               </Button>
-              <Button type="button" variant="secondary" onClick={handleCreateAnother}>
-                Create another tutor
+              <Button type="button" variant="ghost" onClick={handleCreateAnother} className="text-muted-foreground border border-border w-full">
+                <span className="truncate">Create another tutor</span>
               </Button>
             </div>
           </div>

@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useTutorWorkspace } from "@/hooks/useTutorWorkspace";
 
 export type TutorContractRow = {
   id: string;
@@ -24,19 +23,19 @@ export type TutorContractRow = {
 
 export function useTutorContract() {
   const { user } = useAuth();
-  const { data: workspace } = useTutorWorkspace();
-
-  const workspaceId = workspace?.workspaceId ?? null;
 
   const query = useQuery({
-    queryKey: ["tutor-contract", user?.id, workspaceId],
+    queryKey: ["tutor-contract", user?.id],
     queryFn: async (): Promise<TutorContractRow | null> => {
-      if (!user?.id || !workspaceId) return null;
+      if (!user?.id) return null;
+      // Query by tutor_id only so the contract shows regardless of which workspace
+      // useTutorWorkspace returned (e.g. limit(1) without order can pick the wrong workspace).
       const { data, error } = await supabase
         .from("tutor_contracts")
         .select("*")
-        .eq("workspace_id", workspaceId)
         .eq("tutor_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
@@ -46,7 +45,7 @@ export function useTutorContract() {
         subjects: Array.isArray(row.subjects) ? (row.subjects as string[]) : [],
       } as TutorContractRow;
     },
-    enabled: !!user && !!workspaceId,
+    enabled: !!user,
   });
 
   return {

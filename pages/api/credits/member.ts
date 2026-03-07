@@ -29,16 +29,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .eq("owner_id", caller.id)
     .limit(1)
     .maybeSingle();
-  const { data: memberRow } = await supabaseAdmin
-    .from("workspace_members")
-    .select("workspace_id")
-    .eq("user_id", caller.id)
-    .limit(1)
-    .maybeSingle();
 
-  const workspaceId = ownerWs?.id ?? memberRow?.workspace_id ?? null;
+  const workspaceId = ownerWs?.id ?? null;
   if (!workspaceId) {
-    return res.status(403).json({ error: "No workspace found" });
+    return res.status(403).json({ error: "Only workspace owners can view member credits" });
+  }
+
+  // Member = workspace_member (tutor) OR student enrolled in a classroom in this workspace
+  const { data: wsMember } = await supabaseAdmin
+    .from("workspace_members")
+    .select("user_id")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", memberUserId)
+    .maybeSingle();
+  if (!wsMember) {
+    const { data: enrollments } = await supabaseAdmin
+      .from("enrollments")
+      .select("classroom_id")
+      .eq("student_id", memberUserId)
+      .eq("status", "active");
+    const classroomIds = (enrollments ?? []).map((e) => e.classroom_id);
+    if (classroomIds.length === 0) {
+      return res.status(404).json({ error: "Member not found in your workspace" });
+    }
+    const { data: classroomsInWorkspace } = await supabaseAdmin
+      .from("classrooms")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .in("id", classroomIds)
+      .limit(1);
+    if (!classroomsInWorkspace?.length) {
+      return res.status(404).json({ error: "Member not found in your workspace" });
+    }
   }
 
   const periodStart = new Date();

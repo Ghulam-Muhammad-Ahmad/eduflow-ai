@@ -4,7 +4,7 @@ import { Check, Sparkles } from "lucide-react";
 const plans = [
   {
     name: "Starter",
-    description: "Perfect for solo tutors",
+    description: "Perfect for getting started",
     price: "Free",
     priceDetail: "forever",
     features: [

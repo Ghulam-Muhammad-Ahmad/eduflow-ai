@@ -40,7 +40,7 @@ export default function OwnerStudentsList() {
             <GraduationCap className="mx-auto h-12 w-12 text-muted-foreground" />
             <h2 className="mt-4 font-semibold">No students assigned yet</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create student accounts and assign them to tutors. Share login details with them. Students can also join via classroom code.
+              Create student accounts and assign them to tutors. Share login details with them.
             </p>
             <Button asChild className="mt-4">
               <Link href="/dashboard/owner/students/invite">Create student account</Link>

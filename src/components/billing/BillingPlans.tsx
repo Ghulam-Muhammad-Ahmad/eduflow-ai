@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,9 @@ import {
 } from "@/lib/billing";
 import { openPaddleCheckout } from "./PaddleProvider";
 import { Check } from "lucide-react";
+
+/** Fetched from GET /api/paddle/plan-prices */
+type PlanPricesResponse = Record<PlanTier, Record<BillingCycle, { formatted: string; ai_credits: number | null; doc_storage_gb: number | null } | null>>;
 
 interface BillingPlansProps {
   planLine: PlanLine;
@@ -48,7 +51,32 @@ export function BillingPlans({
 }: BillingPlansProps) {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [redirecting, setRedirecting] = useState(false);
+  const [planPrices, setPlanPrices] = useState<PlanPricesResponse | null>(null);
+  const [pricesLoading, setPricesLoading] = useState(true);
   const useRedirect = !!successUrl;
+
+  useEffect(() => {
+    let cancelled = false;
+    setPricesLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/paddle/plan-prices?planLine=${encodeURIComponent(planLine)}`, { credentials: "include" });
+        if (cancelled) return;
+        if (!res.ok) {
+          setPricesLoading(false);
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.plans) setPlanPrices(data.plans);
+      } catch {
+        // Fallback to PLAN_DISPLAY_PRICES
+      } finally {
+        if (!cancelled) setPricesLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [planLine]);
 
   const handleSelect = async (tier: PlanTier, billingCycle: BillingCycle) => {
     const priceId = getCheckoutPriceId(planLine, tier, billingCycle);
@@ -104,7 +132,13 @@ export function BillingPlans({
         </div>
       </div>
 
-      {/* Plan cards: title, description, price, billing note, features, CTA */}
+      {/* Plan cards: show loading first, then dynamic prices */}
+      {pricesLoading ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading plans and prices…</p>
+        </div>
+      ) : (
       <div className="grid gap-x-2 gap-y-6 md:grid-cols-3">
         {TIERS.map((tier) => {
           const limits = PLAN_LIMITS[planLine][tier];
@@ -113,12 +147,22 @@ export function BillingPlans({
           const priceId = getCheckoutPriceId(planLine, tier, cycle);
           const isCurrent = currentPriceId && priceId === currentPriceId;
           const trial = hasTrial(tier);
-          const displayPrice = cycle === "monthly" ? prices.monthly : prices.annual;
+          const dynamic = planPrices?.[tier]?.[cycle];
+          const displayPrice = dynamic?.formatted ?? (cycle === "monthly" ? prices.monthly : prices.annual);
+          const monthlyFormatted = planPrices?.[tier]?.monthly?.formatted ?? prices.monthly;
           const priceSuffix = cycle === "monthly" ? "/month" : "/year";
           const billingNote =
             cycle === "annual"
-              ? `billed annually or ${prices.monthly}/month billed monthly`
+              ? `billed annually or ${monthlyFormatted}/month billed monthly`
               : "billed monthly";
+          const dynamicFeatures: string[] = [];
+          if (dynamic?.ai_credits != null && dynamic.ai_credits >= 0) {
+            dynamicFeatures.push(`${dynamic.ai_credits.toLocaleString()} AI credits per month`);
+          }
+          if (dynamic?.doc_storage_gb != null && dynamic.doc_storage_gb >= 0) {
+            dynamicFeatures.push(`${dynamic.doc_storage_gb} GB document storage`);
+          }
+          const allFeatures = [...features, ...dynamicFeatures];
 
           return (
             <Card
@@ -141,7 +185,7 @@ export function BillingPlans({
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  {features.map((feature, i) => (
+                  {allFeatures.map((feature, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <Check className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                       <span>{feature}</span>
@@ -174,6 +218,7 @@ export function BillingPlans({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

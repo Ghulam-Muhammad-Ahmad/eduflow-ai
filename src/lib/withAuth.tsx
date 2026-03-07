@@ -6,8 +6,8 @@ import type { AppRole, AccountType } from "@/types/auth";
 
 const ONBOARDING_PATH: Record<AccountType, string> = {
   business: "/onboarding/business",
-  solo_tutor: "/onboarding/solo",
   student: "/onboarding/student",
+  tutor: "/dashboard/teacher", // tenant-created tutors skip onboarding
 };
 
 function getOnboardingPath(accountType: AccountType | null): string {
