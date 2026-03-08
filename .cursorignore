@@ -42,4 +42,4 @@ supabase/config.toml
 
 src/test/**
 
-# src/components/ui/**
+src/components/ui/**

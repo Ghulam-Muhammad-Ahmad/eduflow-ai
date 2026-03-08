@@ -7,6 +7,8 @@ import { ArrowLeft, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
+import { MemberStorageCard } from "@/components/storage/MemberStorageCard";
+import { ClassroomLectureSection } from "@/components/lectures/ClassroomLectureSection";
 
 export default function OwnerStudentProfile() {
   const router = useRouter();
@@ -80,6 +82,13 @@ export default function OwnerStudentProfile() {
           />
         )}
 
+        {studentId && (
+          <MemberStorageCard
+            memberUserId={studentId}
+            memberLabel={assignment?.student?.display_name ?? "Student"}
+          />
+        )}
+
         <div className="rounded-2xl border border-border bg-card p-6">
           <h2 className="font-semibold mb-4">Assigned tutor</h2>
           {tutor ? (
@@ -94,6 +103,26 @@ export default function OwnerStudentProfile() {
             <p className="text-sm text-muted-foreground">Not assigned to a tutor. Assign from the Students list.</p>
           )}
         </div>
+
+        {studentId && tutor && (
+          <ClassroomLectureSection
+            scopeType="one_to_one"
+            studentId={studentId}
+            targetName={assignment?.student?.display_name ?? "this student"}
+            canManage
+            canEditMockFinancials
+            showPrivateNotes
+            tutorOptions={[
+              {
+                id: tutor.user_id,
+                name: tutor.profile?.display_name ?? tutor.profile?.email ?? "Tutor",
+              },
+            ]}
+            defaultTutorId={tutor.user_id}
+            description="Schedule direct Google Meet coaching sessions for this student with their assigned tutor."
+            emptyMessage="No one-to-one sessions scheduled yet. Create the first direct session here."
+          />
+        )}
 
         <div className="rounded-2xl border border-border bg-card p-6">
           <h2 className="font-semibold mb-4">Enrolled classrooms</h2>

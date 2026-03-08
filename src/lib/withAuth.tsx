@@ -57,6 +57,12 @@ export function withAuth<P extends object>(
 
       if (!role) return;
 
+      // Tutor/student must change password on first login (invited users)
+      if ((role === "teacher" || role === "student") && profile?.password_changed_at == null) {
+        router.replace("/onboarding/change-password");
+        return;
+      }
+
       const onboardingComplete = profile?.onboarding_completed_at != null;
       if (!onboardingComplete && profile) {
         const path = getOnboardingPath(profile.account_type ?? "business");

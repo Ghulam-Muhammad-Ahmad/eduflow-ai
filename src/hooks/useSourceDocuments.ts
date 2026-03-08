@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@supabase/supabase-js";
+import { getStorageLimitExceededMessage } from "@/lib/storage-quota";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,6 +45,26 @@ export const useCreateSourceDocument = () => {
   
   return useMutation({
     mutationFn: async (doc: CreateSourceDocumentInput) => {
+      const storageRes = await fetch("/api/storage/context", { credentials: "include" });
+      if (!storageRes.ok) {
+        const json = await storageRes.json().catch(() => ({}));
+        throw new Error((json as { error?: string }).error ?? "Failed to check storage");
+      }
+
+      const storage = (await storageRes.json()) as {
+        limitBytes: number;
+        usedBytes: number;
+        remainingBytes: number;
+      };
+
+      if ((storage.limitBytes ?? 0) <= 0 || (storage.usedBytes ?? 0) + doc.file.size > (storage.limitBytes ?? 0)) {
+        throw new Error(
+          (storage.limitBytes ?? 0) <= 0
+            ? "No storage allocated yet. Ask the workspace owner to assign document storage first."
+            : getStorageLimitExceededMessage(storage.remainingBytes ?? 0, doc.file.size)
+        );
+      }
+
       // First upload file to storage
       const fileExtension = doc.file.name.split('.').pop();
       const fileName = `source-docs/${Date.now()}.${fileExtension}`;

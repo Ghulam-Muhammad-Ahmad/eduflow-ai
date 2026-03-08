@@ -132,7 +132,11 @@ function getUniqueDocumentName(originalName: string, existingNames: string[]): s
 const TeacherDocuments = () => {
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
-  const { limitBytes: storageLimit } = useDocStorageLimit();
+  const {
+    limitBytes: storageLimit,
+    usedBytes: storageUsed,
+    refetch: refetchStorage,
+  } = useDocStorageLimit();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [tags, setTags] = useState<TagType[]>([]);
@@ -157,7 +161,6 @@ const TeacherDocuments = () => {
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [documentToMove, setDocumentToMove] = useState<DocumentType | null>(null);
   const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null);
-  const [storageUsed, setStorageUsed] = useState(0);
   // Tags: edit tags on document
   const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
   const [documentToTag, setDocumentToTag] = useState<DocumentType | null>(null);
@@ -220,10 +223,6 @@ const TeacherDocuments = () => {
           tags: doc.document_tags?.map((dt: { tag: TagType }) => dt.tag).filter(Boolean) || [],
         }));
         setDocuments(docsWithTags);
-        
-        // Calculate storage used
-        const totalSize = docsWithTags.reduce((acc, doc) => acc + (doc.file_size || 0), 0);
-        setStorageUsed(totalSize);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -244,18 +243,7 @@ const TeacherDocuments = () => {
 
       try {
         const incomingBytes = acceptedFiles.reduce((acc, f) => acc + f.size, 0);
-        let usageQuery = supabase
-          .from("documents")
-          .select("file_size")
-          .eq("user_id", user.id);
-        if (selectedFolder) {
-          usageQuery = usageQuery.eq("folder_id", selectedFolder);
-        }
-        const { data: sizeData, error: sizeError } = await usageQuery;
-        if (sizeError) throw sizeError;
-
-        const currentUsedBytes =
-          sizeData?.reduce((acc, doc) => acc + (doc.file_size || 0), 0) || 0;
+        const currentUsedBytes = storageUsed;
 
         if (currentUsedBytes + incomingBytes > storageLimit) {
           toast.error(
@@ -314,6 +302,7 @@ const TeacherDocuments = () => {
 
         toast.success(`${acceptedFiles.length} file(s) uploaded successfully`);
         fetchData();
+        void refetchStorage();
       } catch (error) {
         console.error("Upload error:", error);
         toast.error("Failed to upload file(s)");
@@ -321,7 +310,7 @@ const TeacherDocuments = () => {
         setUploading(false);
       }
     },
-    [user, selectedFolder, fetchData, storageLimit]
+    [user, selectedFolder, fetchData, storageLimit, storageUsed, refetchStorage]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -385,6 +374,7 @@ const TeacherDocuments = () => {
 
       toast.success("Document deleted");
       fetchData();
+      void refetchStorage();
     } catch (error) {
       console.error("Error deleting document:", error);
       toast.error("Failed to delete document");
@@ -641,6 +631,7 @@ const TeacherDocuments = () => {
       setSplitPageRange("");
       setSplitNewFileName("");
       fetchData();
+      void refetchStorage();
     } catch (e) {
       console.error("Split PDF error:", e);
       toast.error("Failed to split PDF");

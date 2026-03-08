@@ -43,6 +43,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ClassroomLectureSection } from "@/components/lectures/ClassroomLectureSection";
 import {
   ArrowLeft,
   Users,
@@ -89,7 +90,6 @@ export default function OwnerClassroomDetail() {
   const tutorMap = new Map(tutors.map((t) => [t.user_id, t.profile?.display_name ?? t.profile?.email ?? "Tutor"]));
 
   const enrolledStudentIds = new Set(roster.map((r) => r.student_id));
-  const workspaceStudentIds = [...new Set((assignedStudents as { student_id: string }[]).map((s) => s.student_id))];
   const studentsNotInClass = assignedStudents.filter(
     (s) => !enrolledStudentIds.has((s as { student_id: string }).student_id)
   ) as { student_id: string; student?: { display_name?: string | null; email?: string | null } }[];
@@ -321,6 +321,24 @@ export default function OwnerClassroomDetail() {
           </Card>
         )}
 
+        {classroom && (
+          <ClassroomLectureSection
+            scopeType="classroom"
+            classroomId={classroom.id}
+            targetName={classroom.name}
+            canManage
+            canEditMockFinancials
+            showPrivateNotes
+            tutorOptions={tutorIds.map((uid) => ({
+              id: uid,
+              name: tutorMap.get(uid) ?? "Tutor",
+            }))}
+            defaultTutorId={classroom.teacher_id}
+            description="Schedule Google Meet lectures for this classroom and assign them to one of the classroom tutors."
+            emptyMessage="No lectures scheduled yet. Use the button above to create the first classroom lecture."
+          />
+        )}
+
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -413,7 +431,7 @@ export default function OwnerClassroomDetail() {
                       className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30"
                     >
                       <Avatar className="h-10 w-10">
-                        <AvatarImage src={p?.avatar_url} />
+                      <AvatarImage src={p?.avatar_url ?? undefined} />
                         <AvatarFallback>{(name[0] || "S").toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">

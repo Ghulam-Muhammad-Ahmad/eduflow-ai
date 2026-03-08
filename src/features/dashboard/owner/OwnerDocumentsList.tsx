@@ -3,13 +3,15 @@ import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { FileText } from "lucide-react";
 
 export default function OwnerDocumentsList() {
-  const { workspace, documents, tutors, isLoading } = useOwnerWorkspace();
+  const { workspace, documents, tutors, assignedStudents, isLoading } = useOwnerWorkspace();
   const ownerId = workspace?.owner_id;
-  const tutorIds = new Set(tutors.map((t) => t.user_id));
   const getUploader = (userId: string) => {
     if (userId === ownerId) return "Owner";
     const t = tutors.find((x) => x.user_id === userId);
-    return t?.profile?.display_name ?? "Tutor";
+    if (t) return t.profile?.display_name ?? "Tutor";
+    const student = assignedStudents.find((x) => x.student_id === userId);
+    if (student) return student.student?.display_name ?? "Student";
+    return "Workspace member";
   };
 
   return (
@@ -29,7 +31,7 @@ export default function OwnerDocumentsList() {
             <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
             <h2 className="mt-4 font-semibold">No documents yet</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Documents uploaded by you and tutors will appear here.
+              Documents uploaded by you, tutors, and students will appear here.
             </p>
           </div>
         ) : (

@@ -120,7 +120,11 @@ function getUniqueDocumentName(originalName: string, existingNames: string[]): s
 
 const StudentDocuments = () => {
   const { user } = useAuth();
-  const { limitBytes: storageLimit } = useDocStorageLimit();
+  const {
+    limitBytes: storageLimit,
+    usedBytes: storageUsed,
+    refetch: refetchStorage,
+  } = useDocStorageLimit();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,7 +146,6 @@ const StudentDocuments = () => {
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [documentToMove, setDocumentToMove] = useState<DocumentType | null>(null);
   const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null);
-  const [storageUsed, setStorageUsed] = useState(0);
   // Split PDF dialog
   const [splitDialogOpen, setSplitDialogOpen] = useState(false);
   const [documentToSplit, setDocumentToSplit] = useState<DocumentType | null>(null);
@@ -162,11 +165,6 @@ const StudentDocuments = () => {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      
-      // Calculate storage used
-      const totalSize = data?.reduce((acc, doc) => acc + (doc.file_size || 0), 0) || 0;
-      setStorageUsed(totalSize);
-      
       return data || [];
     } catch (error) {
       console.error("Error fetching documents:", error);
@@ -212,16 +210,8 @@ const StudentDocuments = () => {
       setUploading(true);
 
       try {
-        // Enforce storage limit
-        const { data: sizeData, error: sizeError } = await supabase
-          .from("documents")
-          .select("file_size")
-          .eq("user_id", user.id);
-
-        if (sizeError) throw sizeError;
-
-        const currentUsedBytes = sizeData?.reduce((acc, doc) => acc + (doc.file_size || 0), 0) || 0;
         const incomingBytes = acceptedFiles.reduce((acc, f) => acc + f.size, 0);
+        const currentUsedBytes = storageUsed;
 
         if (currentUsedBytes + incomingBytes > storageLimit) {
           toast.error(
@@ -270,6 +260,7 @@ const StudentDocuments = () => {
 
         toast.success(`${acceptedFiles.length} file(s) uploaded successfully`);
         fetchAllData();
+        void refetchStorage();
       } catch (error) {
         console.error("Upload error:", error);
         toast.error("Failed to upload file(s)");
@@ -277,7 +268,7 @@ const StudentDocuments = () => {
         setUploading(false);
       }
     },
-    [user, selectedFolder, fetchAllData, storageLimit]
+    [user, selectedFolder, fetchAllData, storageLimit, storageUsed, refetchStorage]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -354,6 +345,7 @@ const StudentDocuments = () => {
 
       toast.success("Document deleted");
       fetchAllData();
+      void refetchStorage();
     } catch (error) {
       console.error("Error deleting:", error);
       toast.error("Failed to delete document");
@@ -504,6 +496,7 @@ const StudentDocuments = () => {
       setSplitPageRange("");
       setSplitNewFileName("");
       fetchAllData();
+      void refetchStorage();
     } catch (e) {
       console.error("Split PDF error:", e);
       toast.error("Failed to split PDF");

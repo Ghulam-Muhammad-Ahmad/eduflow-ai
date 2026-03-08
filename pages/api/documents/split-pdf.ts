@@ -7,6 +7,7 @@ import {
   validatePageNumbers,
   MAX_PAGES_PER_SPLIT,
 } from "@/lib/pageRange";
+import { ensureUserCanStoreBytes } from "@/server/storage-allocation";
 
 /**
  * POST body: { documentId: string, pageRange: string, newFileName: string }
@@ -126,6 +127,10 @@ export default async function handler(
     }
 
     const pdfBytes = await newDoc.save();
+    const storageCheck = await ensureUserCanStoreBytes(supabase, user.id, pdfBytes.length);
+    if (!storageCheck.ok) {
+      return res.status(400).json({ error: storageCheck.error });
+    }
     const newFilePath = `${user.id}/${Date.now()}_${nameTrimmed}`;
 
     const { error: uploadError } = await supabase.storage

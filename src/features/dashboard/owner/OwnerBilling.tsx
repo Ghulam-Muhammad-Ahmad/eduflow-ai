@@ -10,8 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ExternalLink, Coins } from "lucide-react";
+import { ExternalLink, Coins, HardDrive } from "lucide-react";
 import { useWorkspaceCredits } from "@/hooks/useWorkspaceCredits";
+import { useWorkspaceStorageSummary } from "@/hooks/useStorage";
+import { formatStorageSize } from "@/lib/storage-quota";
 
 export default function OwnerBilling() {
   const [portalLoading, setPortalLoading] = useState(false);
@@ -43,6 +45,7 @@ export default function OwnerBilling() {
   const isLoading = (workspaceId ? workspaceLoading : false) || userLoading;
 
   const { workspaceCredits, isLoading: creditsLoading } = useWorkspaceCredits(!!workspaceId);
+  const { workspaceStorage, isLoading: storageLoading } = useWorkspaceStorageSummary(!!workspaceId);
 
   const invalidate = () => {
     invalidateWorkspace();
@@ -170,6 +173,50 @@ export default function OwnerBilling() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No workspace credits data for this period.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {workspaceId && (
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive className="h-5 w-5 text-muted-foreground" />
+                Workspace document storage
+              </CardTitle>
+              <CardDescription>
+                Storage from your plan is shared by the workspace. Assign storage limits to tutors and students from this single pool.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {storageLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : workspaceStorage ? (
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total from plan</span>
+                    <span className="font-medium">{formatStorageSize(workspaceStorage.totalLimitBytes)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Assigned to tutors/students</span>
+                    <span>{formatStorageSize(workspaceStorage.assignedBytes)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Currently used</span>
+                    <span>{formatStorageSize(workspaceStorage.usedBytes)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Unassigned</span>
+                    <span>{formatStorageSize(workspaceStorage.unassignedBytes)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2 mt-2 font-medium">
+                    <span>Free space remaining</span>
+                    <span>{formatStorageSize(workspaceStorage.remainingFreeBytes)}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No workspace storage data available.</p>
               )}
             </CardContent>
           </Card>

@@ -5,6 +5,7 @@ import { useClassrooms } from "@/hooks/useClassrooms";
 import { useStudentAssignments } from "@/hooks/useAssignments";
 import { useQuizzes } from "@/hooks/useQuizzes";
 import { useAuth } from "@/hooks/useAuth";
+import { ClassroomLectureSection } from "@/components/lectures/ClassroomLectureSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,6 +257,18 @@ const StudentClassroomDetail = () => {
               <p className="text-muted-foreground">{classroom.description}</p>
             </CardContent>
           </Card>
+        )}
+
+        {classroom && (
+          <ClassroomLectureSection
+            scopeType="classroom"
+            classroomId={classroom.id}
+            targetName={classroom.name}
+            canManage={false}
+            tutorOptions={[]}
+            description="Upcoming live lectures for this classroom. Join the Google Meet link when the session starts."
+            emptyMessage="No live lectures have been scheduled for this classroom yet."
+          />
         )}
 
         {/* Search */}

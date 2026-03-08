@@ -150,6 +150,54 @@ export type Database = {
           },
         ]
       }
+      ai_interactions: {
+        Row: {
+          id: string
+          user_id: string
+          interaction_type: string
+          provider: string
+          model: string
+          tokens_used: number | null
+          cost: number | null
+          request_data: Json | null
+          response_data: Json | null
+          success: boolean | null
+          error_message: string | null
+          created_at: string
+          credits_deducted: number | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          interaction_type: string
+          provider: string
+          model: string
+          tokens_used?: number | null
+          cost?: number | null
+          request_data?: Json | null
+          response_data?: Json | null
+          success?: boolean | null
+          error_message?: string | null
+          created_at?: string
+          credits_deducted?: number | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          interaction_type?: string
+          provider?: string
+          model?: string
+          tokens_used?: number | null
+          cost?: number | null
+          request_data?: Json | null
+          response_data?: Json | null
+          success?: boolean | null
+          error_message?: string | null
+          created_at?: string
+          credits_deducted?: number | null
+        }
+        Relationships: []
+      }
       assignments: {
         Row: {
           allow_late_submission: boolean | null
@@ -397,6 +445,45 @@ export type Database = {
           },
         ]
       }
+      source_documents: {
+        Row: {
+          created_at: string
+          description: string | null
+          document_type: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+          teacher_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          document_type: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id?: string
+          teacher_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          document_type?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          teacher_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           classroom_id: string
@@ -479,6 +566,7 @@ export type Database = {
           user_id: string
           account_type: "business" | "student" | "tutor" | null
           onboarding_completed_at: string | null
+          password_changed_at: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -491,6 +579,7 @@ export type Database = {
           user_id: string
           account_type?: "business" | "student" | "tutor" | null
           onboarding_completed_at?: string | null
+          password_changed_at?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -503,6 +592,7 @@ export type Database = {
           user_id?: string
           account_type?: "business" | "student" | "tutor" | null
           onboarding_completed_at?: string | null
+          password_changed_at?: string | null
         }
         Relationships: []
       }
@@ -573,6 +663,7 @@ export type Database = {
           updated_at: string
           settings: Json
           trial_ends_at: string | null
+          logo_url: string | null
         }
         Insert: {
           id?: string
@@ -583,6 +674,7 @@ export type Database = {
           updated_at?: string
           settings?: Json
           trial_ends_at?: string | null
+          logo_url?: string | null
         }
         Update: {
           name?: string
@@ -591,6 +683,7 @@ export type Database = {
           updated_at?: string
           settings?: Json
           trial_ends_at?: string | null
+          logo_url?: string | null
         }
         Relationships: []
       }
@@ -779,6 +872,31 @@ export type Database = {
           current_period_ends_at?: string | null
           trial_ends_at?: string | null
           doc_storage_limit_mb?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_storage_allocations: {
+        Row: {
+          id: string
+          workspace_id: string
+          user_id: string
+          storage_limit_mb: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          user_id: string
+          storage_limit_mb?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          user_id?: string
+          storage_limit_mb?: number
           updated_at?: string
         }
         Relationships: []
@@ -1091,6 +1209,423 @@ export type Database = {
         }
         Relationships: []
       }
+      google_calendar_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string | null
+          google_calendar_id: string
+          google_email: string | null
+          id: string
+          refresh_token: string | null
+          scope: string | null
+          token_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at?: string | null
+          google_calendar_id?: string
+          google_email?: string | null
+          id?: string
+          refresh_token?: string | null
+          scope?: string | null
+          token_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string | null
+          google_calendar_id?: string
+          google_email?: string | null
+          id?: string
+          refresh_token?: string | null
+          scope?: string | null
+          token_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_series: {
+        Row: {
+          classroom_id: string | null
+          created_at: string
+          created_by_user_id: string
+          description: string | null
+          ends_at: string
+          id: string
+          occurrences_count: number
+          recurrence_frequency: string
+          recurrence_interval: number
+          scope_type: string
+          starts_at: string
+          student_id: string | null
+          title: string
+          tutor_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          classroom_id?: string | null
+          created_at?: string
+          created_by_user_id: string
+          description?: string | null
+          ends_at: string
+          id?: string
+          occurrences_count: number
+          recurrence_frequency: string
+          recurrence_interval?: number
+          scope_type: string
+          starts_at: string
+          student_id?: string | null
+          title: string
+          tutor_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          classroom_id?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          description?: string | null
+          ends_at?: string
+          id?: string
+          occurrences_count?: number
+          recurrence_frequency?: string
+          recurrence_interval?: number
+          scope_type?: string
+          starts_at?: string
+          student_id?: string | null
+          title?: string
+          tutor_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_series_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_series_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_series_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_series_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_series_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_financial_mock: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          id: string
+          session_id: string
+          student_charge_amount: number
+          student_charge_currency: string
+          student_charge_type: string
+          tutor_id: string
+          tutor_rate_amount: number
+          tutor_rate_currency: string
+          tutor_rate_type: string
+          updated_at: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          id?: string
+          session_id: string
+          student_charge_amount?: number
+          student_charge_currency?: string
+          student_charge_type?: string
+          tutor_id: string
+          tutor_rate_amount?: number
+          tutor_rate_currency?: string
+          tutor_rate_type?: string
+          updated_at?: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          id?: string
+          session_id?: string
+          student_charge_amount?: number
+          student_charge_currency?: string
+          student_charge_type?: string
+          tutor_id?: string
+          tutor_rate_amount?: number
+          tutor_rate_currency?: string
+          tutor_rate_type?: string
+          updated_at?: string
+          updated_by_user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_financial_mock_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_financial_mock_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_financial_mock_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_financial_mock_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_financial_mock_updated_by_user_id_fkey"
+            columns: ["updated_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_notes: {
+        Row: {
+          content: string
+          created_at: string
+          created_by_user_id: string
+          id: string
+          session_id: string
+          tutor_id: string
+          updated_at: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by_user_id: string
+          id?: string
+          session_id: string
+          tutor_id: string
+          updated_at?: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by_user_id?: string
+          id?: string
+          session_id?: string
+          tutor_id?: string
+          updated_at?: string
+          updated_by_user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_notes_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_notes_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_notes_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_notes_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_notes_updated_by_user_id_fkey"
+            columns: ["updated_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          classroom_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by_user_id: string
+          description: string | null
+          ends_at: string
+          external_event_id: string | null
+          google_calendar_id: string | null
+          id: string
+          meeting_provider: string
+          meeting_url: string | null
+          occurrence_index: number | null
+          scope_type: string
+          series_id: string | null
+          starts_at: string
+          status: string
+          student_id: string | null
+          title: string
+          tutor_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          classroom_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id: string
+          description?: string | null
+          ends_at: string
+          external_event_id?: string | null
+          google_calendar_id?: string | null
+          id?: string
+          meeting_provider?: string
+          meeting_url?: string | null
+          occurrence_index?: number | null
+          scope_type?: string
+          series_id?: string | null
+          starts_at: string
+          status?: string
+          student_id?: string | null
+          title: string
+          tutor_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          classroom_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          description?: string | null
+          ends_at?: string
+          external_event_id?: string | null
+          google_calendar_id?: string | null
+          id?: string
+          meeting_provider?: string
+          meeting_url?: string | null
+          occurrence_index?: number | null
+          scope_type?: string
+          series_id?: string | null
+          starts_at?: string
+          status?: string
+          student_id?: string | null
+          title?: string
+          tutor_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "session_series"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checked_papers: {
         Row: {
           id: string
@@ -1187,6 +1722,43 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_credit_context: {
+        Args: { _user_id: string }
+        Returns: {
+          credits_limit: number
+          credits_used: number
+          remaining: number
+          source_type: string
+          source_id: string
+        }[]
+      }
+      assign_storage_to_member: {
+        Args: {
+          _workspace_id: string
+          _member_user_id: string
+          _storage_limit_mb: number
+          _caller_user_id: string
+        }
+        Returns: Json
+      }
+      assign_credits_to_member: {
+        Args: {
+          _workspace_id: string
+          _member_user_id: string
+          _credits: number
+          _caller_user_id: string
+        }
+        Returns: Json
+      }
+      check_and_deduct_credits: {
+        Args: {
+          _user_id: string
+          _task_type: string
+          _credit_cost: number
+          _interaction_id?: string | null
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1201,6 +1773,40 @@ export type Database = {
       is_enrolled_in_classroom: {
         Args: { _classroom_id: string; _user_id: string }
         Returns: boolean
+      }
+      update_assigned_storage_limit: {
+        Args: {
+          _workspace_id: string
+          _member_user_id: string
+          _new_limit_mb: number
+          _caller_user_id: string
+        }
+        Returns: Json
+      }
+      update_assigned_credits: {
+        Args: {
+          _workspace_id: string
+          _member_user_id: string
+          _new_limit: number
+          _caller_user_id: string
+        }
+        Returns: Json
+      }
+      upsert_user_credit_allocation_subscription: {
+        Args: {
+          _user_id: string
+          _period: string
+          _credits_limit: number
+        }
+        Returns: undefined
+      }
+      upsert_workspace_credit_pool: {
+        Args: {
+          _workspace_id: string
+          _period: string
+          _credits_allocated: number
+        }
+        Returns: undefined
       }
     }
     Enums: {

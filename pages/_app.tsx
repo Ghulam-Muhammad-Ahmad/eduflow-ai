@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { OnboardingDismissedProvider } from "@/components/dashboard/OnboardingChecklist";
 import "@/index.css";
+import "flag-icons/css/flag-icons.min.css";
 
 export default function App({ Component, pageProps }: AppProps) {
   const [queryClient] = useState(() => new QueryClient());

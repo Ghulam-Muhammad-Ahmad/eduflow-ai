@@ -3,13 +3,21 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencySelect } from "@/components/ui/currency-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useAIUsage } from "@/hooks/useAIUsage";
+import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
+import { useWorkspaceStorageSummary } from "@/hooks/useStorage";
 import { ArrowLeft, UserPlus, Eye, EyeOff, Copy, FileText, CheckCircle2, KeyRound, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { passwordSchema } from "@/lib/validation";
+import {
+  bytesToWholeMb,
+  formatStorageSize,
+  getStorageSliderStepMb,
+} from "@/lib/storage-quota";
 
 type CreatedTutor = {
   userId: string;
@@ -20,7 +28,12 @@ type CreatedTutor = {
 
 export default function OwnerInviteTutor() {
   const { usage, loading: usageLoading, refetch: refetchUsage } = useAIUsage();
+  const { workspace } = useOwnerWorkspace();
+  const { workspaceStorage, isLoading: storageLoading, refetch: refetchStorage } = useWorkspaceStorageSummary(true);
   const availableCredits = usage?.remainingCredits ?? 0;
+  const availableStorageMb = bytesToWholeMb(workspaceStorage?.unassignedBytes ?? 0);
+  const workspaceCurrency =
+    (workspace?.settings?.default_currency?.trim()) || "GBP";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -30,6 +43,7 @@ export default function OwnerInviteTutor() {
   const [rateCurrency, setRateCurrency] = useState("GBP");
   const [subjects, setSubjects] = useState("");
   const [initialCredits, setInitialCredits] = useState(0);
+  const [initialStorageMb, setInitialStorageMb] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -39,6 +53,14 @@ export default function OwnerInviteTutor() {
   useEffect(() => {
     if (availableCredits < initialCredits) setInitialCredits(availableCredits);
   }, [availableCredits]);
+
+  useEffect(() => {
+    if (availableStorageMb < initialStorageMb) setInitialStorageMb(availableStorageMb);
+  }, [availableStorageMb, initialStorageMb]);
+
+  useEffect(() => {
+    if (workspaceCurrency) setRateCurrency(workspaceCurrency);
+  }, [workspaceCurrency]);
 
   const getFormattedDetails = () => {
     if (!createdTutor) return "";
@@ -79,6 +101,7 @@ export default function OwnerInviteTutor() {
     setRateAmount("");
     setSubjects("");
     setInitialCredits(0);
+    setInitialStorageMb(0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,13 +138,22 @@ export default function OwnerInviteTutor() {
           .filter(Boolean),
       };
       if (initialCredits > 0) body.initialCredits = initialCredits;
+      if (initialStorageMb > 0) body.initialStorageMb = initialStorageMb;
       const res = await fetch("/api/tenant/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         credentials: "include",
       });
-      const data = await res.json().catch(() => ({})) as { message?: string; error?: string; creditsAssigned?: boolean; creditsError?: string; userId?: string };
+      const data = await res.json().catch(() => ({})) as {
+        message?: string;
+        error?: string;
+        creditsAssigned?: boolean;
+        creditsError?: string;
+        storageAssigned?: boolean;
+        storageError?: string;
+        userId?: string;
+      };
       if (!res.ok) {
         toast.error(data.error ?? "Failed to create tutor account");
         if (data.error?.toLowerCase().includes("email")) setErrors({ email: data.error });
@@ -131,7 +163,11 @@ export default function OwnerInviteTutor() {
       if (data.creditsAssigned === false && data.creditsError) {
         toast.warning(`Credits could not be assigned: ${data.creditsError}`);
       }
+      if (data.storageAssigned === false && data.storageError) {
+        toast.warning(`Storage could not be assigned: ${data.storageError}`);
+      }
       void refetchUsage?.();
+      void refetchStorage?.();
       if (data.userId) {
         setCreatedTutor({
           userId: data.userId,
@@ -147,6 +183,7 @@ export default function OwnerInviteTutor() {
         setRateAmount("");
         setSubjects("");
         setInitialCredits(0);
+        setInitialStorageMb(0);
       }
     } catch {
       toast.error("Failed to create tutor account");
@@ -157,7 +194,7 @@ export default function OwnerInviteTutor() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-md">
+      <div className="space-y-6 w-full max-w-3xl mx-auto">
         <Button variant="ghost" asChild>
           <Link href="/dashboard/owner/tutors">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -331,13 +368,15 @@ export default function OwnerInviteTutor() {
             </div>
             <div>
               <Label htmlFor="rateCurrency">Currency</Label>
-              <Input
+              <p className="text-xs text-muted-foreground mt-0.5 mb-1">
+                Defaults from Workspace settings. Override here if needed.
+              </p>
+              <CurrencySelect
                 id="rateCurrency"
-                type="text"
-                placeholder="GBP"
                 value={rateCurrency}
-                onChange={(e) => setRateCurrency(e.target.value)}
-                className="mt-2 max-w-[120px]"
+                onChange={setRateCurrency}
+                placeholder="Select currency"
+                className="mt-2 max-w-full w-full"
               />
             </div>
             <div>
@@ -387,6 +426,44 @@ export default function OwnerInviteTutor() {
               </div>
               )}
               <p className="text-xs text-muted-foreground mt-1">Deduct from workspace pool and assign to this tutor.</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mt-2">
+                <Label htmlFor="initialStorageMb">Initial document storage (optional)</Label>
+                <span className="text-sm text-muted-foreground">
+                  {formatStorageSize(initialStorageMb * 1024 * 1024)} / {formatStorageSize((workspaceStorage?.unassignedBytes ?? 0))}
+                </span>
+              </div>
+              <Slider
+                id="initialStorageMb"
+                min={0}
+                max={availableStorageMb <= 0 ? 1 : availableStorageMb}
+                step={getStorageSliderStepMb(availableStorageMb)}
+                value={[initialStorageMb]}
+                onValueChange={([value]) => setInitialStorageMb(Math.min(value, availableStorageMb))}
+                disabled={storageLoading || availableStorageMb === 0}
+                className="mt-2"
+              />
+              {availableStorageMb > 0 && (
+                <div className="flex gap-0.5 mt-2" aria-hidden>
+                  {Array.from({ length: 20 }).map((_, i) => {
+                    const segmentThreshold = (i + 1) / 20;
+                    const filled = initialStorageMb / availableStorageMb >= segmentThreshold;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex-1 min-w-[4px] rounded-sm transition-colors ${
+                          filled ? "bg-primary" : "bg-muted"
+                        }`}
+                        style={{ height: 8 }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Allocate document storage from your workspace pool to this tutor.
+              </p>
             </div>
             <Button type="submit" disabled={creating}>
               {creating ? "Creating..." : "Create tutor account"}

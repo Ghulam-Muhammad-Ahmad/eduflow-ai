@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertTriangle,
   Loader2,
   Sparkles,
   Calendar as CalendarIcon,
@@ -29,11 +30,18 @@ import {
   Pencil,
   Trash2,
   BookOpen,
+  Video,
 } from "lucide-react";
 import usePlannerCalendar from "@/hooks/usePlannerCalendar";
 import type { PlannerEvent } from "@/hooks/usePlannerCalendar";
+import {
+  useLectureFinancialSummary,
+  useTeacherLectureCalendar,
+  type LectureSession,
+} from "@/hooks/useLectureSessions";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { useToast } from "@/hooks/use-toast";
+import { LectureFinancialSummaryPanel } from "@/components/lectures/LectureFinancialSummaryPanel";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import type { ToolbarProps } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths } from "date-fns";
@@ -50,15 +58,31 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// Map DB events to react-big-calendar format
-function toCalendarEvent(e: PlannerEvent) {
+type CalendarResource =
+  | { kind: "planner"; data: PlannerEvent }
+  | { kind: "lecture"; data: LectureSession };
+
+type CalendarFilter = "all" | "planner" | "classroom" | "one_to_one";
+
+function toPlannerCalendarEvent(e: PlannerEvent) {
   return {
-    id: e.id,
+    id: `planner-${e.id}`,
     title: e.title,
     start: new Date(e.start_at),
     end: new Date(e.end_at),
     allDay: e.all_day,
-    resource: e,
+    resource: { kind: "planner", data: e } satisfies CalendarResource,
+  };
+}
+
+function toLectureCalendarEvent(e: LectureSession) {
+  return {
+    id: `lecture-${e.id}`,
+    title: `Lecture: ${e.title}`,
+    start: new Date(e.starts_at),
+    end: new Date(e.ends_at),
+    allDay: false,
+    resource: { kind: "lecture", data: e } satisfies CalendarResource,
   };
 }
 
@@ -113,6 +137,10 @@ export default function Calendar() {
     deleteEvent,
     suggestEvents,
   } = usePlannerCalendar();
+  const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date } | null>(null);
+  const { data: lectureSessions = [] } = useTeacherLectureCalendar(visibleRange);
+  const { data: lectureFinancialSummary, isLoading: lectureFinancialLoading } =
+    useLectureFinancialSummary();
   const { toast } = useToast();
 
   const [date, setDate] = useState(new Date());
@@ -127,7 +155,9 @@ export default function Calendar() {
   const [manualEnd, setManualEnd] = useState("");
   const [manualAllDay, setManualAllDay] = useState(false);
   const [detailEvent, setDetailEvent] = useState<PlannerEvent | null>(null);
+  const [detailLecture, setDetailLecture] = useState<LectureSession | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>("all");
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -135,7 +165,21 @@ export default function Calendar() {
   const [editEnd, setEditEnd] = useState("");
   const [editAllDay, setEditAllDay] = useState(false);
 
-  const calendarEvents = useMemo(() => events.map(toCalendarEvent), [events]);
+  const calendarEvents = useMemo(
+    () =>
+      [
+        ...events.map(toPlannerCalendarEvent),
+        ...lectureSessions
+          .filter((session) => session.status !== "cancelled")
+          .map(toLectureCalendarEvent),
+      ].filter((event) => {
+        if (calendarFilter === "all") return true;
+        if (calendarFilter === "planner") return event.resource.kind === "planner";
+        if (event.resource.kind !== "lecture") return false;
+        return event.resource.data.scope_type === calendarFilter;
+      }),
+    [calendarFilter, events, lectureSessions]
+  );
 
   // One-time initial fetch so events load even if Calendar hasn't fired onRangeChange yet
   const hasFetchedInitial = useRef(false);
@@ -144,6 +188,7 @@ export default function Calendar() {
     hasFetchedInitial.current = true;
     const start = startOfMonth(new Date());
     const end = endOfMonth(addMonths(new Date(), 2));
+    setVisibleRange({ start, end });
     fetchEvents(start, end);
   }, [fetchEvents]);
 
@@ -151,7 +196,10 @@ export default function Calendar() {
     (range: Date[] | { start: Date; end: Date }) => {
       const start = Array.isArray(range) ? range[0] : range.start;
       const end = Array.isArray(range) ? range[range.length - 1] : range.end;
-      if (start && end) fetchEvents(start, end);
+      if (start && end) {
+        setVisibleRange({ start, end });
+        fetchEvents(start, end);
+      }
     },
     [fetchEvents]
   );
@@ -166,18 +214,28 @@ export default function Calendar() {
     setAddEventOpen(true);
   }, []);
 
-  const handleSelectEvent = useCallback((event: { resource?: PlannerEvent }) => {
-    const ev = event?.resource;
-    if (ev) {
-      setDetailEvent(ev);
-      setEditTitle(ev.title);
-      setEditDescription(ev.description ?? "");
-      setEditStart(format(new Date(ev.start_at), "yyyy-MM-dd'T'HH:mm"));
-      setEditEnd(format(new Date(ev.end_at), "yyyy-MM-dd'T'HH:mm"));
-      setEditAllDay(ev.all_day);
+  const handleSelectEvent = useCallback((event: { resource?: CalendarResource }) => {
+    const resource = event?.resource;
+    if (!resource) return;
+
+    if (resource.kind === "lecture") {
+      setDetailLecture(resource.data);
+      setDetailEvent(null);
       setEditingEventId(null);
       setDetailOpen(true);
+      return;
     }
+
+    const ev = resource.data;
+    setDetailLecture(null);
+    setDetailEvent(ev);
+    setEditTitle(ev.title);
+    setEditDescription(ev.description ?? "");
+    setEditStart(format(new Date(ev.start_at), "yyyy-MM-dd'T'HH:mm"));
+    setEditEnd(format(new Date(ev.end_at), "yyyy-MM-dd'T'HH:mm"));
+    setEditAllDay(ev.all_day);
+    setEditingEventId(null);
+    setDetailOpen(true);
   }, []);
 
   const startEditingDetail = useCallback(() => {
@@ -315,6 +373,43 @@ export default function Calendar() {
           )}
         </div>
 
+        <LectureFinancialSummaryPanel
+          title="Lecture payroll and billing preview"
+          description="Preview-only totals derived from your completed lecture sessions and any per-session pricing overrides."
+          summary={lectureFinancialSummary}
+          isLoading={lectureFinancialLoading}
+        />
+
+        <Card className="border-border/70 bg-card/90 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Calendar filters
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Separate planner events from classroom and one-to-one lectures.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["all", "All"],
+                ["planner", "Planner"],
+                ["classroom", "Classroom"],
+                ["one_to_one", "1:1"],
+              ] as Array<[CalendarFilter, string]>).map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={calendarFilter === value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCalendarFilter(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </Card>
+
         {/* AI: describe events → suggest → review before adding */}
         <Card className="p-4 border-primary/10 bg-gradient-to-br from-primary/5 to-transparent">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -378,14 +473,32 @@ export default function Calendar() {
                   popup
                   views={["month"]}
                   style={{ height: "100%", minHeight: 0 }}
-                  eventPropGetter={() => ({
-                    style: {
-                      backgroundColor: "hsl(var(--primary))",
-                      borderColor: "hsl(var(--primary))",
-                      color: "hsl(var(--primary-foreground))",
-                      borderRadius: "6px",
-                    },
-                  })}
+                  eventPropGetter={(event: { resource?: CalendarResource }) => {
+                    const resource = event.resource;
+                    const isLecture = resource?.kind === "lecture";
+                    const lecture = isLecture ? resource.data : null;
+                    return {
+                      style: {
+                        backgroundColor: !isLecture
+                          ? "hsl(var(--primary))"
+                          : lecture?.scope_type === "one_to_one"
+                            ? "rgb(217 119 6)"
+                            : lecture?.status === "completed"
+                              ? "rgb(22 163 74)"
+                              : "hsl(var(--secondary))",
+                        borderColor: !isLecture
+                          ? "hsl(var(--primary))"
+                          : lecture?.scope_type === "one_to_one"
+                            ? "rgb(217 119 6)"
+                            : lecture?.status === "completed"
+                              ? "rgb(22 163 74)"
+                              : "hsl(var(--secondary))",
+                        color: "white",
+                        borderRadius: "6px",
+                        opacity: lecture?.status === "completed" ? 0.9 : 1,
+                      },
+                    };
+                  }}
                   components={{
                     toolbar: CalendarToolbar,
                   }}
@@ -485,11 +598,16 @@ export default function Calendar() {
       </Dialog>
 
       {/* Event detail: view / edit */}
-      <Dialog open={detailOpen} onOpenChange={(open) => { if (!open) { setDetailOpen(false); setDetailEvent(null); setEditingEventId(null); } }}>
+      <Dialog open={detailOpen} onOpenChange={(open) => { if (!open) { setDetailOpen(false); setDetailEvent(null); setDetailLecture(null); setEditingEventId(null); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {editingEventId ? (
+              {detailLecture ? (
+                <>
+                  <Video className="h-5 w-5 text-primary" />
+                  Lecture details
+                </>
+              ) : editingEventId ? (
                 <>
                   <Pencil className="h-5 w-5 text-primary" />
                   Edit event
@@ -502,10 +620,62 @@ export default function Calendar() {
               )}
             </DialogTitle>
             <DialogDescription>
-              {editingEventId ? "Update the event and save." : "View or edit this calendar event."}
+              {detailLecture
+                ? "This lecture was scheduled from a classroom session."
+                : editingEventId
+                  ? "Update the event and save."
+                  : "View or edit this calendar event."}
             </DialogDescription>
           </DialogHeader>
-          {detailEvent && (
+          {detailLecture ? (
+            <div className="space-y-4 py-2">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Title</p>
+                <p className="text-base font-medium mt-0.5">{detailLecture.title}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={detailLecture.status === "scheduled" ? "default" : "secondary"}>
+                  {detailLecture.status}
+                </Badge>
+                <Badge variant="outline">
+                  {detailLecture.scope_type === "one_to_one" ? "1:1 lecture" : "Classroom lecture"}
+                </Badge>
+                {detailLecture.series_id ? <Badge variant="outline">Recurring</Badge> : null}
+              </div>
+              {detailLecture.description ? (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Description</p>
+                  <p className="text-sm whitespace-pre-wrap rounded-md bg-muted/50 p-3 mt-0.5">
+                    {detailLecture.description}
+                  </p>
+                </div>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex items-start gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium text-muted-foreground">Start</p>
+                    <p>{format(new Date(detailLecture.starts_at), "PPp")}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium text-muted-foreground">End</p>
+                    <p>{format(new Date(detailLecture.ends_at), "PPp")}</p>
+                  </div>
+                </div>
+              </div>
+              {detailLecture.status === "scheduled" && !detailLecture.meeting_url ? (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>Google Meet link is unavailable for this lecture right now. Reconnect Google Calendar and resave the session if needed.</p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : detailEvent ? (
             <div className="space-y-4 py-2">
               {editingEventId ? (
                 <>
@@ -609,9 +779,21 @@ export default function Calendar() {
                 </>
               )}
             </div>
-          )}
+          ) : null}
           <DialogFooter>
-            {editingEventId ? (
+            {detailLecture ? (
+              <>
+                {detailLecture.meeting_url && detailLecture.status === "scheduled" ? (
+                  <Button asChild className="gap-2">
+                    <a href={detailLecture.meeting_url} target="_blank" rel="noreferrer">
+                      <Video className="h-4 w-4" />
+                      Join Meet
+                    </a>
+                  </Button>
+                ) : null}
+                <Button onClick={() => setDetailOpen(false)}>Close</Button>
+              </>
+            ) : editingEventId ? (
               <>
                 <Button variant="outline" onClick={cancelEditingDetail}>Cancel</Button>
                 <Button onClick={saveEditingDetail}>Save</Button>

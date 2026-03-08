@@ -57,6 +57,10 @@ export default function Auth() {
   useEffect(() => {
     if (authLoading || !user) return;
     if (role && profile && !subLoading) {
+      if ((role === "teacher" || role === "student") && !profile.password_changed_at) {
+        router.push("/onboarding/change-password");
+        return;
+      }
       const completed = profile.onboarding_completed_at;
       if (!completed) {
         router.push("/onboarding/business");

@@ -82,7 +82,7 @@ export default function TeacherCreateStudent() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-6 max-w-md">
+      <div className="space-y-6 w-full max-w-3xl mx-auto">
         <Button variant="ghost" asChild>
           <Link href="/dashboard/teacher/students">
             <ArrowLeft className="mr-2 h-4 w-4" />

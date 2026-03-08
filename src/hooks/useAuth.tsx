@@ -17,6 +17,7 @@ interface UserProfile {
   bio: string | null;
   account_type: AccountType | null;
   onboarding_completed_at: string | null;
+  password_changed_at: string | null;
 }
 
 interface AuthContextType {
@@ -39,6 +40,7 @@ interface AuthContextType {
   updateBio: (bio: string | null) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   completeOnboarding: () => Promise<{ error: Error | null }>;
+  setPasswordChanged: () => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,7 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("display_name, avatar_url, bio, account_type, onboarding_completed_at")
+        .select("display_name, avatar_url, bio, account_type, onboarding_completed_at, password_changed_at")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -83,7 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return null;
       }
 
-      const raw = data as (UserProfile & { account_type?: string; onboarding_completed_at?: string }) | null;
+      const raw = data as (UserProfile & { account_type?: string; onboarding_completed_at?: string; password_changed_at?: string }) | null;
       if (!raw) return null;
       return {
         display_name: raw.display_name ?? null,
@@ -91,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         bio: raw.bio ?? null,
         account_type: (raw.account_type as AccountType) ?? null,
         onboarding_completed_at: raw.onboarding_completed_at ?? null,
+        password_changed_at: raw.password_changed_at ?? null,
       };
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -107,7 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       { onConflict: "user_id" }
     );
     if (profileError) console.error("Error upserting OAuth profile:", profileError);
-    else setProfile((prev) => ({ display_name: displayName, avatar_url: avatarUrl, bio: prev?.bio ?? null, account_type: prev?.account_type ?? null, onboarding_completed_at: prev?.onboarding_completed_at ?? null }));
+    else setProfile((prev) => ({ display_name: displayName, avatar_url: avatarUrl, bio: prev?.bio ?? null, account_type: prev?.account_type ?? null, onboarding_completed_at: prev?.onboarding_completed_at ?? null, password_changed_at: prev?.password_changed_at ?? null }));
   };
 
   const setRoleForOAuthUser = async (selectedRole: AppRole) => {
@@ -176,6 +179,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     bio: null,
                     account_type: null,
                     onboarding_completed_at: null,
+                    password_changed_at: null,
                   }
                 : null)
             );
@@ -215,6 +219,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 bio: null,
                 account_type: null,
                 onboarding_completed_at: null,
+                password_changed_at: null,
               }
             : null)
         );
@@ -316,6 +321,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           bio: prev?.bio ?? null,
           account_type: accountType ?? prev?.account_type ?? null,
           onboarding_completed_at: prev?.onboarding_completed_at ?? null,
+          password_changed_at: prev?.password_changed_at ?? null,
         }));
       }
 
@@ -435,6 +441,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         bio: prev?.bio ?? null,
         account_type: prev?.account_type ?? null,
         onboarding_completed_at: prev?.onboarding_completed_at ?? null,
+        password_changed_at: prev?.password_changed_at ?? null,
       }));
       return { error: null };
     } catch (error) {
@@ -473,6 +480,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         bio: prev?.bio ?? null,
         account_type: prev?.account_type ?? null,
         onboarding_completed_at: prev?.onboarding_completed_at ?? null,
+        password_changed_at: prev?.password_changed_at ?? null,
       }));
       return { error: null };
     } catch (error) {
@@ -516,6 +524,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const setPasswordChanged = async () => {
+    try {
+      if (!user) throw new Error("No user logged in");
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("profiles")
+        .update({ password_changed_at: now, updated_at: now })
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setProfile((prev) => (prev ? { ...prev, password_changed_at: now } : null));
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -538,6 +562,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         updateBio,
         refreshProfile,
         completeOnboarding,
+        setPasswordChanged,
       }}
     >
       {children}

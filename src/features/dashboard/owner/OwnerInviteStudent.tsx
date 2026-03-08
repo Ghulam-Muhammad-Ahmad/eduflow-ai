@@ -10,6 +10,12 @@ import { ArrowLeft, UserPlus, Eye, EyeOff, Copy, CheckCircle2, KeyRound, Externa
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { passwordSchema } from "@/lib/validation";
+import { useWorkspaceStorageSummary } from "@/hooks/useStorage";
+import {
+  bytesToWholeMb,
+  formatStorageSize,
+  getStorageSliderStepMb,
+} from "@/lib/storage-quota";
 
 type CreatedStudent = {
   userId: string;
@@ -21,13 +27,16 @@ type CreatedStudent = {
 export default function OwnerInviteStudent() {
   const { tutors, workspaceId } = useOwnerWorkspace();
   const { usage, loading: usageLoading, refetch: refetchUsage } = useAIUsage();
+  const { workspaceStorage, isLoading: storageLoading, refetch: refetchStorage } = useWorkspaceStorageSummary(!!workspaceId);
   const availableCredits = usage?.remainingCredits ?? 0;
+  const availableStorageMb = bytesToWholeMb(workspaceStorage?.unassignedBytes ?? 0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [tutorId, setTutorId] = useState("");
   const [initialCredits, setInitialCredits] = useState(0);
+  const [initialStorageMb, setInitialStorageMb] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -37,6 +46,10 @@ export default function OwnerInviteStudent() {
   useEffect(() => {
     if (availableCredits < initialCredits) setInitialCredits(availableCredits);
   }, [availableCredits]);
+
+  useEffect(() => {
+    if (availableStorageMb < initialStorageMb) setInitialStorageMb(availableStorageMb);
+  }, [availableStorageMb, initialStorageMb]);
 
   const getFormattedDetails = () => {
     if (!createdStudent) return "";
@@ -76,6 +89,7 @@ export default function OwnerInviteStudent() {
     setLastName("");
     setTutorId("");
     setInitialCredits(0);
+    setInitialStorageMb(0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,13 +124,22 @@ export default function OwnerInviteStudent() {
       };
       if (tutorId) body.tutorId = tutorId;
       if (initialCredits > 0) body.initialCredits = initialCredits;
+      if (initialStorageMb > 0) body.initialStorageMb = initialStorageMb;
       const res = await fetch("/api/tenant/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         credentials: "include",
       });
-      const data = await res.json().catch(() => ({})) as { message?: string; error?: string; creditsAssigned?: boolean; creditsError?: string; userId?: string };
+      const data = await res.json().catch(() => ({})) as {
+        message?: string;
+        error?: string;
+        creditsAssigned?: boolean;
+        creditsError?: string;
+        storageAssigned?: boolean;
+        storageError?: string;
+        userId?: string;
+      };
       if (!res.ok) {
         toast.error(data.error ?? "Failed to create student account");
         if (data.error?.toLowerCase().includes("email")) setErrors({ email: data.error });
@@ -127,7 +150,11 @@ export default function OwnerInviteStudent() {
       if (data.creditsAssigned === false && data.creditsError) {
         toast.warning(`Credits could not be assigned: ${data.creditsError}`);
       }
+      if (data.storageAssigned === false && data.storageError) {
+        toast.warning(`Storage could not be assigned: ${data.storageError}`);
+      }
       void refetchUsage?.();
+      void refetchStorage?.();
       const displayName = `${firstName.trim()} ${lastName.trim()}`;
       if (data.userId) {
         setCreatedStudent({
@@ -143,6 +170,7 @@ export default function OwnerInviteStudent() {
         setLastName("");
         setTutorId("");
         setInitialCredits(0);
+        setInitialStorageMb(0);
       }
     } catch {
       toast.error("Failed to create student account");
@@ -155,7 +183,7 @@ export default function OwnerInviteStudent() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-md">
+      <div className="space-y-6 w-full max-w-3xl mx-auto">
         <Button variant="ghost" asChild>
           <Link href="/dashboard/owner/students">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -348,6 +376,42 @@ export default function OwnerInviteStudent() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-1">Deduct from workspace pool and assign to this student.</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mt-2">
+                <Label htmlFor="initialStorageMb">Initial document storage (optional)</Label>
+                <span className="text-sm text-muted-foreground">
+                  {formatStorageSize(initialStorageMb * 1024 * 1024)} / {formatStorageSize(workspaceStorage?.unassignedBytes ?? 0)}
+                </span>
+              </div>
+              <Slider
+                id="initialStorageMb"
+                min={0}
+                max={availableStorageMb <= 0 ? 1 : availableStorageMb}
+                step={getStorageSliderStepMb(availableStorageMb)}
+                value={[initialStorageMb]}
+                onValueChange={([value]) => setInitialStorageMb(Math.min(value, availableStorageMb))}
+                disabled={storageLoading || availableStorageMb === 0}
+                className="mt-2"
+              />
+              {availableStorageMb > 0 && (
+                <div className="flex gap-0.5 mt-2" aria-hidden>
+                  {Array.from({ length: 20 }).map((_, i) => {
+                    const segmentThreshold = (i + 1) / 20;
+                    const filled = initialStorageMb / availableStorageMb >= segmentThreshold;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex-1 min-w-[4px] rounded-sm transition-colors ${filled ? "bg-primary" : "bg-muted"}`}
+                        style={{ height: 8 }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Allocate document storage from your workspace pool to this student.
+              </p>
             </div>
             <Button type="submit" disabled={creating || (!!workspaceId && !hasTutors)}>
               {creating ? "Creating..." : "Create student account"}

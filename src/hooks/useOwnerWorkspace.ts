@@ -3,6 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+/** Shape of public.workspaces.settings (jsonb). Persisted to DB on Workspace settings page. */
+export type WorkspaceSettings = {
+  default_currency?: string;
+  [key: string]: unknown;
+};
+
 export type WorkspaceRow = {
   id: string;
   name: string;
@@ -10,7 +16,9 @@ export type WorkspaceRow = {
   owner_id: string;
   created_at: string;
   updated_at: string;
-  settings: Record<string, unknown>;
+  /** public.workspaces.settings (jsonb). Use default_currency for contract/tutor rate display. */
+  settings: WorkspaceSettings;
+  logo_url?: string | null;
 };
 
 export type WorkspaceMemberRow = {
@@ -137,7 +145,7 @@ export function useOwnerWorkspace() {
       const studentIds = [...new Set(rows.map((r) => r.student_id))];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email")
+        .select("user_id, display_name, email, avatar_url")
         .in("user_id", studentIds);
       const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
       return rows.map((r) => ({
@@ -147,6 +155,11 @@ export function useOwnerWorkspace() {
     },
     enabled: !!workspaceId,
   });
+
+  const workspaceDocumentUserIds = React.useMemo(() => {
+    const studentUserIds = assignedStudents.map((row) => row.student_id);
+    return Array.from(new Set([...memberUserIds, ...studentUserIds]));
+  }, [assignedStudents, memberUserIds]);
 
   /** Classrooms in this workspace (owner-created, workspace_id set) */
   const {
@@ -263,19 +276,19 @@ export function useOwnerWorkspace() {
     data: documents = [],
     isLoading: documentsLoading,
   } = useQuery({
-    queryKey: ["owner-workspace-documents", workspaceId, memberUserIds],
+    queryKey: ["owner-workspace-documents", workspaceId, workspaceDocumentUserIds],
     queryFn: async () => {
-      if (!workspaceId || memberUserIds.length === 0) return [];
+      if (!workspaceId || workspaceDocumentUserIds.length === 0) return [];
       const { data, error } = await supabase
         .from("documents")
         .select("id, name, file_type, file_size, created_at, user_id")
-        .in("user_id", memberUserIds)
+        .in("user_id", workspaceDocumentUserIds)
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!workspaceId && memberUserIds.length > 0,
+    enabled: !!workspaceId && workspaceDocumentUserIds.length > 0,
   });
 
   const stats = {

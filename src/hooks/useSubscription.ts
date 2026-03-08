@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { useTutorWorkspace } from "@/hooks/useTutorWorkspace";
+import { useCurrentStorageContext } from "@/hooks/useStorage";
 
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "inactive";
 
@@ -177,37 +178,26 @@ export function useHasActiveSubscription(): { hasAccess: boolean; isLoading: boo
   return { hasAccess: false, isLoading: false };
 }
 
-/** Default Doc Center storage limits in bytes when no subscription limit is set. */
-const DEFAULT_DOC_STORAGE_STUDENT_BYTES = 50 * 1024 * 1024; // 50 MB
-const DEFAULT_DOC_STORAGE_TEACHER_BYTES = 100 * 1024 * 1024; // 100 MB
-
 /**
- * Doc Center storage limit in bytes for the current user.
- * Student: from user_subscriptions.doc_storage_limit_mb (default 50 MB).
- * Teacher/Owner: from workspace_subscriptions.doc_storage_limit_mb (default 100 MB).
+ * Effective Doc Center storage for the current user.
+ * For workspace plans this now respects owner-managed member allocations.
  */
-export function useDocStorageLimit(): { limitBytes: number; isLoading: boolean } {
-  const { role } = useAuth();
-  const { workspace: ownerWorkspace, isLoading: ownerWorkspaceLoading } = useOwnerWorkspace();
-  const { workspaceId: tutorWorkspaceId, isLoading: tutorWorkspaceLoading } = useTutorWorkspace();
-  const workspaceId =
-    role === "admin" && ownerWorkspace?.id ? ownerWorkspace.id : role === "teacher" && tutorWorkspaceId ? tutorWorkspaceId : null;
-  const { subscription: workspaceSub, isLoading: workspaceSubLoading } = useWorkspaceSubscription(workspaceId);
-  const { subscription: userSub, isLoading: userSubLoading } = useUserSubscription();
+export function useDocStorageLimit(): {
+  limitBytes: number;
+  usedBytes: number;
+  remainingBytes: number;
+  isLoading: boolean;
+  refetch: () => Promise<unknown>;
+} {
+  const query = useCurrentStorageContext();
+  const storage = query.storage;
 
-  if (role === "student") {
-    const mb = userSub?.doc_storage_limit_mb;
-    const limitBytes =
-      mb != null && Number.isFinite(mb) && mb > 0 ? mb * 1024 * 1024 : DEFAULT_DOC_STORAGE_STUDENT_BYTES;
-    return { limitBytes, isLoading: userSubLoading };
-  }
-  if (role === "admin" || role === "teacher") {
-    const mb = workspaceSub?.doc_storage_limit_mb;
-    const limitBytes =
-      mb != null && Number.isFinite(mb) && mb > 0 ? mb * 1024 * 1024 : DEFAULT_DOC_STORAGE_TEACHER_BYTES;
-    const isLoading = (role === "admin" ? ownerWorkspaceLoading : tutorWorkspaceLoading) || workspaceSubLoading;
-    return { limitBytes, isLoading };
-  }
-  return { limitBytes: DEFAULT_DOC_STORAGE_STUDENT_BYTES, isLoading: false };
+  return {
+    limitBytes: storage?.limitBytes ?? 0,
+    usedBytes: storage?.usedBytes ?? 0,
+    remainingBytes: storage?.remainingBytes ?? 0,
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+  };
 }
 

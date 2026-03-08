@@ -3,9 +3,12 @@ import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms, useClassroomRoster } from "@/hooks/useClassrooms";
 import { useAssignments } from "@/hooks/useAssignments";
+import { useAuth } from "@/hooks/useAuth";
+import { ClassroomLectureSection } from "@/components/lectures/ClassroomLectureSection";
+import { GoogleCalendarConnectionCard } from "@/components/lectures/GoogleCalendarConnectionCard";
+import { useGoogleCalendarConnection } from "@/hooks/useLectureSessions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -39,10 +42,12 @@ import { useToast } from "@/hooks/use-toast";
 const TeacherClassroomDetail = () => {
   const router = useRouter();
   const { classroomId } = router.query as { classroomId: string };
+  const { user } = useAuth();
   const { classrooms, isLoading: classroomsLoading, removeStudent } = useClassrooms();
   const { data: roster, isLoading: rosterLoading } = useClassroomRoster(classroomId || null);
   const { assignments } = useAssignments(classroomId);
   const { toast } = useToast();
+  const { data: googleCalendarConnection } = useGoogleCalendarConnection();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [removeStudentDialogOpen, setRemoveStudentDialogOpen] = useState(false);
@@ -101,6 +106,12 @@ const TeacherClassroomDetail = () => {
     const query = searchQuery.toLowerCase();
     return studentName.toLowerCase().includes(query) || studentEmail.toLowerCase().includes(query);
   });
+
+  const disableSchedulingReason = !googleCalendarConnection?.configured
+    ? "Google Meet scheduling is unavailable until Google OAuth is configured on the server."
+    : !googleCalendarConnection.connected
+      ? "Connect Google Calendar above before scheduling or rescheduling Google Meet lectures."
+      : null;
 
   return (
     <DashboardLayout>
@@ -170,6 +181,33 @@ const TeacherClassroomDetail = () => {
               <p className="text-muted-foreground">{classroom.description}</p>
             </CardContent>
           </Card>
+        )}
+
+        <GoogleCalendarConnectionCard
+          redirectTo={`/dashboard/teacher/classrooms/${classroomId}`}
+        />
+
+        {classroom && user && (
+          <ClassroomLectureSection
+            scopeType="classroom"
+            classroomId={classroom.id}
+            targetName={classroom.name}
+            canManage
+            canCompleteOutcomes
+            canEditPrivateNotes
+            canEditMockFinancials
+            showPrivateNotes
+            disableSchedulingReason={disableSchedulingReason}
+            tutorOptions={[
+              {
+                id: user.id,
+                name: "You",
+              },
+            ]}
+            defaultTutorId={user.id}
+            description="Schedule Google Meet lectures for this classroom using your connected Google Calendar."
+            emptyMessage="No lectures scheduled yet. Connect Google Calendar above, then create your first lecture."
+          />
         )}
 
         {/* Students Roster */}

@@ -14,6 +14,7 @@ const bodySchema = {
   role: (v: unknown): v is CreateUserRole => v === "tutor" || v === "student",
   tutorId: (v: unknown) => v === undefined || (typeof v === "string" && v.length > 0),
   initialCredits: (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0) || (typeof v === "string" && /^\d+$/.test(v)),
+  initialStorageMb: (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0) || (typeof v === "string" && /^\d+$/.test(v)),
   payType: (v: unknown) => v === undefined || v === "hourly" || v === "per_session",
   rateAmount: (v: unknown) => v === undefined || (typeof v === "number" && v >= 0) || (typeof v === "string" && /^\d+(\.\d+)?$/.test(v)),
   rateCurrency: (v: unknown) => v === undefined || (typeof v === "string" && v.trim().length <= 10),
@@ -51,6 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     role?: unknown;
     tutorId?: unknown;
     initialCredits?: unknown;
+    initialStorageMb?: unknown;
     payType?: unknown;
     rateAmount?: unknown;
     rateCurrency?: unknown;
@@ -78,6 +80,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const tutorId = body.tutorId as string | undefined;
   const initialCredits = bodySchema.initialCredits(body.initialCredits)
     ? (typeof body.initialCredits === "number" ? body.initialCredits : parseInt(String(body.initialCredits), 10))
+    : 0;
+  const initialStorageMb = bodySchema.initialStorageMb(body.initialStorageMb)
+    ? (typeof body.initialStorageMb === "number" ? body.initialStorageMb : parseInt(String(body.initialStorageMb), 10))
     : 0;
   const payType = bodySchema.payType(body.payType) ? (body.payType as "hourly" | "per_session") ?? "hourly" : "hourly";
   const rateAmount = bodySchema.rateAmount(body.rateAmount)
@@ -166,6 +171,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const accountType = role === "tutor" ? "tutor" : "student";
   const now = new Date().toISOString();
+  // Invited users must change password on first login; leave password_changed_at null
   const { error: profileErr } = await supabaseAdmin
     .from("profiles")
     .update({
@@ -173,6 +179,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       email,
       account_type: accountType,
       onboarding_completed_at: now,
+      password_changed_at: null,
       updated_at: now,
     })
     .eq("user_id", newUserId);
@@ -184,6 +191,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email,
         account_type: accountType,
         onboarding_completed_at: now,
+        password_changed_at: null,
         updated_at: now,
       },
       { onConflict: "user_id" }
@@ -231,6 +239,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   let creditsAssigned = true;
   let creditsError: string | undefined;
+  let storageAssigned = true;
+  let storageError: string | undefined;
 
   if (initialCredits > 0) {
     const { data: assignData, error: creditErr } = await supabaseAdmin.rpc("assign_credits_to_member", {
@@ -252,6 +262,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (initialStorageMb > 0) {
+    const { data: assignData, error: storageErr } = await supabaseAdmin.rpc("assign_storage_to_member", {
+      _workspace_id: workspaceId,
+      _member_user_id: newUserId,
+      _storage_limit_mb: initialStorageMb,
+      _caller_user_id: caller.id,
+    });
+    if (storageErr) {
+      console.error("[tenant/create-user] assign_storage_to_member error:", storageErr);
+      storageAssigned = false;
+      storageError = storageErr.message ?? "Failed to assign storage from workspace pool.";
+    } else {
+      const result = assignData as { ok?: boolean; error?: string } | null;
+      if (!result?.ok) {
+        storageAssigned = false;
+        storageError = result?.error ?? "Insufficient storage in workspace pool.";
+      }
+    }
+  }
+
   return res.status(200).json({
     success: true,
     userId: newUserId,
@@ -262,6 +292,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? "Tutor account created. Share the login details with them."
         : "Student account created. Share the login details with them.",
     creditsAssigned,
+    storageAssigned,
     ...(creditsError && { creditsError }),
+    ...(storageError && { storageError }),
   });
 }

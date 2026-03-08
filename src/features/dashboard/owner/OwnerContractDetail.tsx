@@ -21,6 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { CurrencySelect } from "@/components/ui/currency-select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function OwnerContractDetail() {
   const router = useRouter();
@@ -37,6 +39,57 @@ export default function OwnerContractDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [editMarkdown, setEditMarkdown] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editPayType, setEditPayType] = useState<"hourly" | "per_session">("hourly");
+  const [editRateAmount, setEditRateAmount] = useState("");
+  const [editRateCurrency, setEditRateCurrency] = useState("GBP");
+  const [editSignedAt, setEditSignedAt] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  const openDetailsDialog = () => {
+    if (!contract) return;
+    setEditPayType((contract.pay_type as "hourly" | "per_session") || "hourly");
+    setEditRateAmount(String(contract.rate_amount ?? ""));
+    setEditRateCurrency(contract.rate_currency?.trim() || "GBP");
+    setEditSignedAt(
+      contract.contract_signed_at
+        ? new Date(contract.contract_signed_at).toISOString().slice(0, 10)
+        : ""
+    );
+    setDetailsOpen(true);
+  };
+
+  const handleSaveDetails = async () => {
+    if (!contract?.id) return;
+    setSavingDetails(true);
+    try {
+      const payload: {
+        pay_type: "hourly" | "per_session";
+        rate_amount: number;
+        rate_currency: string;
+        contract_signed_at: string | null;
+      } = {
+        pay_type: editPayType,
+        rate_amount: parseFloat(editRateAmount) || 0,
+        rate_currency: (editRateCurrency || "GBP").trim(),
+        contract_signed_at: editSignedAt ? new Date(editSignedAt).toISOString() : null,
+      };
+      const { error } = await supabase
+        .from("tutor_contracts")
+        .update(payload)
+        .eq("id", contract.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Rates and signed date updated");
+      setDetailsOpen(false);
+      invalidate();
+    } finally {
+      setSavingDetails(false);
+    }
+  };
 
   const CONTRACT_REVISION_SYSTEM = `You are a legal assistant. You will be given the current contract (Markdown) and a revision request.
 Output the complete revised contract in the same Markdown format. Apply only the requested change; keep the rest unchanged in structure and tone.
@@ -232,6 +285,13 @@ Output only the full contract Markdown, no preamble or explanation.`;
             )}
           </p>
 
+          <div className="mt-3">
+            <Button variant="outline" size="sm" onClick={openDetailsDialog}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit rates & signed date
+            </Button>
+          </div>
+
           {contract.contract_status === "change_requested" && (
             <div className="mt-4 p-3 rounded-lg bg-muted/50">
               <p className="text-sm font-medium">Tutor requested a change</p>
@@ -278,6 +338,76 @@ Output only the full contract Markdown, no preamble or explanation.`;
                 </Button>
                 <Button onClick={handleSaveEdit} disabled={savingEdit}>
                   {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit rates & signed date</DialogTitle>
+                <DialogDescription>
+                  Update pay rate and when the contract was signed. Changes apply to this contract record only.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-pay-type">Pay type</Label>
+                    <Select value={editPayType} onValueChange={(v) => setEditPayType(v as "hourly" | "per_session")}>
+                      <SelectTrigger id="edit-pay-type" className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hourly">Hourly</SelectItem>
+                        <SelectItem value="per_session">Per session</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-rate-amount">Rate amount</Label>
+                    <Input
+                      id="edit-rate-amount"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={editRateAmount}
+                      onChange={(e) => setEditRateAmount(e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="edit-rate-currency">Currency</Label>
+                  <CurrencySelect
+                    id="edit-rate-currency"
+                    value={editRateCurrency}
+                    onChange={setEditRateCurrency}
+                    placeholder="Select currency"
+                    className="mt-2 max-w-full"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-signed-at">Signed date (optional)</Label>
+                  <Input
+                    id="edit-signed-at"
+                    type="date"
+                    value={editSignedAt}
+                    onChange={(e) => setEditSignedAt(e.target.value)}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Leave empty if not signed yet. Set or change the date when the tutor signed.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDetailsOpen(false)} disabled={savingDetails}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveDetails} disabled={savingDetails}>
+                  {savingDetails ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -29,6 +29,17 @@ export default function AuthCallback() {
             router.replace("/onboarding/business");
             return;
           }
+          if (role === "teacher" || role === "student") {
+            const { data: profileRow } = await supabase
+              .from("profiles")
+              .select("password_changed_at")
+              .eq("user_id", session.user.id)
+              .maybeSingle();
+            if (!profileRow?.password_changed_at) {
+              router.replace("/onboarding/change-password");
+              return;
+            }
+          }
           if (role === "teacher") router.replace("/dashboard/teacher");
           else if (role === "admin") router.replace("/dashboard/owner");
           else router.replace("/dashboard/student");
