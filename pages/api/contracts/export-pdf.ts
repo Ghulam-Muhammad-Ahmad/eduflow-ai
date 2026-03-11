@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { data: contract, error: fetchError } = await supabaseAdmin
     .from("tutor_contracts")
-    .select("id, workspace_id, tutor_id, contract_body_text")
+    .select("id, workspace_id, tutor_id, contract_body_text, tutor_signature_name, contract_signed_at, owner_signature_name, owner_signed_at, updated_at")
     .eq("id", tutorContractId)
     .maybeSingle();
 
@@ -37,7 +37,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: "Contract not found" });
   }
 
-  const c = contract as { workspace_id: string; tutor_id: string; contract_body_text: string | null };
+  const c = contract as {
+    workspace_id: string;
+    tutor_id: string;
+    contract_body_text: string | null;
+    tutor_signature_name: string | null;
+    contract_signed_at: string | null;
+    owner_signature_name: string | null;
+    owner_signed_at: string | null;
+    updated_at: string;
+  };
   const isOwner = await (async () => {
     const { data: w } = await supabaseAdmin
       .from("workspaces")
@@ -55,7 +64,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Contract has no content to export; generate or revise the contract first" });
   }
 
-  const pdfBytes = generateContractPDF(c.contract_body_text);
+  const pdfBytes = generateContractPDF(c.contract_body_text, {
+    tutorSignatureName: c.tutor_signature_name,
+    contractSignedAt: c.contract_signed_at,
+    ownerSignatureName: c.owner_signature_name,
+    ownerSignedAt: c.owner_signed_at,
+    updatedAt: c.updated_at,
+  });
   const storagePath = `${c.workspace_id}/${c.tutor_id}.pdf`;
 
   const { error: uploadError } = await supabaseAdmin.storage

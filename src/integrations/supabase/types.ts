@@ -610,6 +610,8 @@ export type Database = {
           contract_storage_path: string | null
           contract_signed_at: string | null
           tutor_signature_name: string | null
+          owner_signature_name: string | null
+          owner_signed_at: string | null
           change_requested_at: string | null
           change_request_note: string | null
           created_at: string
@@ -628,6 +630,8 @@ export type Database = {
           contract_storage_path?: string | null
           contract_signed_at?: string | null
           tutor_signature_name?: string | null
+          owner_signature_name?: string | null
+          owner_signed_at?: string | null
           change_requested_at?: string | null
           change_request_note?: string | null
           created_at?: string
@@ -646,6 +650,8 @@ export type Database = {
           contract_storage_path?: string | null
           contract_signed_at?: string | null
           tutor_signature_name?: string | null
+          owner_signature_name?: string | null
+          owner_signed_at?: string | null
           change_requested_at?: string | null
           change_request_note?: string | null
           created_at?: string

@@ -200,13 +200,24 @@ export default function TeacherContract() {
                   )}
 
                   {contract.contract_status === "signed" && (
-                    <p className="text-muted-foreground">
-                      Signed on{" "}
-                      {contract.contract_signed_at
-                        ? new Date(contract.contract_signed_at).toLocaleDateString()
-                        : "—"}{" "}
-                      by {contract.tutor_signature_name ?? "—"}.
-                    </p>
+                    <div className="space-y-1 text-muted-foreground">
+                      <p>
+                        Tutor: signed on{" "}
+                        {contract.contract_signed_at
+                          ? new Date(contract.contract_signed_at).toLocaleDateString()
+                          : "—"}{" "}
+                        by {contract.tutor_signature_name ?? "—"}.
+                      </p>
+                      {contract.owner_signature_name && (
+                        <p>
+                          Owner: signed on{" "}
+                          {contract.owner_signed_at
+                            ? new Date(contract.owner_signed_at).toLocaleDateString()
+                            : "—"}{" "}
+                          by {contract.owner_signature_name}.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </>
               )}

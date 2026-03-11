@@ -8,7 +8,7 @@ import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, FileText, PenLine, User, Pencil } from "lucide-react";
+import { ArrowLeft, PenLine, Pencil, DollarSign, Download, Send } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -24,6 +24,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { CurrencySelect } from "@/components/ui/currency-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const contractStatusLabel: Record<string, string> = {
+  draft: "Draft",
+  pending_signature: "Pending signature",
+  signed: "Active agreement",
+  change_requested: "Change requested",
+};
 
 export default function OwnerContractDetail() {
   const router = useRouter();
@@ -47,6 +54,9 @@ export default function OwnerContractDetail() {
   const [editRateCurrency, setEditRateCurrency] = useState("GBP");
   const [editSignedAt, setEditSignedAt] = useState("");
   const [savingDetails, setSavingDetails] = useState(false);
+
+  const [ownerSignatureName, setOwnerSignatureName] = useState("");
+  const [ownerSigning, setOwnerSigning] = useState(false);
 
   const openDetailsDialog = () => {
     if (!contract) return;
@@ -94,6 +104,7 @@ export default function OwnerContractDetail() {
 
   const CONTRACT_REVISION_SYSTEM = `You are a legal assistant. You will be given the current contract (Markdown) and a revision request.
 Output the complete revised contract in the same Markdown format. Apply only the requested change; keep the rest unchanged in structure and tone.
+Do not include a main document title/heading at the top—the app shows it as a static header. Do not include any signature section, signature blocks, or signature footer—signatures are displayed separately by the app. End the contract after the last substantive clause (e.g. Notices).
 Output only the full contract Markdown, no preamble or explanation.`;
 
   const handleRevise = async (e: React.FormEvent) => {
@@ -221,6 +232,34 @@ Output only the full contract Markdown, no preamble or explanation.`;
     }
   };
 
+  const handleOwnerSign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contract?.id || !ownerSignatureName.trim()) return;
+    setOwnerSigning(true);
+    try {
+      const res = await fetch("/api/contracts/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tutor_contract_id: contract.id,
+          signature_name: ownerSignatureName.trim(),
+          signer: "owner",
+        }),
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to sign");
+        return;
+      }
+      toast.success("Signed as owner");
+      setOwnerSignatureName("");
+      invalidate();
+    } finally {
+      setOwnerSigning(false);
+    }
+  };
+
   if (!contractId) {
     return (
       <DashboardLayout>
@@ -256,192 +295,295 @@ Output only the full contract Markdown, no preamble or explanation.`;
     );
   }
 
+  const statusLabel = contractStatusLabel[contract.contract_status] ?? contract.contract_status;
+  const lastUpdated = contract.updated_at
+    ? new Date(contract.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
+  const initials = tutorName
+    .split(/\s+/)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <Button variant="ghost" asChild>
-            <Link href="/dashboard/owner/contracts">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+      <div className="flex flex-col gap-6">
+        {/* Top bar: Back (left), Status + avatar (right) */}
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/dashboard/owner/contracts" className="inline-flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
               Back to Contracts
             </Link>
           </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/dashboard/owner/tutors/${contract.tutor_id}`}>
-              <User className="mr-2 h-4 w-4" />
-              {tutorName}
-            </Link>
-          </Button>
-        </div>
+          <div className="flex items-center justify-end gap-3">
+            <span className="text-sm text-muted-foreground">Status:</span>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium text-muted-foreground
+                ${
+                  contract.contract_status === "signed"
+                    ? "text-green-700 bg-green-100"
+                    : contract.contract_status === "pending_signature"
+                    ? "text-yellow-800 bg-yellow-100"
+                    : contract.contract_status === "change_requested"
+                    ? "text-red-700 bg-red-100"
+                    : "text-muted-foreground bg-muted"
+                }
+              `}
+              aria-label={`Contract status: ${statusLabel}`}
+            >
+              {statusLabel}
+            </span>
+          </div>
+        </header>
 
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <FileText className="h-6 w-6" />
-            Contract · {tutorName}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {contract.rate_amount} {contract.rate_currency} / {contract.pay_type === "per_session" ? "session" : "hour"}
-            {contract.contract_signed_at && (
-              <> · Signed {new Date(contract.contract_signed_at).toLocaleDateString()} by {contract.tutor_signature_name ?? "—"}</>
-            )}
-          </p>
-
-          <div className="mt-3">
-            <Button variant="outline" size="sm" onClick={openDetailsDialog}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit rates & signed date
-            </Button>
+        {/* Single document card */}
+        <article className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+          {/* Document header */}
+          <div className="border-b border-border px-6 py-5">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">
+                  Tutoring Services Agreement
+                </h1>
+                {lastUpdated && (
+                  <p className="mt-1 text-sm text-muted-foreground flex items-center gap-1.5">
+                    <span>Last updated: {lastUpdated}</span>
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={openDetailsDialog} className="gap-1.5">
+                  <DollarSign className="h-4 w-4" />
+                  Rates
+                </Button>
+                {(contract.contract_status === "draft" ||
+                  contract.contract_status === "pending_signature" ||
+                  contract.contract_status === "change_requested") &&
+                  contract.contract_body_text && (
+                  <Button variant="outline" size="sm" onClick={openEditDialog} className="gap-1.5">
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting} className="gap-1.5">
+                  {exporting ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
+                  Export
+                </Button>
+              </div>
+            </div>
           </div>
 
+          {/* Change requested alert (like reference cancellation policy box) */}
           {contract.contract_status === "change_requested" && (
-            <div className="mt-4 p-3 rounded-lg bg-muted/50">
-              <p className="text-sm font-medium">Tutor requested a change</p>
+            <div className="mx-6 mt-4 rounded-lg border border-border bg-muted/50 p-4">
+              <p className="text-sm font-medium text-foreground">Tutor requested a change</p>
               <p className="text-sm text-muted-foreground mt-1">{contract.change_request_note || "No note."}</p>
-              <Button variant="secondary" size="sm" className="mt-2" onClick={handleResetToPendingSignature} disabled={resettingStatus}>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="mt-3"
+                onClick={handleResetToPendingSignature}
+                disabled={resettingStatus}
+              >
                 {resettingStatus ? <Spinner size="sm" /> : "Mark as updated (tutor can sign again)"}
               </Button>
             </div>
           )}
 
-          {contract.contract_body_text && (
-            <div className="flex flex-wrap gap-2 mt-4">
-              {(contract.contract_status === "draft" ||
-                contract.contract_status === "pending_signature" ||
-                contract.contract_status === "change_requested") && (
-                <Button variant="outline" size="sm" onClick={openEditDialog}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Manually edit
-                </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
-                {exporting ? <Spinner size="sm" /> : "Export"}
+          {/* Main agreement content */}
+          <div className="px-6 py-6">
+            {contract.contract_body_text ? (
+              <div className="prose prose-sm dark:prose-invert max-w-none text-foreground [&_h2]:font-semibold [&_h2]:text-foreground [&_p]:text-muted-foreground [&_p]:leading-relaxed">
+                <ReactMarkdown>{contract.contract_body_text}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No contract content yet. Build one from the Contracts list.</p>
+            )}
+
+            {/* Signature block */}
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-border">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Tutor signature</p>
+                <p className="font-medium text-foreground border-b border-border pb-1">
+                  {contract.tutor_signature_name ?? "—"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Date: {contract.contract_signed_at ? new Date(contract.contract_signed_at).toLocaleDateString() : "Pending"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Workspace / Business Representative</p>
+                {contract.owner_signature_name ? (
+                  <>
+                    <p className="font-medium text-foreground border-b border-border pb-1">
+                      {contract.owner_signature_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Date: {contract.owner_signed_at ? new Date(contract.owner_signed_at).toLocaleDateString() : "Pending"}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-muted-foreground border-b border-border pb-1">
+                      Awaiting digital signature…
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">Date: Pending</p>
+                    <form onSubmit={handleOwnerSign} className="mt-3 flex flex-wrap items-end gap-2">
+                      <div className="flex-1 min-w-[160px]">
+                        <Label htmlFor="owner-signature-name" className="sr-only">Your full name</Label>
+                        <Input
+                          id="owner-signature-name"
+                          value={ownerSignatureName}
+                          onChange={(e) => setOwnerSignatureName(e.target.value)}
+                          placeholder="Your full name"
+                          className="h-9"
+                        />
+                      </div>
+                      <Button type="submit" size="sm" disabled={ownerSigning || !ownerSignatureName.trim()}>
+                        {ownerSigning ? <Spinner size="sm" /> : "Sign Contract"}
+                      </Button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </article>
+
+        {/* Revise by prompt (when editable) */}
+        {(contract.contract_status === "draft" ||
+          contract.contract_status === "pending_signature" ||
+          contract.contract_status === "change_requested") &&
+          contract.contract_body_text && (
+          <form onSubmit={handleRevise} className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <Label htmlFor="revise-prompt">Edit contract by prompt</Label>
+            <div className="flex gap-2">
+              <Input
+                id="revise-prompt"
+                value={revisePrompt}
+                onChange={(e) => setRevisePrompt(e.target.value)}
+                placeholder="e.g. Add a 30-day notice period"
+                className="flex-1"
+              />
+              <Button type="submit" disabled={revising || !revisePrompt.trim()}>
+                {revising ? <Spinner size="sm" /> : <PenLine className="h-4 w-4" />}
               </Button>
             </div>
+          </form>
+        )}
+
+        {/* Footer actions
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {(contract.contract_status === "pending_signature" || contract.contract_status === "change_requested") && (
+            <Button asChild>
+              <Link href={`/dashboard/owner/tutors/${contract.tutor_id}`} className="gap-2">
+                <Send className="h-4 w-4" />
+                Request signature
+              </Link>
+            </Button>
           )}
-
-          <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-              <DialogHeader>
-                <DialogTitle>Edit contract (Markdown)</DialogTitle>
-                <DialogDescription>
-                  Edit the contract content below. Use Markdown for headings, lists, and formatting.
-                </DialogDescription>
-              </DialogHeader>
-              <Textarea
-                value={editMarkdown}
-                onChange={(e) => setEditMarkdown(e.target.value)}
-                className="min-h-[400px] font-mono text-sm resize-y"
-                placeholder="Contract content in Markdown..."
-              />
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveEdit} disabled={savingEdit}>
-                  {savingEdit ? <Spinner size="sm" /> : "Save"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Edit rates & signed date</DialogTitle>
-                <DialogDescription>
-                  Update pay rate and when the contract was signed. Changes apply to this contract record only.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-pay-type">Pay type</Label>
-                    <Select value={editPayType} onValueChange={(v) => setEditPayType(v as "hourly" | "per_session")}>
-                      <SelectTrigger id="edit-pay-type" className="mt-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="hourly">Hourly</SelectItem>
-                        <SelectItem value="per_session">Per session</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-rate-amount">Rate amount</Label>
-                    <Input
-                      id="edit-rate-amount"
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={editRateAmount}
-                      onChange={(e) => setEditRateAmount(e.target.value)}
-                      className="mt-2"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="edit-rate-currency">Currency</Label>
-                  <CurrencySelect
-                    id="edit-rate-currency"
-                    value={editRateCurrency}
-                    onChange={setEditRateCurrency}
-                    placeholder="Select currency"
-                    className="mt-2 max-w-full"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-signed-at">Signed date (optional)</Label>
-                  <Input
-                    id="edit-signed-at"
-                    type="date"
-                    value={editSignedAt}
-                    onChange={(e) => setEditSignedAt(e.target.value)}
-                    className="mt-2"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Leave empty if not signed yet. Set or change the date when the tutor signed.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDetailsOpen(false)} disabled={savingDetails}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveDetails} disabled={savingDetails}>
-                  {savingDetails ? <Spinner size="sm" /> : "Save"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {(contract.contract_status === "draft" || contract.contract_status === "pending_signature" || contract.contract_status === "change_requested") &&
-            contract.contract_body_text && (
-            <form onSubmit={handleRevise} className="mt-6 space-y-2">
-              <Label htmlFor="revise-prompt">Edit contract by prompt</Label>
-              <div className="flex gap-2 mt-2">
-                <Input
-                  id="revise-prompt"
-                  value={revisePrompt}
-                  onChange={(e) => setRevisePrompt(e.target.value)}
-                  placeholder="e.g. Add a 30-day notice period"
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={revising || !revisePrompt.trim()}>
-                  {revising ? <Spinner size="sm" /> : <PenLine className="h-4 w-4" />}
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {contract.contract_body_text ? (
-            <div className="mt-6 rounded-lg border border-border bg-muted/20 p-4 max-h-[500px] overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>{contract.contract_body_text}</ReactMarkdown>
-            </div>
-          ) : (
-            <p className="mt-6 text-muted-foreground">No contract content yet. Build one from the Contracts list.</p>
-          )}
-        </div>
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/owner/contracts">Close view</Link>
+          </Button>
+        </div> */}
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit contract (Markdown)</DialogTitle>
+            <DialogDescription>
+              Edit the contract content below. Use Markdown for headings, lists, and formatting.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={editMarkdown}
+            onChange={(e) => setEditMarkdown(e.target.value)}
+            className="min-h-[400px] font-mono text-sm resize-y"
+            placeholder="Contract content in Markdown..."
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit}>
+              {savingEdit ? <Spinner size="sm" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit rates & signed date</DialogTitle>
+            <DialogDescription>
+              Update pay rate and when the contract was signed. Changes apply to this contract record only.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-pay-type">Pay type</Label>
+                <Select value={editPayType} onValueChange={(v) => setEditPayType(v as "hourly" | "per_session")}>
+                  <SelectTrigger id="edit-pay-type" className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hourly">Hourly</SelectItem>
+                    <SelectItem value="per_session">Per session</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-rate-amount">Rate amount</Label>
+                <Input
+                  id="edit-rate-amount"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={editRateAmount}
+                  onChange={(e) => setEditRateAmount(e.target.value)}
+                  className="mt-2"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-rate-currency">Currency</Label>
+              <CurrencySelect
+                id="edit-rate-currency"
+                value={editRateCurrency}
+                onChange={setEditRateCurrency}
+                placeholder="Select currency"
+                className="mt-2 max-w-full"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-signed-at">Signed date (optional)</Label>
+              <Input
+                id="edit-signed-at"
+                type="date"
+                value={editSignedAt}
+                onChange={(e) => setEditSignedAt(e.target.value)}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Leave empty if not signed yet. Set or change the date when the tutor signed.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsOpen(false)} disabled={savingDetails}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDetails} disabled={savingDetails}>
+              {savingDetails ? <Spinner size="sm" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

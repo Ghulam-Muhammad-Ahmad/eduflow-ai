@@ -19,6 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const tutorContractId = typeof req.body?.tutor_contract_id === "string" ? req.body.tutor_contract_id.trim() : null;
   const signatureName = typeof req.body?.signature_name === "string" ? req.body.signature_name.trim() : null;
+  const signer = req.body?.signer === "owner" ? "owner" : "tutor";
 
   if (!tutorContractId || !signatureName) {
     return res.status(400).json({ error: "tutor_contract_id and signature_name are required" });
@@ -26,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { data: contract, error: fetchError } = await supabaseAdmin
     .from("tutor_contracts")
-    .select("id, tutor_id, contract_status")
+    .select("id, workspace_id, tutor_id, contract_status")
     .eq("id", tutorContractId)
     .maybeSingle();
 
@@ -34,33 +35,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: "Contract not found" });
   }
 
-  if ((contract as { tutor_id: string }).tutor_id !== user.id) {
-    return res.status(403).json({ error: "Only the tutor can sign this contract" });
-  }
-
-  if ((contract as { contract_status: string }).contract_status !== "pending_signature") {
-    return res.status(400).json({ error: "Contract is not pending signature" });
-  }
-
+  const c = contract as { id: string; workspace_id: string; tutor_id: string; contract_status: string };
   const now = new Date().toISOString();
-  const { error: updateError } = await supabaseAdmin
-    .from("tutor_contracts")
-    .update({
-      contract_signed_at: now,
-      tutor_signature_name: signatureName,
-      contract_status: "signed",
-      change_requested_at: null,
-      change_request_note: null,
-      updated_at: now,
-    })
-    .eq("id", (contract as { id: string }).id);
 
-  if (updateError) {
-    return res.status(500).json({ error: "Failed to save signature" });
+  if (signer === "tutor") {
+    if (c.tutor_id !== user.id) {
+      return res.status(403).json({ error: "Only the tutor can sign as tutor" });
+    }
+    if (c.contract_status !== "pending_signature") {
+      return res.status(400).json({ error: "Contract is not pending signature" });
+    }
+    const { error: updateError } = await supabaseAdmin
+      .from("tutor_contracts")
+      .update({
+        contract_signed_at: now,
+        tutor_signature_name: signatureName,
+        contract_status: "signed",
+        change_requested_at: null,
+        change_request_note: null,
+        updated_at: now,
+      })
+      .eq("id", c.id);
+    if (updateError) {
+      return res.status(500).json({ error: "Failed to save signature" });
+    }
+    return res.status(200).json({
+      success: true,
+      contract_signed_at: now,
+    });
   }
 
-  return res.status(200).json({
-    success: true,
-    contract_signed_at: now,
-  });
+  if (signer === "owner") {
+    const { data: workspace } = await supabaseAdmin
+      .from("workspaces")
+      .select("owner_id")
+      .eq("id", c.workspace_id)
+      .maybeSingle();
+    const ownerId = (workspace as { owner_id?: string } | null)?.owner_id;
+    if (ownerId !== user.id) {
+      return res.status(403).json({ error: "Only the workspace owner can sign as owner" });
+    }
+    const { error: updateError } = await supabaseAdmin
+      .from("tutor_contracts")
+      .update({
+        owner_signature_name: signatureName,
+        owner_signed_at: now,
+        updated_at: now,
+      })
+      .eq("id", c.id);
+    if (updateError) {
+      return res.status(500).json({ error: "Failed to save signature" });
+    }
+    return res.status(200).json({
+      success: true,
+      owner_signed_at: now,
+    });
+  }
+
+  return res.status(400).json({ error: "Invalid signer" });
 }

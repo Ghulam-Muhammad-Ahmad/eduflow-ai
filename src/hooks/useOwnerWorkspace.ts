@@ -45,6 +45,9 @@ export type TutorContractRow = {
   tutor_signature_name: string | null;
   change_requested_at: string | null;
   change_request_note: string | null;
+  owner_signature_name: string | null;
+  owner_signed_at: string | null;
+  updated_at?: string;
 };
 
 /** Current user's workspace as owner (first one). Used only when role is admin. */
@@ -303,6 +306,7 @@ export function useOwnerWorkspace() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["owner-workspace"] });
+    queryClient.invalidateQueries({ queryKey: ["owner-workspace-contracts"] });
   };
 
   /** Create classroom (owner): insert classroom with workspace_id, teacher_id, then classroom_tutors */

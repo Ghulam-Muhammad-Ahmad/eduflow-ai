@@ -1,10 +1,12 @@
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, UserPlus, Mail, GraduationCap, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Users, UserPlus, Mail, GraduationCap, Search, BookOpen, Eye } from "lucide-react";
 
 const contractStatusLabel: Record<string, string> = {
   draft: "Draft",
@@ -13,8 +15,11 @@ const contractStatusLabel: Record<string, string> = {
   change_requested: "Change requested",
 };
 
+type ClassroomRow = { id: string; name: string; subject?: string | null };
+
 export default function OwnerTutorsList() {
-  const { workspace, tutors, assignedStudents, contractByTutorId, isLoading } = useOwnerWorkspace();
+  const { workspace, tutors, assignedStudents, contractByTutorId, classrooms, tutorsByClassroomId, isLoading } = useOwnerWorkspace();
+  const [searchQuery, setSearchQuery] = useState("");
 
   const studentCountByTutor = (assignedStudents as Array<{ tutor_id: string }>).reduce(
     (acc, s) => {
@@ -23,6 +28,30 @@ export default function OwnerTutorsList() {
     },
     {} as Record<string, number>
   );
+
+  /** Map tutor user_id -> classrooms they are involved in (teacher or in classroom_tutors) */
+  const classesByTutorId = useMemo(() => {
+    const map = new Map<string, ClassroomRow[]>();
+    for (const classroom of classrooms as ClassroomRow[]) {
+      const tutorIds = tutorsByClassroomId.get(classroom.id) ?? [];
+      for (const uid of tutorIds) {
+        const list = map.get(uid) ?? [];
+        list.push({ id: classroom.id, name: classroom.name, subject: classroom.subject });
+        map.set(uid, list);
+      }
+    }
+    return map;
+  }, [classrooms, tutorsByClassroomId]);
+
+  const filteredTutors = useMemo(() => {
+    if (!searchQuery.trim()) return tutors;
+    const q = searchQuery.toLowerCase().trim();
+    return tutors.filter((t) => {
+      const name = (t.profile?.display_name ?? "").toLowerCase();
+      const email = (t.profile?.email ?? "").toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [tutors, searchQuery]);
 
   return (
     <DashboardLayout>
@@ -57,6 +86,19 @@ export default function OwnerTutorsList() {
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden />
+                <Input
+                  type="search"
+                  placeholder="Search tutors by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  aria-label="Search tutors"
+                />
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
@@ -64,12 +106,19 @@ export default function OwnerTutorsList() {
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Tutor</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm hidden sm:table-cell">Email</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Contract</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-sm hidden md:table-cell">Classes</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm text-center w-28">Students</th>
-                    <th className="w-10 px-2" aria-hidden />
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-sm text-right w-28">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tutors.map((t) => {
+                  {filteredTutors.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No tutors match &quot;{searchQuery}&quot;. Try a different search.
+                      </td>
+                    </tr>
+                  ) : filteredTutors.map((t) => {
                     const studentCount = studentCountByTutor[t.user_id] ?? 0;
                     const name = t.profile?.display_name ?? "Tutor";
                     const email = t.profile?.email ?? "—";
@@ -104,6 +153,24 @@ export default function OwnerTutorsList() {
                             {statusLabel}
                           </Badge>
                         </td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          {(() => {
+                            const tutorClasses = classesByTutorId.get(t.user_id) ?? [];
+                            if (tutorClasses.length === 0) {
+                              return <span className="text-sm text-muted-foreground">—</span>;
+                            }
+                            return (
+                              <span className="flex flex-wrap items-center gap-1.5 text-sm">
+                                <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                {tutorClasses.map((c) => (
+                                  <span key={c.id} className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                    {c.name}
+                                  </span>
+                                ))}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <Link
                             href={`/dashboard/owner/tutors/${t.user_id}`}
@@ -113,14 +180,17 @@ export default function OwnerTutorsList() {
                             {studentCount}
                           </Link>
                         </td>
-                        <td className="px-2 py-3">
-                          <Link
-                            href={`/dashboard/owner/tutors/${t.user_id}`}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-                            aria-label={`View ${name}`}
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Link>
+                        <td className="px-4 py-3 text-right">
+                          <Button asChild size="sm" variant="default">
+                            <Link
+                              href={`/dashboard/owner/tutors/${t.user_id}`}
+                              className="inline-flex items-center gap-2"
+                              aria-label={`View ${name}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                              View
+                            </Link>
+                          </Button>
                         </td>
                       </tr>
                     );

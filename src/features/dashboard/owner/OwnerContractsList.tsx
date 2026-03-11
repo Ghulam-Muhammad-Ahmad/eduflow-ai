@@ -1,11 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, ChevronRight, PenLine } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { FileText, PenLine, Search, Eye } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 const contractStatusLabel: Record<string, string> = {
@@ -17,11 +19,23 @@ const contractStatusLabel: Record<string, string> = {
 
 export default function OwnerContractsList() {
   const { workspace, tutors, tutorContracts, isLoading } = useOwnerWorkspace();
+  const [searchQuery, setSearchQuery] = useState("");
 
   const getTutorName = (tutorId: string) => {
     const t = tutors.find((x) => x.user_id === tutorId);
     return (t?.profile?.display_name ?? t?.profile?.email ?? "Tutor") as string;
   };
+
+  const filteredContracts = useMemo(() => {
+    if (!searchQuery.trim()) return tutorContracts;
+    const q = searchQuery.toLowerCase().trim();
+    return tutorContracts.filter((c) => {
+      const name = getTutorName(c.tutor_id).toLowerCase();
+      const statusLabel = (contractStatusLabel[c.contract_status] ?? c.contract_status).toLowerCase();
+      const rateStr = `${c.rate_amount} ${c.rate_currency}`.toLowerCase();
+      return name.includes(q) || statusLabel.includes(q) || rateStr.includes(q);
+    });
+  }, [tutorContracts, searchQuery, tutors]);
 
   return (
     <DashboardLayout>
@@ -58,6 +72,19 @@ export default function OwnerContractsList() {
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden />
+                <Input
+                  type="search"
+                  placeholder="Search by tutor name, status, or rate..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  aria-label="Search contracts"
+                />
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
@@ -66,11 +93,17 @@ export default function OwnerContractsList() {
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Status</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Rate</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm hidden sm:table-cell">Signed</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground text-sm w-32">Actions</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-sm w-32">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tutorContracts.map((c) => {
+                  {filteredContracts.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No contracts match &quot;{searchQuery}&quot;. Try a different search.
+                      </td>
+                    </tr>
+                  ) : filteredContracts.map((c) => {
                     const name = getTutorName(c.tutor_id);
                     const statusLabel = contractStatusLabel[c.contract_status] ?? c.contract_status;
                     return (
@@ -105,14 +138,12 @@ export default function OwnerContractsList() {
                             : "—"}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/dashboard/owner/contracts/${c.id}`} className="inline-flex items-center gap-1">
-                                View contract
-                                <ChevronRight className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                          </div>
+                          <Button variant="default" size="sm" asChild>
+                            <Link href={`/dashboard/owner/contracts/${c.id}`} className="inline-flex items-center gap-2">
+                              <Eye className="h-4 w-4" />
+                              View
+                            </Link>
+                          </Button>
                         </td>
                       </tr>
                     );
