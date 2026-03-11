@@ -207,7 +207,7 @@ export default function Auth() {
         <div className="flex w-full flex-col justify-center px-[15px] py-[15px] lg:w-[50%] lg:px-8 lg:py-8 rounded-[15px]">
           <button
             type="button"
-            onClick={() => (mode === "forgot-password" ? setMode("signin") : router.push("/"))}
+            onClick={() => (mode === "forgot-password" ? setMode("signin") : router.back())}
             className="mb-6 flex items-center justify-start gap-1.5 text-sm font-medium text-[#595959] transition-colors hover:text-primary"
           >
             <ArrowLeft className="h-4 w-4" />

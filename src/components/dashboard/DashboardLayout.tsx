@@ -15,12 +15,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   LayoutDashboard,
   FileText,
   ClipboardCheck,
@@ -34,18 +28,17 @@ import {
   Bell,
   Sparkles,
   BookOpen,
-  Zap,
   School,
   ListChecks,
   GraduationCap,
   ScrollText,
-  ChevronDown,
   CreditCard,
   Search,
   PenLine,
   User,
   Building2,
   Video,
+  ChevronsUpDownIcon,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -187,6 +180,8 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User";
   const avatarUrl = profile?.avatar_url || "";
+  const roleLabel = role === "teacher" ? "Tutor" : role === "student" ? "Student" : role === "admin" ? "Owner" : role ?? "User";
+  const userEmail = user?.email ?? "";
 
   return (
     <>
@@ -416,48 +411,49 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
               </DialogContent>
             </Dialog>
           </div>
-          <TooltipProvider delayDuration={300}>
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="rounded-full gap-1 pr-1.5 pl-1 h-9 hover:bg-secondary hover:ring-2 hover:ring-primary/20 focus-visible:ring-2 focus-visible:ring-primary/20"
-                    >
-                      <Avatar className="h-8 w-8 border-2 border-primary/20">
-                        <AvatarImage src={avatarUrl} />
-                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                          {displayName[0]?.toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  Account
-                </TooltipContent>
-              </Tooltip>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="gap-2 px-1.5 py-2.5 hover:bg-secondary min-w-48 max-w-auto flex items-center justify-between focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none focus:ring-0"
+              >
+                <div className="flex items-center gap-2">
+                <Avatar className="h-8 w-8 border-2 border-primary/20 shrink-0">
+                  <AvatarImage src={avatarUrl} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                    {displayName[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col items-start text-left min-w-0 max-w-[160px] gap-0.5">
+                  <span className="text-sm leading-none font-medium text-foreground truncate w-full">
+                    {roleLabel}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate w-full" title={userEmail}>
+                    {userEmail || "—"}
+                  </span>
+                </div>
+                </div>
+                <ChevronsUpDownIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&:focus]:ring-0 [&:focus-visible]:ring-0">
+              <DropdownMenuItem onClick={() => router.push("/dashboard/settings")} className="focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&:focus]:ring-0 [&:focus-visible]:ring-0">
                 <Bell className="w-4 h-4 mr-2" />
                 Notifications
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/settings")} className="focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&:focus]:ring-0 [&:focus-visible]:ring-0">
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleSignOut}
-                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                className="text-destructive focus:text-destructive focus:bg-destructive/10 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&:focus]:ring-0 [&:focus-visible]:ring-0"
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
-            </DropdownMenu>
-          </TooltipProvider>
+          </DropdownMenu>
         </header>
 
         {/* Page Content */}
