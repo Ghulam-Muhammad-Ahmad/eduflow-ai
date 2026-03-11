@@ -5,10 +5,12 @@ import { useGoogleCalendarConnection } from "@/hooks/useLectureSessions";
 
 type GoogleCalendarConnectionCardProps = {
   redirectTo?: string;
+  variant?: "teacher" | "student";
 };
 
 export function GoogleCalendarConnectionCard({
   redirectTo,
+  variant = "teacher",
 }: GoogleCalendarConnectionCardProps) {
   const { data, isLoading, beginConnect, disconnect } = useGoogleCalendarConnection();
 
@@ -44,7 +46,9 @@ export function GoogleCalendarConnectionCard({
           Google Calendar
         </CardTitle>
         <CardDescription>
-          Connect your Google account to create Google Meet links for classroom lectures.
+          {variant === "student"
+            ? "Connect your Google account to add tutoring sessions to your calendar and join meetings directly as an invitee—no one needs to admit you."
+            : "Connect your Google account to create Google Meet links for classroom lectures."}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -15,7 +15,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAIUsage } from "@/hooks/useAIUsage";
-import { Coins, Loader2, Lightbulb, Edit2 } from "lucide-react";
+import { Coins, Lightbulb, Edit2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
   LineChart,
@@ -216,7 +217,7 @@ export function MemberCreditsCard({
                               Cancel
                             </Button>
                             <Button onClick={handleSave} disabled={loading}>
-                              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                              {loading ? <Spinner size="sm" /> : "Save"}
                             </Button>
                           </DialogFooter>
                         </DialogContent>
@@ -314,7 +315,7 @@ export function MemberCreditsCard({
                     Cancel
                   </Button>
                   <Button onClick={handleSave} disabled={loading}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                    {loading ? <Spinner size="sm" /> : "Save"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -437,7 +438,7 @@ export function MemberCreditsCard({
                         Cancel
                       </Button>
                       <Button onClick={handleSave} disabled={loading}>
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                        {loading ? <Spinner size="sm" /> : "Save"}
                       </Button>
                     </DialogFooter>
                   </DialogContent>

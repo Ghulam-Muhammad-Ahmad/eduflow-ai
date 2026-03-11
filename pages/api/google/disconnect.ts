@@ -15,8 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const role = await getCallerRole(user.id);
-  if (role !== "teacher") {
-    return res.status(403).json({ error: "Only tutors can disconnect Google Calendar." });
+  if (role !== "teacher" && role !== "admin" && role !== "student") {
+    return res.status(403).json({ error: "Only owners, tutors, and students can disconnect Google Calendar." });
   }
 
   if (!supabaseAdmin) {

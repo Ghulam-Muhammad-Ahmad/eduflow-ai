@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/select";
 import { useAIStudio } from "@/hooks/useAIStudio";
 import { AI_SOURCE_TEXT_MAX_CHARS } from "@/services/aiService";
-import { Loader2, Upload, FileText, X, FolderOpen, Sparkles, AlertTriangle } from "lucide-react";
+import { Upload, FileText, X, FolderOpen, Sparkles, AlertTriangle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
 import { supabase } from "@/integrations/supabase/client";
@@ -223,7 +224,7 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
                   disabled={loadingDoc}
                 >
                   {loadingDoc ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner size="sm" />
                   ) : (
                     <FolderOpen className="h-4 w-4" />
                   )}
@@ -349,7 +350,7 @@ const SmartTutor = ({ onContentGenerated }: SmartTutorProps) => {
         >
           {loading ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size="sm" className="mr-2" />
               Smartening...
             </>
           ) : (

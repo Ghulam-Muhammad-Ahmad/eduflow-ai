@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
 import { MemberStorageCard } from "@/components/storage/MemberStorageCard";
-import { ClassroomLectureSection } from "@/components/lectures/ClassroomLectureSection";
+import { Video } from "lucide-react";
 
 export default function OwnerStudentProfile() {
   const router = useRouter();
@@ -104,24 +104,19 @@ export default function OwnerStudentProfile() {
           )}
         </div>
 
-        {studentId && tutor && (
-          <ClassroomLectureSection
-            scopeType="one_to_one"
-            studentId={studentId}
-            targetName={assignment?.student?.display_name ?? "this student"}
-            canManage
-            canEditMockFinancials
-            showPrivateNotes
-            tutorOptions={[
-              {
-                id: tutor.user_id,
-                name: tutor.profile?.display_name ?? tutor.profile?.email ?? "Tutor",
-              },
-            ]}
-            defaultTutorId={tutor.user_id}
-            description="Schedule direct Google Meet coaching sessions for this student with their assigned tutor."
-            emptyMessage="No one-to-one sessions scheduled yet. Create the first direct session here."
-          />
+        {studentId && (
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <h2 className="font-semibold mb-2 flex items-center gap-2">
+              <Video className="h-5 w-5 text-primary" />
+              One-to-one sessions
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Schedule and manage coaching sessions from the Sessions page.
+            </p>
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/dashboard/owner/sessions">View and schedule sessions</Link>
+            </Button>
+          </div>
         )}
 
         <div className="rounded-2xl border border-border bg-card p-6">

@@ -10,7 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Users, Loader2 } from "lucide-react";
+import { Users } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 interface JoinClassroomDialogProps {
   open: boolean;
@@ -77,7 +78,7 @@ const JoinClassroomDialog = ({ open, onOpenChange }: JoinClassroomDialogProps) =
           >
             {joinClassroom.isPending ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Spinner size="sm" />
                 Joining...
               </>
             ) : (

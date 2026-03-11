@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useTutorContract } from "@/hooks/useTutorContract";
-import { ArrowLeft, FileText, Check, Loader2, Download, Send } from "lucide-react";
+import { ArrowLeft, FileText, Check, Download, Send } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -94,7 +95,7 @@ export default function TeacherContract() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[200px]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size="lg" className="text-muted-foreground" />
         </div>
       </DashboardLayout>
     );
@@ -157,7 +158,7 @@ export default function TeacherContract() {
                         </div>
                         <Button type="submit" disabled={signing}>
                           {signing ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size="sm" />
                           ) : (
                             <>
                               <Check className="mr-2 h-4 w-4" />
@@ -179,7 +180,7 @@ export default function TeacherContract() {
                         />
                         <Button type="submit" variant="secondary" disabled={requestingChange}>
                           {requestingChange ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size="sm" />
                           ) : (
                             <>
                               <Send className="mr-2 h-4 w-4" />

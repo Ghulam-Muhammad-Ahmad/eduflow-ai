@@ -14,11 +14,11 @@ import {
   CheckCircle2,
   BarChart3,
   TrendingUp,
-  Loader2,
   FileCode,
   Link2,
   Calendar,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   AreaChart,
   Area,
@@ -171,7 +171,7 @@ const TeacherDashboard = () => {
             </div>
             {statsLoading ? (
               <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Spinner size="md" />
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
@@ -215,7 +215,7 @@ const TeacherDashboard = () => {
             </div>
             {statsLoading ? (
               <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Spinner size="md" />
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={200}>

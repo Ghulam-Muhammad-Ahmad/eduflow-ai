@@ -8,7 +8,8 @@ import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, FileText, Loader2, PenLine, User, Pencil } from "lucide-react";
+import { ArrowLeft, FileText, PenLine, User, Pencil } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -245,7 +246,7 @@ Output only the full contract Markdown, no preamble or explanation.`;
           </Button>
           {isLoading ? (
             <div className="flex justify-center min-h-[200px] items-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size="lg" className="text-muted-foreground" />
             </div>
           ) : (
             <p className="text-muted-foreground">Contract not found.</p>
@@ -297,7 +298,7 @@ Output only the full contract Markdown, no preamble or explanation.`;
               <p className="text-sm font-medium">Tutor requested a change</p>
               <p className="text-sm text-muted-foreground mt-1">{contract.change_request_note || "No note."}</p>
               <Button variant="secondary" size="sm" className="mt-2" onClick={handleResetToPendingSignature} disabled={resettingStatus}>
-                {resettingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as updated (tutor can sign again)"}
+                {resettingStatus ? <Spinner size="sm" /> : "Mark as updated (tutor can sign again)"}
               </Button>
             </div>
           )}
@@ -313,7 +314,7 @@ Output only the full contract Markdown, no preamble or explanation.`;
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
-                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Export"}
+                {exporting ? <Spinner size="sm" /> : "Export"}
               </Button>
             </div>
           )}
@@ -337,7 +338,7 @@ Output only the full contract Markdown, no preamble or explanation.`;
                   Cancel
                 </Button>
                 <Button onClick={handleSaveEdit} disabled={savingEdit}>
-                  {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  {savingEdit ? <Spinner size="sm" /> : "Save"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -407,7 +408,7 @@ Output only the full contract Markdown, no preamble or explanation.`;
                   Cancel
                 </Button>
                 <Button onClick={handleSaveDetails} disabled={savingDetails}>
-                  {savingDetails ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  {savingDetails ? <Spinner size="sm" /> : "Save"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -426,7 +427,7 @@ Output only the full contract Markdown, no preamble or explanation.`;
                   className="flex-1"
                 />
                 <Button type="submit" disabled={revising || !revisePrompt.trim()}>
-                  {revising ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                  {revising ? <Spinner size="sm" /> : <PenLine className="h-4 w-4" />}
                 </Button>
               </div>
             </form>

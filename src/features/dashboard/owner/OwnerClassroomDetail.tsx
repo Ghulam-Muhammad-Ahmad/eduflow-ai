@@ -43,7 +43,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ClassroomLectureSection } from "@/components/lectures/ClassroomLectureSection";
 import {
   ArrowLeft,
   Users,
@@ -52,6 +51,7 @@ import {
   BookOpen,
   ClipboardList,
   Search,
+  Video,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -229,18 +229,28 @@ export default function OwnerClassroomDetail() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/owner/classrooms">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold truncate">{classroom?.name}</h1>
-            {classroom?.subject && (
-              <p className="text-muted-foreground">{classroom.subject}</p>
-            )}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/dashboard/owner/classrooms">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold truncate">{classroom?.name}</h1>
+              {classroom?.subject && (
+                <p className="text-muted-foreground">{classroom.subject}</p>
+              )}
+            </div>
           </div>
+          {id && (
+            <Button asChild variant="outline" className="gap-2 shrink-0">
+              <Link href={`/dashboard/owner/sessions?classroomId=${id}`}>
+                <Video className="h-4 w-4" />
+                View sessions
+              </Link>
+            </Button>
+          )}
         </div>
 
         <div className="grid md:grid-cols-3 gap-4">
@@ -319,24 +329,6 @@ export default function OwnerClassroomDetail() {
               <p className="text-muted-foreground">{classroom.description}</p>
             </CardContent>
           </Card>
-        )}
-
-        {classroom && (
-          <ClassroomLectureSection
-            scopeType="classroom"
-            classroomId={classroom.id}
-            targetName={classroom.name}
-            canManage
-            canEditMockFinancials
-            showPrivateNotes
-            tutorOptions={tutorIds.map((uid) => ({
-              id: uid,
-              name: tutorMap.get(uid) ?? "Tutor",
-            }))}
-            defaultTutorId={classroom.teacher_id}
-            description="Schedule Google Meet lectures for this classroom and assign them to one of the classroom tutors."
-            emptyMessage="No lectures scheduled yet. Use the button above to create the first classroom lecture."
-          />
         )}
 
         <Card>

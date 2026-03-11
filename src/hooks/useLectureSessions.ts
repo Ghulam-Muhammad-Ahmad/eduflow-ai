@@ -185,6 +185,67 @@ export function useTeacherLectureCalendar(range: { start: Date; end: Date } | nu
   });
 }
 
+export function useWorkspaceLectureSessions(workspaceId: string | null) {
+  return useQuery({
+    queryKey: ["workspace-lecture-sessions", workspaceId],
+    queryFn: async (): Promise<LectureSession[]> => {
+      if (!workspaceId) return [];
+
+      const { data, error } = await supabase
+        .from("sessions")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("starts_at", { ascending: true });
+
+      if (error) throw error;
+      return (data ?? []) as LectureSession[];
+    },
+    enabled: !!workspaceId,
+  });
+}
+
+export function useTeacherAllLectureSessions() {
+  const { user, role } = useAuth();
+
+  return useQuery({
+    queryKey: ["teacher-all-lecture-sessions", user?.id],
+    queryFn: async (): Promise<LectureSession[]> => {
+      if (!user?.id || role !== "teacher") return [];
+
+      const { data, error } = await supabase
+        .from("sessions")
+        .select("*")
+        .eq("tutor_id", user.id)
+        .order("starts_at", { ascending: true });
+
+      if (error) throw error;
+      return (data ?? []) as LectureSession[];
+    },
+    enabled: !!user?.id && role === "teacher",
+  });
+}
+
+/** All sessions visible to the current student (classroom sessions for enrolled classes + own 1:1 sessions). RLS filters. */
+export function useStudentAllLectureSessions() {
+  const { user, role } = useAuth();
+
+  return useQuery({
+    queryKey: ["student-all-lecture-sessions", user?.id],
+    queryFn: async (): Promise<LectureSession[]> => {
+      if (!user?.id || role !== "student") return [];
+
+      const { data, error } = await supabase
+        .from("sessions")
+        .select("*")
+        .order("starts_at", { ascending: true });
+
+      if (error) throw error;
+      return (data ?? []) as LectureSession[];
+    },
+    enabled: !!user?.id && role === "student",
+  });
+}
+
 export function useUpcomingClassroomLectureSessions(classroomId: string | null) {
   const sessionsQuery = useClassroomLectureSessions(classroomId);
 
@@ -311,6 +372,8 @@ export function useCreateLectureSession() {
     onSuccess: ({ session }) => {
       queryClient.invalidateQueries({ queryKey: ["lecture-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["teacher-lecture-calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-lecture-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-all-lecture-sessions"] });
       toast({
         title: "Lecture scheduled",
         description:
@@ -346,6 +409,8 @@ export function useUpdateLectureSession() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lecture-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["teacher-lecture-calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-lecture-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-all-lecture-sessions"] });
       toast({
         title: "Lecture updated",
         description: "The lecture schedule has been updated.",
@@ -378,6 +443,8 @@ export function useCancelLectureSession() {
     onSuccess: (session) => {
       queryClient.invalidateQueries({ queryKey: ["lecture-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["teacher-lecture-calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-lecture-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-all-lecture-sessions"] });
       toast({
         title: session.mode === "series" ? "Lecture series cancelled" : "Lecture cancelled",
         description:
@@ -411,6 +478,8 @@ export function useCompleteLectureSession() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lecture-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["teacher-lecture-calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-lecture-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-all-lecture-sessions"] });
       toast({
         title: "Lecture completed",
         description: "The lecture has been marked completed.",

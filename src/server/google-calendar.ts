@@ -205,7 +205,7 @@ export async function createGoogleMeetEvent(params: {
 }) {
   const calendarId = encodeURIComponent(params.calendarId || "primary");
   const response = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1&sendUpdates=none`,
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1&sendUpdates=all`,
     {
       method: "POST",
       headers: {
@@ -250,7 +250,7 @@ export async function updateGoogleMeetEvent(params: {
   const eventId = encodeURIComponent(params.eventId);
 
   const response = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}?conferenceDataVersion=1&sendUpdates=none`,
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}?conferenceDataVersion=1&sendUpdates=all`,
     {
       method: "PATCH",
       headers: {

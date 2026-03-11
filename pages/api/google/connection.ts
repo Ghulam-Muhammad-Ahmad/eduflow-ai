@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const configured = isGoogleCalendarConfigured();
   const role = await getCallerRole(user.id);
-  if (role !== "teacher") {
+  if (role !== "teacher" && role !== "admin" && role !== "student") {
     return res.status(200).json({
       configured,
       connected: false,

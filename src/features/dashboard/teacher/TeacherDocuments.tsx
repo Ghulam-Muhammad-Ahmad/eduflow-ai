@@ -39,6 +39,7 @@ import {
   Home,
   Scissors,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -996,7 +997,7 @@ const TeacherDocuments = () => {
 
             {loading ? (
               <div className="flex items-center justify-center py-12" role="status" aria-label="Loading documents">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                <Spinner size="lg" />
               </div>
             ) : filteredDocuments.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground rounded-lg border border-dashed border-border bg-muted/20">
@@ -1351,7 +1352,7 @@ const TeacherDocuments = () => {
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             {previewLoading ? (
               <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+                <Spinner size="lg" className="h-10 w-10" />
               </div>
             ) : previewUrl && documentToPreview ? (
               (() => {

@@ -45,7 +45,9 @@ import {
   PenLine,
   User,
   Building2,
+  Video,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +79,7 @@ const roleConfig = {
       { icon: Brain, label: "AI Checker", path: "/dashboard/teacher/checker" },
       { icon: BookOpen, label: "Lesson Planner", path: "/dashboard/teacher/lesson-planner" },
       { icon: Calendar, label: "Calendar", path: "/dashboard/teacher/calendar" },
+      { icon: Video, label: "Sessions", path: "/dashboard/teacher/sessions" },
       { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],
   },
@@ -85,6 +88,7 @@ const roleConfig = {
     navItems: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/student" },
       { icon: Users, label: "My Classes", path: "/dashboard/student/classrooms" },
+      { icon: Video, label: "Sessions", path: "/dashboard/student/sessions" },
       { icon: FileText, label: "My Documents", path: "/dashboard/student/documents" },
       { icon: BookOpen, label: "Course Materials", path: "/dashboard/student/course-materials" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
@@ -100,6 +104,7 @@ const roleConfig = {
       { icon: PenLine, label: "Contracts", path: "/dashboard/owner/contracts" },
       { icon: GraduationCap, label: "Students", path: "/dashboard/owner/students" },
       { icon: School, label: "Classes", path: "/dashboard/owner/classrooms" },
+      { icon: Video, label: "Sessions", path: "/dashboard/owner/sessions" },
       { icon: Building2, label: "Workspace", path: "/dashboard/owner/workspace" },
       { icon: CreditCard, label: "Billing & Plan", path: "/dashboard/owner/billing" },
       { icon: Settings, label: "Settings", path: "/dashboard/settings" },
@@ -175,7 +180,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
   if (!config) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }

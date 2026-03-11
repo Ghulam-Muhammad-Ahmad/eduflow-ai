@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { HardDrive, Loader2 } from "lucide-react";
+import { HardDrive } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -221,7 +222,7 @@ export function MemberStorageCard({
                       Cancel
                     </Button>
                     <Button onClick={handleSave} disabled={loading}>
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                      {loading ? <Spinner size="sm" /> : "Save"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { AppRole } from "@/types/auth";
@@ -141,7 +142,7 @@ export default function Auth() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4" style={{ backgroundImage: "var(--gradient-hero)" }}>
         <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <Spinner size="lg" />
           <p className="text-muted-foreground">Redirecting...</p>
         </div>
       </div>

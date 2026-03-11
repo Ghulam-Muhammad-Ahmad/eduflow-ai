@@ -18,7 +18,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle,
-  Loader2,
   Sparkles,
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -32,6 +31,7 @@ import {
   BookOpen,
   Video,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import usePlannerCalendar from "@/hooks/usePlannerCalendar";
 import type { PlannerEvent } from "@/hooks/usePlannerCalendar";
 import {
@@ -427,7 +427,7 @@ export default function Calendar() {
               className="gap-2"
             >
               {suggesting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size="sm" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
@@ -455,7 +455,7 @@ export default function Calendar() {
             <div className="teacher-calendar-wrapper rounded-lg bg-card overflow-hidden h-full w-full min-w-0 absolute inset-0">
               {loading && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 rounded-lg">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <Spinner size="lg" />
                 </div>
               )}
               <BigCalendar

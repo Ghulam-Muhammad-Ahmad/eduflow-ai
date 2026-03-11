@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import { Users, BookOpen, Sparkles, ClipboardList } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import type { AppRole } from "@/types/auth";
 
@@ -40,7 +41,7 @@ export default function ChooseRole() {
   if (authLoading || !user || role) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -126,7 +127,7 @@ export default function ChooseRole() {
 
           {selecting && (
             <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <Spinner size="sm" />
               Setting up your account...
             </div>
           )}

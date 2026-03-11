@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { resetPasswordSchema } from "@/lib/validation";
 
@@ -69,7 +70,7 @@ export default function OnboardingChangePassword() {
   if (authLoading || !user || (role !== "teacher" && role !== "student")) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <Spinner size="lg" />
       </div>
     );
   }

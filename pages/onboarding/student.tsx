@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowRight, GraduationCap } from "lucide-react";
 import { BillingPlans } from "@/components/billing/BillingPlans";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function OnboardingStudent() {
   const router = useRouter();
@@ -55,7 +56,7 @@ export default function OnboardingStudent() {
   if (authLoading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <Spinner size="lg" />
       </div>
     );
   }

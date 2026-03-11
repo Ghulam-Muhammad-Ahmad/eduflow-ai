@@ -18,6 +18,7 @@ import {
   type BillingCycle,
 } from "@/lib/billing";
 import { openPaddleCheckout } from "./PaddleProvider";
+import { Spinner } from "@/components/ui/spinner";
 import { Check } from "lucide-react";
 
 /** Fetched from GET /api/paddle/plan-prices */
@@ -135,7 +136,7 @@ export function BillingPlans({
       {/* Plan cards: show loading first, then dynamic prices */}
       {pricesLoading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <Spinner size="lg" className="h-10 w-10" />
           <p className="text-sm text-muted-foreground">Loading plans and prices…</p>
         </div>
       ) : (

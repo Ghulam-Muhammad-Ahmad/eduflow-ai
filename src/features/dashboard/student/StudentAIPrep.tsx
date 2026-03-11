@@ -12,10 +12,10 @@ import {
   HelpCircle,
   BookOpen,
   Calendar,
-  Loader2,
   Sparkles,
   Lightbulb,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useAIPrep } from "@/hooks/useAIPrep";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { useStudentAssignments } from "@/hooks/useAssignments";
@@ -343,7 +343,7 @@ const StudentAIPrep = () => {
                 <Button onClick={handleGenerateSummary} disabled={loading} className="w-full">
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                       Generating...
                     </>
                   ) : (
@@ -374,7 +374,7 @@ const StudentAIPrep = () => {
                 <Button onClick={handleGenerateFlashcards} disabled={loading} className="w-full">
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                       Generating...
                     </>
                   ) : (
@@ -416,7 +416,7 @@ const StudentAIPrep = () => {
                 <Button onClick={handleGenerateQuestions} disabled={loading} className="w-full">
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                       Generating...
                     </>
                   ) : (
@@ -456,7 +456,7 @@ const StudentAIPrep = () => {
                 <Button onClick={handleExplainConcept} disabled={loading} className="w-full">
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                       Explaining...
                     </>
                   ) : (
@@ -501,7 +501,7 @@ const StudentAIPrep = () => {
                 <Button onClick={handleGenerateStudyPlan} disabled={loading} className="w-full">
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                       Generating...
                     </>
                   ) : (

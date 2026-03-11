@@ -5,7 +5,8 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { useAIStudio, type AIGeneratedContent } from "@/hooks/useAIStudio";
 import { AIStudioOutputView } from "@/components/ai/AIStudioOutputView";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 const TeacherAIStudioOutput = () => {
   const router = useRouter();
@@ -50,7 +51,7 @@ const TeacherAIStudioOutput = () => {
     return (
       <DashboardLayout role="teacher">
         <div className="flex items-center justify-center min-h-[200px] gap-2">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size="md" className="text-muted-foreground" />
           <span className="text-muted-foreground">Loading...</span>
         </div>
       </DashboardLayout>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
+import { Spinner } from "@/components/ui/spinner";
 
 const PADDLE_SCRIPT = "https://cdn.paddle.com/paddle/v2/paddle.js";
 
@@ -122,7 +123,7 @@ export default function CheckoutPage() {
   if (!router.isReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -166,7 +167,7 @@ export default function CheckoutPage() {
         />
         {!loaded && (
           <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <Spinner size="lg" />
           </div>
         )}
       </div>

@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, PenLine, Loader2, FileText, Calendar, Sparkles } from "lucide-react";
+import { ArrowLeft, PenLine, FileText, Calendar, Sparkles } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -220,7 +221,7 @@ export default function OwnerContractNew() {
 
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size="lg" className="text-muted-foreground" />
             </div>
           ) : tutors.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
@@ -329,7 +330,7 @@ export default function OwnerContractNew() {
                 >
                   {generating ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                       Generating contract…
                     </>
                   ) : (

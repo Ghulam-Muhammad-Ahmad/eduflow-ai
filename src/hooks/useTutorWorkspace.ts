@@ -92,6 +92,7 @@ export type TutorStudentRow = {
   id: string;
   display_name: string | null;
   email: string | null;
+  avatar_url: string | null;
 };
 
 /**
@@ -109,13 +110,14 @@ export function useTutorStudents() {
       if (assignedStudentIds && assignedStudentIds.length > 0) {
         const { data: profiles, error } = await supabase
           .from("profiles")
-          .select("user_id, display_name, email")
+          .select("user_id, display_name, email, avatar_url")
           .in("user_id", assignedStudentIds);
         if (error) throw error;
         return (profiles ?? []).map((p) => ({
           id: p.user_id,
           display_name: p.display_name ?? null,
           email: p.email ?? null,
+          avatar_url: p.avatar_url ?? null,
         }));
       }
 
@@ -141,13 +143,14 @@ export function useTutorStudents() {
 
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email")
+        .select("user_id, display_name, email, avatar_url")
         .in("user_id", studentIds);
       if (profileError) throw profileError;
       return (profiles ?? []).map((p) => ({
         id: p.user_id,
         display_name: p.display_name ?? null,
         email: p.email ?? null,
+        avatar_url: p.avatar_url ?? null,
       }));
     },
     enabled: !!user && role === "teacher" && !workspaceLoading,
@@ -157,4 +160,38 @@ export function useTutorStudents() {
     students,
     isLoading: workspaceLoading || studentsLoading,
   };
+}
+
+type ClassroomWithName = { id: string; name: string };
+
+/** Map of student id -> list of classroom names they're enrolled in (within the given classrooms). */
+export function useTutorStudentClassrooms(
+  studentIds: string[],
+  classrooms: ClassroomWithName[]
+) {
+  const classroomIds = classrooms.map((c) => c.id);
+  const idToName = new Map(classrooms.map((c) => [c.id, c.name]));
+
+  const { data: map = {} } = useQuery({
+    queryKey: ["tutor-student-classrooms", [...studentIds].sort().join(","), [...classroomIds].sort().join(",")],
+    queryFn: async (): Promise<Record<string, string[]>> => {
+      if (studentIds.length === 0 || classroomIds.length === 0) return {};
+      const { data: enrollments, error } = await supabase
+        .from("enrollments")
+        .select("student_id, classroom_id")
+        .in("classroom_id", classroomIds)
+        .in("student_id", studentIds)
+        .eq("status", "active");
+      if (error) throw error;
+      const out: Record<string, string[]> = {};
+      for (const e of enrollments ?? []) {
+        const name = idToName.get(e.classroom_id) ?? e.classroom_id;
+        if (!out[e.student_id]) out[e.student_id] = [];
+        if (!out[e.student_id].includes(name)) out[e.student_id].push(name);
+      }
+      return out;
+    },
+    enabled: studentIds.length > 0 && classroomIds.length > 0,
+  });
+  return map;
 }

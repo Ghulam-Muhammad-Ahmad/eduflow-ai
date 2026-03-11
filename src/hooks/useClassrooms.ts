@@ -250,6 +250,28 @@ export const useClassrooms = () => {
   };
 };
 
+// Hook for fetching student counts per classroom (for list views)
+export const useClassroomStudentCounts = (classroomIds: string[]) => {
+  return useQuery({
+    queryKey: ["classroom-student-counts", [...classroomIds].sort().join(",")],
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (classroomIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("classroom_id")
+        .in("classroom_id", classroomIds)
+        .eq("status", "active");
+      if (error) throw error;
+      const count: Record<string, number> = {};
+      for (const row of data ?? []) {
+        count[row.classroom_id] = (count[row.classroom_id] ?? 0) + 1;
+      }
+      return count;
+    },
+    enabled: classroomIds.length > 0,
+  });
+};
+
 // Hook for fetching classroom roster (enrollments)
 export const useClassroomRoster = (classroomId: string | null) => {
   return useQuery({

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, Building2 } from "lucide-react";
 import { BillingPlans } from "@/components/billing/BillingPlans";
+import { Spinner } from "@/components/ui/spinner";
 
 const TOTAL_STEPS = 2;
 
@@ -143,7 +144,7 @@ export default function OnboardingBusiness() {
   if (authLoading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -152,7 +153,7 @@ export default function OnboardingBusiness() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <Spinner size="lg" />
           <p className="text-sm text-muted-foreground">Completing your setup...</p>
         </div>
       </div>
@@ -191,7 +192,7 @@ export default function OnboardingBusiness() {
 
         {step === 1 && !workspaceId && !existingWorkspaceLoaded && (
           <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <Spinner size="lg" />
           </div>
         )}
 

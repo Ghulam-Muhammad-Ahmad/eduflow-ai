@@ -53,8 +53,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const role = await getCallerRole(user.id);
-  if (role !== "teacher") {
-    return redirectWithStatus(res, redirectTarget, "error", "Only tutors can connect Google Calendar.");
+  if (role !== "teacher" && role !== "admin" && role !== "student") {
+    return redirectWithStatus(res, redirectTarget, "error", "Only owners, tutors, and students can connect Google Calendar.");
   }
 
   const code = typeof req.query.code === "string" ? req.query.code : null;

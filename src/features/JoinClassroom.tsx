@@ -14,7 +14,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Loader2, UserPlus } from "lucide-react";
+import { BookOpen, UserPlus } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 type InviteClassroom = {
   id: string;
@@ -88,7 +89,7 @@ const JoinClassroom = () => {
         <CardContent className="space-y-6">
           {isLoading && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Spinner size="sm" />
               Loading classroom details...
             </div>
           )}
@@ -127,7 +128,7 @@ const JoinClassroom = () => {
                   disabled={joinClassroom.isPending}
                 >
                   {joinClassroom.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Spinner size="sm" className="text-primary-foreground" />
                   ) : (
                     <UserPlus className="w-4 h-4" />
                   )}

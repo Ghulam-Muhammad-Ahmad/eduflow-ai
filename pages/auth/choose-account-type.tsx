@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * Role selection is removed: all new signups are owners.
@@ -31,7 +32,7 @@ export default function ChooseAccountType() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <Spinner size="lg" />
     </div>
   );
 }

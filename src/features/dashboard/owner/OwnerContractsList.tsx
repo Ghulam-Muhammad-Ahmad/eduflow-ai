@@ -5,7 +5,8 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, ChevronRight, Loader2, PenLine } from "lucide-react";
+import { FileText, ChevronRight, PenLine } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 const contractStatusLabel: Record<string, string> = {
   draft: "Draft",
@@ -42,7 +43,7 @@ export default function OwnerContractsList() {
 
         {isLoading ? (
           <div className="flex items-center justify-center min-h-[200px]">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size="lg" className="text-muted-foreground" />
           </div>
         ) : tutorContracts.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">

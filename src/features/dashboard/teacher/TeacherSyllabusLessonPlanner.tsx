@@ -28,7 +28,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import {
   Sparkles,
-  Loader2,
   Download,
   Calendar,
   Save,
@@ -46,6 +45,7 @@ import {
   FileText,
   FolderOpen,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
 
@@ -311,7 +311,7 @@ export default function TeacherSyllabusLessonPlanner() {
                       disabled={extractingDoc || loadingDoc}
                     >
                       {(extractingDoc || loadingDoc) ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        <Spinner size="sm" className="mr-1.5" />
                       ) : (
                         <FolderOpen className="h-4 w-4 mr-1.5" />
                       )}
@@ -326,7 +326,7 @@ export default function TeacherSyllabusLessonPlanner() {
                   />
                   {(extractingDoc || loadingDoc) && (
                     <span className="inline-flex items-center gap-1 mt-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Extracting text…
+                      <Spinner size="sm" /> Extracting text…
                     </span>
                   )}
                 </div>
@@ -537,7 +537,7 @@ export default function TeacherSyllabusLessonPlanner() {
                 </Button>
                 <Button onClick={handleGenerate} disabled={!canGenerate || loading}>
                   {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Spinner size="sm" className="mr-2" />
                   ) : (
                     <Sparkles className="h-4 w-4 mr-2" />
                   )}
@@ -678,7 +678,7 @@ export default function TeacherSyllabusLessonPlanner() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegenerateOpen(false)}>Cancel</Button>
             <Button onClick={handleRegenerate} disabled={!editPrompt.trim() || loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Regenerate"}
+              {loading ? <Spinner size="sm" /> : "Regenerate"}
             </Button>
           </DialogFooter>
         </DialogContent>

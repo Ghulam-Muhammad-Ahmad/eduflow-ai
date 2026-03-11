@@ -130,6 +130,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       requestedTutorId: input.tutorId,
     });
 
+    if (callerRole === "admin") {
+      await getValidGoogleConnection(user.id);
+    }
     const googleConnection = await getValidGoogleConnection(context.tutorId);
     const now = new Date().toISOString();
 

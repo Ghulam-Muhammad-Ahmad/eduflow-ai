@@ -12,12 +12,12 @@ import {
   Pencil,
   RefreshCw,
   FileDown,
-  Loader2,
   Eye,
   RotateCcw,
   Plus,
   Trash2,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -381,7 +381,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
             />
             <div className="flex gap-2">
               <Button size="sm" onClick={handleRegenerateWorksheet} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                {loading ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Regenerate with instructions
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setShowRegeneratePanel(false); setRegenerateInstructions(""); }}>
@@ -500,7 +500,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
             />
             <div className="flex gap-2">
               <Button size="sm" onClick={handleRegenerateRubric} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                {loading ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Regenerate with instructions
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setShowRubricRegeneratePanel(false); setRubricRegenerateInstructions(""); }}>
@@ -545,7 +545,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
                       title="Regenerate this criterion with AI"
                     >
                       {regeneratingCriterionIndex === idx ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Spinner size="sm" />
                       ) : (
                         <RotateCcw className="h-4 w-4" />
                       )}
@@ -717,7 +717,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
             />
             <div className="flex gap-2">
               <Button size="sm" onClick={handleRegeneratePaper} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                {loading ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Regenerate with instructions
               </Button>
               <Button
@@ -835,7 +835,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
             />
             <div className="flex gap-2">
               <Button size="sm" onClick={handleRegenerateAll} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                {loading ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Regenerate worksheet
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setWbRegenerateAllPanel(false); setWbRegenerateInstructions(""); }}>Cancel</Button>
@@ -894,7 +894,7 @@ export function AIStudioOutputView({ item, onUpdated }: AIStudioOutputViewProps)
                               disabled={regeneratingWorksheetQuestionIndex !== null}
                               title="Regenerate this question"
                             >
-                              {regeneratingWorksheetQuestionIndex === idx ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                              {regeneratingWorksheetQuestionIndex === idx ? <Spinner size="sm" /> : <RotateCcw className="h-4 w-4" />}
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => removeQuestion(idx)} className="text-destructive hover:text-destructive" title="Remove"><Trash2 className="h-4 w-4" /></Button>
                           </div>

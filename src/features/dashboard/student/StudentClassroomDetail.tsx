@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import { useStudentAssignments } from "@/hooks/useAssignments";
 import { useQuizzes } from "@/hooks/useQuizzes";
 import { useAuth } from "@/hooks/useAuth";
-import { ClassroomLectureSection } from "@/components/lectures/ClassroomLectureSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, BookOpen, ClipboardList, FileText, Search, Download, HelpCircle } from "lucide-react";
+import { ArrowLeft, BookOpen, ClipboardList, FileText, Search, Download, HelpCircle, Video } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -194,20 +194,30 @@ const StudentClassroomDetail = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/dashboard/student/classrooms")}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl lg:text-3xl font-bold">{classroom?.name}</h1>
-            {classroom?.subject && (
-              <p className="text-muted-foreground mt-1">{classroom.subject}</p>
-            )}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/dashboard/student/classrooms")}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-2xl lg:text-3xl font-bold">{classroom?.name}</h1>
+              {classroom?.subject && (
+                <p className="text-muted-foreground mt-1">{classroom.subject}</p>
+              )}
+            </div>
           </div>
+          {classroomId && (
+            <Button asChild variant="outline" className="gap-2 shrink-0">
+              <Link href={`/dashboard/student/sessions?classroomId=${classroomId}`}>
+                <Video className="w-4 h-4" />
+                View sessions
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Overview Cards */}
@@ -257,18 +267,6 @@ const StudentClassroomDetail = () => {
               <p className="text-muted-foreground">{classroom.description}</p>
             </CardContent>
           </Card>
-        )}
-
-        {classroom && (
-          <ClassroomLectureSection
-            scopeType="classroom"
-            classroomId={classroom.id}
-            targetName={classroom.name}
-            canManage={false}
-            tutorOptions={[]}
-            description="Upcoming live lectures for this classroom. Join the Google Meet link when the session starts."
-            emptyMessage="No live lectures have been scheduled for this classroom yet."
-          />
         )}
 
         {/* Search */}

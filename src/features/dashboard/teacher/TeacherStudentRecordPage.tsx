@@ -5,6 +5,7 @@ import { StudentRecordView } from "./StudentRecordView";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, ArrowLeft } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { generateStudentPDF } from "@/lib/pdfReports";
@@ -64,7 +65,7 @@ const TeacherStudentRecordPage = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-medium-slate-blue" />
+          <Spinner size="lg" />
         </div>
       </DashboardLayout>
     );

@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAIStudio } from "@/hooks/useAIStudio";
-import { HelpCircle, Loader2 } from "lucide-react";
+import { HelpCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 
 interface QuizQuestionGeneratorProps {
@@ -109,7 +110,7 @@ const QuizQuestionGenerator = ({ onContentGenerated }: QuizQuestionGeneratorProp
           <Button onClick={handleGenerate} disabled={loading} className="w-full">
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 Generating Questions...
               </>
             ) : (

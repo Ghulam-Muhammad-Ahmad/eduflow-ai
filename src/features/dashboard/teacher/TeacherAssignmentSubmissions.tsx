@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ArrowLeft,
   CheckCircle,
@@ -56,7 +57,7 @@ const TeacherAssignmentSubmissions = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <Spinner size="lg" />
         </div>
       </DashboardLayout>
     );
@@ -254,7 +255,7 @@ const TeacherAssignmentSubmissionsContent = ({ assignmentId }: { assignmentId: s
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <Spinner size="lg" />
         </div>
       </DashboardLayout>
     );

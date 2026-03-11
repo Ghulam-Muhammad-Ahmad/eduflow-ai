@@ -25,7 +25,8 @@ import { useAIStudio } from "@/hooks/useAIStudio";
 import { AI_SOURCE_TEXT_MAX_CHARS } from "@/services/aiService";
 import { WORKSHEET_SYSTEM_TEMPLATES, type WorksheetContent } from "@/types/worksheet";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
-import { FileSpreadsheet, Loader2, FolderOpen, X, AlertTriangle } from "lucide-react";
+import { FileSpreadsheet, FolderOpen, X, AlertTriangle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { WorksheetTemplateLayout } from "@/components/ai/WorksheetTemplateLayout";
@@ -309,7 +310,7 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
                     onClick={() => setDocCenterOpen(true)}
                     disabled={loadingDoc}
                   >
-                    {loadingDoc ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FolderOpen className="h-4 w-4 mr-2" />}
+                    {loadingDoc ? <Spinner size="sm" className="mr-2" /> : <FolderOpen className="h-4 w-4 mr-2" />}
                     {sourceName ? "Change document" : "Choose from Doc Center"}
                   </Button>
                   {sourceName && (
@@ -483,7 +484,7 @@ const WorksheetGenerator = ({ onContentGenerated }: WorksheetGeneratorProps) => 
           >
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 Generating Worksheet...
               </>
             ) : (

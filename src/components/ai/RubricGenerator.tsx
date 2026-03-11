@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAIStudio } from "@/hooks/useAIStudio";
 import { AI_SOURCE_TEXT_MAX_CHARS } from "@/services/aiService";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
-import { FileText, FolderOpen, ListChecks, Loader2, X, AlertTriangle } from "lucide-react";
+import { FileText, FolderOpen, ListChecks, X, AlertTriangle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 
 interface RubricGeneratorProps {
@@ -222,7 +223,7 @@ const RubricGenerator = ({ onContentGenerated }: RubricGeneratorProps) => {
           <Button onClick={handleGenerate} disabled={loading || loadingDoc} className="w-full">
             {loading || loadingDoc ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 {loadingDoc ? "Preparing document..." : "Generating Rubric..."}
               </>
             ) : (

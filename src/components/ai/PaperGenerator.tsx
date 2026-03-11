@@ -16,7 +16,8 @@ import { useAIStudio } from "@/hooks/useAIStudio";
 import type { PaperQuestionType } from "@/services/aiService";
 import { AI_SOURCE_TEXT_MAX_CHARS } from "@/services/aiService";
 import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
-import { FileText, Loader2, FolderOpen, X, AlertTriangle } from "lucide-react";
+import { FileText, FolderOpen, X, AlertTriangle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -372,7 +373,7 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
                     disabled={loadingDoc}
                   >
                     {loadingDoc ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size="sm" className="mr-2" />
                     ) : (
                       <FolderOpen className="h-4 w-4 mr-2" />
                     )}
@@ -507,7 +508,7 @@ const PaperGenerator = ({ onContentGenerated }: PaperGeneratorProps) => {
           >
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 Generating Paper...
               </>
             ) : (

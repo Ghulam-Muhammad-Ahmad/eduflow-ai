@@ -15,7 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useAIStudio } from "@/hooks/useAIStudio";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Loader2, FileText, ListTodo, MessageSquare } from "lucide-react";
+import { Sparkles, FileText, ListTodo, MessageSquare } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { QuizQuestion } from "@/hooks/useQuizzes";
 import { v4 as uuidv4 } from "uuid";
@@ -221,7 +222,7 @@ export function AIGenerateQuestionsDialog({
           <Button onClick={handleGenerate} disabled={loading || !sourceMaterial.trim()}>
             {loading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 Generating...
               </>
             ) : (

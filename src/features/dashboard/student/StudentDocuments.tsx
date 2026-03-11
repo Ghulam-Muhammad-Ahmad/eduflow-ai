@@ -29,6 +29,7 @@ import {
   FolderInput,
   Scissors,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
   CardContent,
@@ -929,7 +930,7 @@ const StudentDocuments = () => {
           {/* Loading State */}
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              <Spinner size="lg" />
             </div>
           )}
 
@@ -1110,7 +1111,7 @@ const StudentDocuments = () => {
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             {previewLoading ? (
               <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+                <Spinner size="lg" className="h-10 w-10" />
               </div>
             ) : previewUrl && documentToPreview ? (
               (() => {

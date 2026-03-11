@@ -24,13 +24,13 @@ import { Progress } from "@/components/ui/progress";
 import {
   Upload,
   FileText,
-  Loader2,
   Download,
   Save,
   AlertCircle,
   Settings,
   Plus,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { useClassrooms } from "@/hooks/useClassrooms";
@@ -598,7 +598,7 @@ const CheckPaperFlow = () => {
           <Button onClick={handleCheckPaper} disabled={loading} size="lg">
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 Checking...
               </>
             ) : (
@@ -779,7 +779,7 @@ const CheckPaperFlow = () => {
                 disabled={!selectedClassroom || saveLoading}
               >
                 {saveLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                 ) : (
                   "Save Paper"
                 )}

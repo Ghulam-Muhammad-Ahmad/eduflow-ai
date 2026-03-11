@@ -18,7 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Paperclip, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, Sparkles, Paperclip, FileText } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
 const ASSIGNMENT_AI_SYSTEM = `You are an educational assistant. Return ONLY valid JSON with exactly these keys: title (string), description (string), instructions (string), points_possible (number between 0 and 100). No markdown, no code blocks, no explanation—only the raw JSON object.`;
@@ -178,7 +179,7 @@ const TeacherCreateAssignment = () => {
                 className="shrink-0"
               >
                 {aiGenerating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 mr-1" />

@@ -19,10 +19,12 @@ import {
   Palette,
   Save,
   AlertCircle,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { GoogleCalendarConnectionCard } from "@/components/lectures/GoogleCalendarConnectionCard";
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters").max(50),
@@ -45,7 +47,7 @@ const setPasswordSchema = z.object({
   path: ["confirmPassword"],
 });
 
-type SettingsTab = "profile" | "security" | "notifications" | "appearance";
+type SettingsTab = "profile" | "security" | "notifications" | "appearance" | "integrations";
 
 const Settings = () => {
   const { user, role, profile, updateProfile, updatePassword, updateAvatar } = useAuth();
@@ -222,11 +224,13 @@ const Settings = () => {
     }
   };
 
+  const showIntegrations = role === "teacher" || role === "admin" || role === "student";
   const tabs = [
     { id: "profile" as const, label: "Profile", icon: User },
     { id: "security" as const, label: "Security", icon: Shield },
     { id: "notifications" as const, label: "Notifications", icon: Bell },
     { id: "appearance" as const, label: "Appearance", icon: Palette },
+    ...(showIntegrations ? [{ id: "integrations" as const, label: "Integrations", icon: Calendar }] : []),
   ];
 
   return (
@@ -594,6 +598,24 @@ const Settings = () => {
                   <p className="text-sm text-muted-foreground mt-6 text-center">
                     More appearance settings coming soon
                   </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Integrations Tab - Google Calendar (teacher/admin only) */}
+            {activeTab === "integrations" && showIntegrations && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Integrations
+                  </CardTitle>
+                  <CardDescription>
+                    Connect external services for scheduling and calendar
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <GoogleCalendarConnectionCard redirectTo="/dashboard/settings" variant={role === "student" ? "student" : "teacher"} />
                 </CardContent>
               </Card>
             )}

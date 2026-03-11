@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useTutorContract } from "@/hooks/useTutorContract";
-import { ArrowLeft, User, Loader2, Camera } from "lucide-react";
+import { ArrowLeft, User, Camera } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -145,7 +146,7 @@ export default function TeacherMyProfile() {
                   disabled={avatarUploading}
                 >
                   {avatarUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner size="sm" />
                   ) : (
                     <Camera className="h-4 w-4" />
                   )}
@@ -180,7 +181,7 @@ export default function TeacherMyProfile() {
             <Button type="submit" disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size="sm" className="mr-2" />
                   Saving…
                 </>
               ) : (

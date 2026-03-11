@@ -14,12 +14,12 @@ import {
   FileText,
   File,
   Upload,
-  Loader2,
   FileImage,
   FileSpreadsheet,
   Search,
   Info,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 
 /** Extension (lowercase, no dot) -> react-dropzone accept entry */
@@ -196,7 +196,7 @@ export function DocCenterMini({ open, onOpenChange, onSelect, allowedFormats }: 
           <input {...getInputProps()} />
           {isUploading ? (
             <div className="flex flex-col items-center gap-2">
-              <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+              <Spinner size="lg" className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Uploading...</p>
             </div>
           ) : (
@@ -241,7 +241,7 @@ export function DocCenterMini({ open, onOpenChange, onSelect, allowedFormats }: 
         <div className="flex-1 min-h-0 overflow-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size="lg" className="text-muted-foreground" />
             </div>
           ) : documentsFilteredBySearch.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">

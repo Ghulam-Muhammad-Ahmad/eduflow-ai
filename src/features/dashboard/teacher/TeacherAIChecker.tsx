@@ -29,7 +29,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, FileText, Loader2, CheckCircle, XCircle, Users, Pencil } from "lucide-react";
+import { Brain, FileText, CheckCircle, XCircle, Users, Pencil } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useAIChecker, AIFeedback } from "@/hooks/useAIChecker";
 import { useAssignments, useAssignmentSubmissions } from "@/hooks/useAssignments";
 import { useAuth } from "@/hooks/useAuth";
@@ -311,7 +312,7 @@ const TeacherAIChecker = () => {
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Spinner size="sm" className="mr-2" />
                         Processing...
                       </>
                     ) : (
@@ -530,7 +531,7 @@ const TeacherAIChecker = () => {
                   }
                 >
                   {applyLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner size="sm" />
                   ) : (
                     "Accept & Apply"
                   )}
@@ -588,7 +589,7 @@ const TeacherAIChecker = () => {
                 disabled={!editGrade.trim() || editSaving || isNaN(parseFloat(editGrade))}
               >
                 {editSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                 ) : (
                   "Save Grade"
                 )}

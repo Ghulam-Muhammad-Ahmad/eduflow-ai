@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
+import { Spinner } from "@/components/ui/spinner";
 import type { AppRole } from "@/types/auth";
 
 interface ProtectedRouteProps {
@@ -45,7 +46,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <Spinner size="lg" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>

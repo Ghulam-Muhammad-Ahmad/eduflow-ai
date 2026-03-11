@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { generateClassroomPDF } from "@/lib/pdfReports";
+import { Spinner } from "@/components/ui/spinner";
 import {
   FileDown,
   FileText,
@@ -230,7 +231,7 @@ const TeacherStudentRecords = () => {
           <CardContent>
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-medium-slate-blue" />
+                <Spinner size="lg" />
               </div>
             ) : filteredStudents.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
