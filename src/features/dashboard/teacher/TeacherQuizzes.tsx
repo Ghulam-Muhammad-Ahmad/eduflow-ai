@@ -41,6 +41,7 @@ import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Lock, Unlock, Clock } fr
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz } from "@/hooks/useQuizzes";
 import { useClassrooms } from "@/hooks/useClassrooms";
+import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { format, isPast, isFuture } from "date-fns";
 
 const TeacherQuizzes = () => {
@@ -48,12 +49,13 @@ const TeacherQuizzes = () => {
   const { user } = useAuth();
   const { fetchTeacherQuizzes, deleteQuiz, publishQuiz, closeQuiz, loading } = useQuizzes();
   const { classrooms = [] } = useClassrooms();
+  const { oneToOneRooms = [] } = useOneToOneRooms();
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filteredQuizzes, setFilteredQuizzes] = useState<Quiz[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [classroomFilter, setClassroomFilter] = useState<string>("all");
+  const [roomFilter, setRoomFilter] = useState<string>("all"); // "all" | classroom:id | roomId (1v1)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
 
@@ -72,7 +74,7 @@ const TeacherQuizzes = () => {
   useEffect(() => {
     filterQuizzes();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizzes, searchTerm, statusFilter, classroomFilter]);
+  }, [quizzes, searchTerm, statusFilter, roomFilter]);
 
   /** Quiz is closed: either teacher set status closed or end date (available_until) has passed */
   const isQuizClosed = (quiz: Quiz) =>
@@ -104,9 +106,14 @@ const TeacherQuizzes = () => {
       filtered = filtered.filter((quiz) => getDisplayStatus(quiz) === statusFilter);
     }
 
-    // Classroom filter
-    if (classroomFilter !== "all") {
-      filtered = filtered.filter((quiz) => quiz.classroom_id === classroomFilter);
+    // Classroom or 1v1 room filter
+    if (roomFilter !== "all") {
+      if (roomFilter.startsWith("classroom:")) {
+        const id = roomFilter.replace("classroom:", "");
+        filtered = filtered.filter((quiz) => quiz.classroom_id === id);
+      } else {
+        filtered = filtered.filter((quiz) => (quiz as Quiz & { one_to_one_room_id?: string }).one_to_one_room_id === roomFilter);
+      }
     }
 
     setFilteredQuizzes(filtered);
@@ -221,19 +228,22 @@ const TeacherQuizzes = () => {
                 <SelectItem value="closed">Closed</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={classroomFilter} onValueChange={setClassroomFilter}>
+            <Select value={roomFilter} onValueChange={setRoomFilter}>
               <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Classroom" />
+                <SelectValue placeholder="Classroom / 1v1" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Classrooms</SelectItem>
-                {classrooms && classrooms.length > 0 ? (
-                  classrooms.map((classroom) => (
-                    <SelectItem key={classroom.id} value={classroom.id}>
-                      {classroom.name}
-                    </SelectItem>
-                  ))
-                ) : null}
+                <SelectItem value="all">All (Classrooms & 1v1)</SelectItem>
+                {classrooms?.map((c) => (
+                  <SelectItem key={c.id} value={`classroom:${c.id}`}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+                {oneToOneRooms?.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name || `${r.studentProfile?.display_name ?? "Student"} (1v1)`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -245,7 +255,7 @@ const TeacherQuizzes = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Classroom</TableHead>
+                <TableHead>Classroom / 1v1 Room</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Available</TableHead>
                 <TableHead>Duration</TableHead>
@@ -290,11 +300,19 @@ const TeacherQuizzes = () => {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="text-sm font-medium">{quiz.classroom?.name}</p>
-                        {quiz.classroom?.subject && (
-                          <p className="text-xs text-muted-foreground">
-                            {quiz.classroom.subject}
+                        {(quiz as Quiz & { one_to_one_rooms?: { name: string | null } }).one_to_one_rooms ? (
+                          <p className="text-sm font-medium">
+                            {(quiz as Quiz & { one_to_one_rooms?: { name: string | null } }).one_to_one_rooms?.name || "1v1 Room"}
                           </p>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium">{quiz.classroom?.name}</p>
+                            {quiz.classroom?.subject && (
+                              <p className="text-xs text-muted-foreground">
+                                {quiz.classroom.subject}
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     </TableCell>

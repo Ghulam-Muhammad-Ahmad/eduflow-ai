@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
@@ -32,18 +34,11 @@ import { MemberStorageCard } from "@/components/storage/MemberStorageCard";
 import { useLectureFinancialSummary } from "@/hooks/useLectureSessions";
 import { LectureFinancialSummaryPanel } from "@/components/lectures/LectureFinancialSummaryPanel";
 
-type AssignedRow = {
-  id: string;
-  tutor_id: string;
-  student_id: string;
-  student?: { display_name: string | null } | null;
-};
-
 export default function OwnerTutorProfile() {
   const router = useRouter();
   const { id } = router.query;
   const tutorId = typeof id === "string" ? id : null;
-  const { tutors, assignedStudents, classrooms, assignments, quizzes, contractByTutorId, isLoading } = useOwnerWorkspace();
+  const { tutors, oneToOneRooms, classrooms, assignments, quizzes, contractByTutorId, tutorsByClassroomId, isLoading } = useOwnerWorkspace();
 
   const tutor = tutors.find((t) => t.user_id === tutorId);
   const contract = tutorId ? contractByTutorId.get(tutorId) : null;
@@ -52,8 +47,51 @@ export default function OwnerTutorProfile() {
       tutorId,
     });
 
-  const assignedToThisTutor = (assignedStudents as AssignedRow[]).filter((s) => s.tutor_id === tutorId);
-  const tutorClassrooms = classrooms.filter((c) => c.teacher_id === tutorId);
+  const tutor1v1Students = oneToOneRooms.filter((r) => r.tutor_id === tutorId).map((r) => ({ student_id: r.student_id, student: r.studentProfile }));
+  const tutorClassrooms = classrooms.filter((c) => c.teacher_id === tutorId || (tutorsByClassroomId.get(c.id) ?? []).includes(tutorId ?? ""));
+  const tutorClassroomIds = tutorClassrooms.map((c) => c.id);
+  const { data: classroomEnrollments = [] } = useQuery({
+    queryKey: ["tutor-classroom-enrollments", tutorClassroomIds],
+    queryFn: async () => {
+      if (tutorClassroomIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("student_id")
+        .in("classroom_id", tutorClassroomIds)
+        .eq("status", "active");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: tutorClassroomIds.length > 0,
+  });
+  const classroomStudentIds = useMemo(() => [...new Set((classroomEnrollments as { student_id: string }[]).map((e) => e.student_id))], [classroomEnrollments]);
+  const { data: classroomStudentProfiles = [] } = useQuery({
+    queryKey: ["profiles", classroomStudentIds],
+    queryFn: async () => {
+      if (classroomStudentIds.length === 0) return [];
+      const { data, error } = await supabase.from("profiles").select("user_id, display_name, email").in("user_id", classroomStudentIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: classroomStudentIds.length > 0,
+  });
+  const profileMap = useMemo(() => new Map(classroomStudentProfiles.map((p) => [p.user_id, p])), [classroomStudentProfiles]);
+  const assignedToThisTutor = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { student_id: string; student?: { display_name: string | null; email?: string | null } | null }[] = [];
+    for (const s of tutor1v1Students) {
+      if (seen.has(s.student_id)) continue;
+      seen.add(s.student_id);
+      out.push({ student_id: s.student_id, student: s.student ?? null });
+    }
+    for (const e of classroomEnrollments as { student_id: string }[]) {
+      if (seen.has(e.student_id)) continue;
+      seen.add(e.student_id);
+      const p = profileMap.get(e.student_id);
+      out.push({ student_id: e.student_id, student: p ? { display_name: p.display_name ?? null, email: p.email ?? null } : null });
+    }
+    return out;
+  }, [tutor1v1Students, classroomEnrollments, profileMap]);
   const tutorAssignments = assignments.filter((a) => a.teacher_id === tutorId);
   const tutorQuizzes = (quizzes as Array<{ teacher_id: string; created_at?: string }>).filter((q) => q.teacher_id === tutorId);
 
@@ -178,56 +216,6 @@ export default function OwnerTutorProfile() {
           )}
         </div>
 
-        {/* AI Credits — full width with consumption chart */}
-        {tutorId && (
-          <div className="w-full">
-            <MemberCreditsCard
-              memberUserId={tutorId}
-              memberLabel={tutor?.profile?.display_name ?? "Tutor"}
-              variant="compact"
-              showConsumptionChart
-            />
-          </div>
-        )}
-
-        {tutorId && (
-          <div className="w-full">
-            <MemberStorageCard
-              memberUserId={tutorId}
-              memberLabel={tutor?.profile?.display_name ?? "Tutor"}
-              variant="compact"
-            />
-          </div>
-        )}
-
-        {tutorId && (
-          <LectureFinancialSummaryPanel
-            title="Mock lecture payroll and billing"
-            description="Preview-only totals for this tutor, derived from completed lecture sessions and any session-level pricing overrides."
-            summary={lectureFinancialSummary}
-            isLoading={lectureFinancialLoading}
-          />
-        )}
-
-        {/* Summary stat cards — three columns */}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted/30">
-            <Users className="mb-3 h-5 w-5 text-muted-foreground" />
-            <p className="text-3xl font-bold tabular-nums">{assignedToThisTutor.length}</p>
-            <p className="text-sm text-muted-foreground">Assigned students</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted/30">
-            <School className="mb-3 h-5 w-5 text-muted-foreground" />
-            <p className="text-3xl font-bold tabular-nums">{tutorClassrooms.length}</p>
-            <p className="text-sm text-muted-foreground">Classrooms</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted/30">
-            <ClipboardCheck className="mb-3 h-5 w-5 text-muted-foreground" />
-            <p className="text-3xl font-bold tabular-nums">{tutorAssignments.length}</p>
-            <p className="text-sm text-muted-foreground">Assignments</p>
-          </div>
-        </div>
-
         {/* Activity timeline — bar chart */}
         <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
           <div className="px-6 py-4 bg-muted/20 border-b border-border flex flex-wrap items-center justify-between gap-3">
@@ -281,6 +269,56 @@ export default function OwnerTutorProfile() {
                 <Bar dataKey="quizzes" name="Quizzes" fill="rgb(16, 185, 129)" radius={[2, 2, 0, 0]} maxBarSize={40} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* AI Credits — full width with consumption chart */}
+        {tutorId && (
+          <div className="w-full">
+            <MemberCreditsCard
+              memberUserId={tutorId}
+              memberLabel={tutor?.profile?.display_name ?? "Tutor"}
+              variant="compact"
+              showConsumptionChart
+            />
+          </div>
+        )}
+
+        {tutorId && (
+          <div className="w-full">
+            <MemberStorageCard
+              memberUserId={tutorId}
+              memberLabel={tutor?.profile?.display_name ?? "Tutor"}
+              variant="compact"
+            />
+          </div>
+        )}
+
+        {tutorId && (
+          <LectureFinancialSummaryPanel
+            title="Mock lecture payroll and billing"
+            description="Preview-only totals for this tutor, derived from completed lecture sessions and any session-level pricing overrides."
+            summary={lectureFinancialSummary}
+            isLoading={lectureFinancialLoading}
+          />
+        )}
+
+        {/* Summary stat cards — three columns */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted/30">
+            <Users className="mb-3 h-5 w-5 text-muted-foreground" />
+            <p className="text-3xl font-bold tabular-nums">{assignedToThisTutor.length}</p>
+            <p className="text-sm text-muted-foreground">Assigned students</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted/30">
+            <School className="mb-3 h-5 w-5 text-muted-foreground" />
+            <p className="text-3xl font-bold tabular-nums">{tutorClassrooms.length}</p>
+            <p className="text-sm text-muted-foreground">Classrooms</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted/30">
+            <ClipboardCheck className="mb-3 h-5 w-5 text-muted-foreground" />
+            <p className="text-3xl font-bold tabular-nums">{tutorAssignments.length}</p>
+            <p className="text-sm text-muted-foreground">Assignments</p>
           </div>
         </div>
 

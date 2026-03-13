@@ -1,6 +1,9 @@
+import { useEffect } from "react";
+import { useRouter } from "next/router";
 import { CalendarSync, Link as LinkIcon, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 import { useGoogleCalendarConnection } from "@/hooks/useLectureSessions";
 
 type GoogleCalendarConnectionCardProps = {
@@ -12,7 +15,37 @@ export function GoogleCalendarConnectionCard({
   redirectTo,
   variant = "teacher",
 }: GoogleCalendarConnectionCardProps) {
-  const { data, isLoading, beginConnect, disconnect } = useGoogleCalendarConnection();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { data, isLoading, beginConnect, disconnect, refetch } = useGoogleCalendarConnection();
+
+  // After OAuth redirect: refetch connection and show toast so persisted state is correct
+  useEffect(() => {
+    const status = typeof router.query.googleCalendar === "string" ? router.query.googleCalendar : null;
+    const message = typeof router.query.message === "string" ? router.query.message : null;
+    if (!status) return;
+
+    refetch();
+    if (status === "connected") {
+      toast({
+        title: "Google Calendar connected",
+        description: "Your calendar is linked. You can schedule lectures with Google Meet.",
+      });
+    } else if (status === "error") {
+      toast({
+        title: "Google Calendar connection failed",
+        description: message ?? "Something went wrong. Try connecting again.",
+        variant: "destructive",
+      });
+    }
+
+    const { pathname, query } = router;
+    const nextQuery = { ...query };
+    delete nextQuery.googleCalendar;
+    delete nextQuery.message;
+    router.replace({ pathname, query: nextQuery }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when callback params appear
+  }, [router.query.googleCalendar, router.query.message]);
 
   if (isLoading) {
     return (

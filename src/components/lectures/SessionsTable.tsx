@@ -69,7 +69,7 @@ export function SessionsTable({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="min-w-[140px]">Title</TableHead>
+              <TableHead className="min-w-[140px] ">Title</TableHead>
               <TableHead className="w-[90px] whitespace-nowrap">Status</TableHead>
               <TableHead className="w-[60px]">Type</TableHead>
               <TableHead className="whitespace-nowrap min-w-[160px]">Date & time</TableHead>
@@ -86,7 +86,7 @@ export function SessionsTable({
               <TableRow key={session.id}>
                 <TableCell className="font-medium min-w-0">
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
-                    <span className="truncate">{session.title}</span>
+                    <span className="text-wrap whitespace-normal">{session.title}</span>
                     {session.series_id && (
                       <Badge variant="outline" className="gap-1 shrink-0">
                         <Repeat className="h-3 w-3" />
@@ -113,7 +113,7 @@ export function SessionsTable({
                   )}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {format(new Date(session.starts_at), "PPp")} – {format(new Date(session.ends_at), "p")}
+                  {format(new Date(session.starts_at), "PPp")} <br /> {format(new Date(session.ends_at), "p")}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground min-w-0">
                   {session.classroom_id ? classroomMap.get(session.classroom_id) ?? "—" : "—"}
@@ -151,7 +151,7 @@ export function SessionsTable({
                               {onComplete && (
                                 <DropdownMenuItem onClick={() => onComplete(session)}>
                                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                                  Complete
+                                  Mark as complete
                                 </DropdownMenuItem>
                               )}
                               {onEdit && (
@@ -163,7 +163,7 @@ export function SessionsTable({
                               {session.series_id && onCancelSeries && (
                                 <DropdownMenuItem onClick={() => onCancelSeries(session)}>
                                   <RefreshCcw className="h-4 w-4 mr-2" />
-                                  Cancel series
+                                  Cancel recurring session
                                 </DropdownMenuItem>
                               )}
                               {onCancelSingle && (
@@ -174,7 +174,7 @@ export function SessionsTable({
                                     onClick={() => onCancelSingle(session)}
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
-                                    {session.series_id ? "Cancel one" : "Cancel"}
+                                    {session.series_id ? "Cancel one-time session" : "Cancel session"}
                                   </DropdownMenuItem>
                                 </>
                               )}

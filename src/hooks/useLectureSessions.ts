@@ -567,7 +567,9 @@ export function useGoogleCalendarConnection() {
   const connectionQuery = useQuery({
     queryKey: ["google-calendar-connection"],
     queryFn: async (): Promise<GoogleCalendarConnectionStatus> => {
-      const response = await fetch("/api/google/connection");
+      const response = await fetch("/api/google/connection", {
+        credentials: "include",
+      });
       return readJson<GoogleCalendarConnectionStatus>(response);
     },
   });
@@ -576,6 +578,7 @@ export function useGoogleCalendarConnection() {
     mutationFn: async () => {
       const response = await fetch("/api/google/disconnect", {
         method: "DELETE",
+        credentials: "include",
       });
       return readJson<{ success: boolean }>(response);
     },

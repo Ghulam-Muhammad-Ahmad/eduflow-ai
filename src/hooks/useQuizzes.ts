@@ -20,7 +20,7 @@ export interface QuizQuestion {
 
 export interface Quiz {
   id: string;
-  classroom_id: string;
+  classroom_id: string | null;
   teacher_id: string;
   title: string;
   description?: string;
@@ -37,10 +37,17 @@ export interface Quiz {
   published_at?: string;
   created_at: string;
   updated_at: string;
+  one_to_one_room_id?: string | null;
   classroom?: {
     name: string;
     subject?: string | null;
   };
+  one_to_one_rooms?: {
+    id: string;
+    name: string | null;
+    tutor_id: string;
+    student_id: string;
+  } | null;
 }
 
 export interface QuizAttempt {
@@ -110,13 +117,13 @@ export const useQuizzes = () => {
     email: string | null;
   };
 
-  // Fetch all quizzes for a teacher (stable ref to avoid infinite fetch loops)
+  // Fetch all quizzes for a teacher (classrooms and 1v1 rooms)
   const fetchTeacherQuizzes = useCallback(async (teacherId: string) => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('quizzes')
-        .select('*, classroom:classrooms(name, subject), quiz_questions(id)')
+        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id), quiz_questions(id)')
         .eq('teacher_id', teacherId)
         .order('created_at', { ascending: false })
         .returns<QuizWithClassroomAndQuestions[]>();
@@ -135,7 +142,7 @@ export const useQuizzes = () => {
     }
   }, [toast]);
 
-  // Fetch quizzes for a specific classroom
+  // Fetch quizzes for a specific classroom or 1v1 room
   const fetchClassroomQuizzes = useCallback(async (classroomId: string) => {
     try {
       setLoading(true);
@@ -160,40 +167,65 @@ export const useQuizzes = () => {
     }
   }, [supabase, toast]);
 
-  // Fetch available quizzes for a student
+  const fetchOneToOneRoomQuizzes = useCallback(async (roomId: string) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('one_to_one_room_id', roomId)
+        .order('created_at', { ascending: false })
+        .returns<Quiz[]>();
+
+      if (error) throw error;
+      return data || [];
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to fetch quizzes',
+        variant: 'destructive',
+      });
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, toast]);
+
+  // Fetch available quizzes for a student (classrooms and 1v1 rooms)
   const fetchStudentQuizzes = async (studentId: string) => {
     try {
       setLoading(true);
-      
-      // Get student's enrolled classrooms
+
+      const classroomIds: string[] = [];
       const { data: enrollments, error: enrollError } = await supabase
         .from('enrollments')
         .select('classroom_id')
         .eq('student_id', studentId)
         .eq('status', 'active')
         .returns<Array<{ classroom_id: string }>>();
+      if (!enrollError && enrollments) classroomIds.push(...enrollments.map(e => e.classroom_id));
 
-      if (enrollError) throw enrollError;
+      const roomIds: string[] = [];
+      const { data: rooms, error: roomsError } = await supabase
+        .from('one_to_one_rooms')
+        .select('id')
+        .eq('student_id', studentId);
+      if (!roomsError && rooms) roomIds.push(...rooms.map(r => r.id));
 
-      const classroomIds = enrollments?.map(e => e.classroom_id) || [];
+      const orParts: string[] = [];
+      if (classroomIds.length) orParts.push(`classroom_id.in.(${classroomIds.join(',')})`);
+      if (roomIds.length) orParts.push(`one_to_one_room_id.in.(${roomIds.join(',')})`);
+      if (orParts.length === 0) return [];
 
-      if (classroomIds.length === 0) {
-        return [];
-      }
-
-      // Get quizzes from enrolled classrooms
-      // Fetch both 'scheduled' and 'active' status (matches RLS policy)
       const { data, error } = await supabase
         .from('quizzes')
-        .select('*, classroom:classrooms(name, subject)')
-        .in('classroom_id', classroomIds)
+        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id)')
+        .or(orParts.join(','))
         .in('status', ['scheduled', 'active', 'closed'])
         .order('created_at', { ascending: false })
         .returns<QuizWithClassroom[]>();
 
       if (error) throw error;
-
-      // Return all quizzes (scheduled/active) including expired — students can see them and view past results
       return data || [];
     } catch (error: any) {
       toast({
@@ -214,7 +246,7 @@ export const useQuizzes = () => {
       
       const { data: quiz, error: quizError } = await supabase
         .from('quizzes')
-        .select('*, classroom:classrooms(name, subject)')
+        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id)')
         .eq('id', quizId)
         .returns<QuizWithClassroom>()
         .single();
@@ -780,6 +812,7 @@ export const useQuizzes = () => {
     loading,
     fetchTeacherQuizzes,
     fetchClassroomQuizzes,
+    fetchOneToOneRoomQuizzes,
     fetchStudentQuizzes,
     fetchQuizWithQuestions,
     createQuiz,

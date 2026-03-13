@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
@@ -7,17 +9,61 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { GraduationCap, UserPlus, Search, Eye } from "lucide-react";
 
-type AssignedStudent = {
-  id: string;
+type WorkspaceStudent = {
   student_id: string;
-  tutor_id: string;
+  workspace_id: string;
   student?: { display_name: string | null; email: string | null; avatar_url?: string | null } | null;
 };
 
+type EnrollmentRow = {
+  student_id: string;
+  classroom_id: string;
+  status: string;
+  classrooms: { name: string } | null;
+};
+
 export default function OwnerStudentsList() {
-  const { workspace, assignedStudents, tutors, isLoading } = useOwnerWorkspace();
-  const students = assignedStudents as AssignedStudent[];
+  const { workspace, assignedStudents, classrooms, oneToOneRooms, isLoading } = useOwnerWorkspace();
+  const students = (assignedStudents ?? []) as WorkspaceStudent[];
   const [searchQuery, setSearchQuery] = useState("");
+
+  const classroomIds = useMemo(() => classrooms.map((c) => c.id), [classrooms]);
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ["owner-workspace-enrollments", classroomIds],
+    queryFn: async () => {
+      if (classroomIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("student_id, classroom_id, status, classrooms(name)")
+        .in("classroom_id", classroomIds)
+        .neq("status", "removed");
+      if (error) throw error;
+      return (data ?? []) as EnrollmentRow[];
+    },
+    enabled: classroomIds.length > 0,
+  });
+
+  const studentClassrooms = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const e of enrollments) {
+      const name = e.classrooms?.name ?? "Classroom";
+      const list = map.get(e.student_id) ?? [];
+      if (!list.includes(name)) list.push(name);
+      map.set(e.student_id, list);
+    }
+    return map;
+  }, [enrollments]);
+
+  const studentOneToOneRooms = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const r of oneToOneRooms ?? []) {
+      const name = r.name ?? (r as { tutorProfile?: { display_name?: string | null } }).tutorProfile?.display_name ?? "1v1 room";
+      const list = map.get(r.student_id) ?? [];
+      if (!list.includes(name)) list.push(name);
+      map.set(r.student_id, list);
+    }
+    return map;
+  }, [oneToOneRooms]);
 
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
@@ -25,11 +71,11 @@ export default function OwnerStudentsList() {
     return students.filter((s) => {
       const name = (s.student?.display_name ?? "").toLowerCase();
       const email = (s.student?.email ?? "").toLowerCase();
-      const tutor = tutors.find((t) => t.user_id === s.tutor_id);
-      const tutorName = (tutor?.profile?.display_name ?? tutor?.profile?.email ?? "").toLowerCase();
-      return name.includes(q) || email.includes(q) || tutorName.includes(q);
+      const inClassrooms = (studentClassrooms.get(s.student_id) ?? []).join(" ").toLowerCase();
+      const inRooms = (studentOneToOneRooms.get(s.student_id) ?? []).join(" ").toLowerCase();
+      return name.includes(q) || email.includes(q) || inClassrooms.includes(q) || inRooms.includes(q);
     });
-  }, [students, searchQuery, tutors]);
+  }, [students, searchQuery, studentClassrooms, studentOneToOneRooms]);
 
   return (
     <DashboardLayout>
@@ -69,7 +115,7 @@ export default function OwnerStudentsList() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden />
                 <Input
                   type="search"
-                  placeholder="Search by name, email, or assigned tutor..."
+                  placeholder="Search by name, email, classroom, or 1v1 room..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -88,7 +134,10 @@ export default function OwnerStudentsList() {
                       Email
                     </th>
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Assigned to
+                      Classrooms
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      1v1 rooms
                     </th>
                     <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground w-24">
                       Action
@@ -98,14 +147,15 @@ export default function OwnerStudentsList() {
                 <tbody className="divide-y divide-border/60">
                   {filteredStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
                         No students match &quot;{searchQuery}&quot;. Try a different search.
                       </td>
                     </tr>
                   ) : filteredStudents.map((s) => {
-                    const tutor = tutors.find((t) => t.user_id === s.tutor_id);
+                    const classNames = studentClassrooms.get(s.student_id) ?? [];
+                    const roomNames = studentOneToOneRooms.get(s.student_id) ?? [];
                     return (
-                      <tr key={s.id} className="hover:bg-muted/30 transition-colors">
+                      <tr key={s.student_id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-6 py-3.5">
                           <Link
                             href={`/dashboard/owner/students/${s.student_id}`}
@@ -123,8 +173,11 @@ export default function OwnerStudentsList() {
                         <td className="px-6 py-3.5 text-muted-foreground">
                           {s.student?.email ?? "—"}
                         </td>
-                        <td className="px-6 py-3.5 text-muted-foreground">
-                          {tutor?.profile?.display_name ?? tutor?.profile?.email ?? "—"}
+                        <td className="px-6 py-3.5 text-muted-foreground text-xs max-w-[180px]">
+                          {classNames.length > 0 ? classNames.join(", ") : "—"}
+                        </td>
+                        <td className="px-6 py-3.5 text-muted-foreground text-xs max-w-[180px]">
+                          {roomNames.length > 0 ? roomNames.join(", ") : "—"}
                         </td>
                         <td className="px-6 py-3.5 text-right">
                           <Button variant="default" size="sm" asChild>

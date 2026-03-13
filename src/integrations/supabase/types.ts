@@ -201,12 +201,13 @@ export type Database = {
       assignments: {
         Row: {
           allow_late_submission: boolean | null
-          classroom_id: string
+          classroom_id: string | null
           created_at: string
           description: string | null
           due_date: string | null
           id: string
           instructions: string | null
+          one_to_one_room_id: string | null
           points_possible: number | null
           published_at: string | null
           status: string
@@ -216,12 +217,13 @@ export type Database = {
         }
         Insert: {
           allow_late_submission?: boolean | null
-          classroom_id: string
+          classroom_id?: string | null
           created_at?: string
           description?: string | null
           due_date?: string | null
           id?: string
           instructions?: string | null
+          one_to_one_room_id?: string | null
           points_possible?: number | null
           published_at?: string | null
           status?: string
@@ -231,12 +233,13 @@ export type Database = {
         }
         Update: {
           allow_late_submission?: boolean | null
-          classroom_id?: string
+          classroom_id?: string | null
           created_at?: string
           description?: string | null
           due_date?: string | null
           id?: string
           instructions?: string | null
+          one_to_one_room_id?: string | null
           points_possible?: number | null
           published_at?: string | null
           status?: string
@@ -252,12 +255,18 @@ export type Database = {
             referencedRelation: "classrooms"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "assignments_one_to_one_room_id_fkey"
+            columns: ["one_to_one_room_id"]
+            isOneToOne: false
+            referencedRelation: "one_to_one_rooms"
+            referencedColumns: ["id"]
+          },
         ]
       }
       classrooms: {
         Row: {
           created_at: string
-          description: string | null
           id: string
           is_archived: boolean | null
           join_code: string | null
@@ -270,7 +279,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          description?: string | null
           id?: string
           is_archived?: boolean | null
           join_code?: string | null
@@ -283,7 +291,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          description?: string | null
           id?: string
           is_archived?: boolean | null
           join_code?: string | null
@@ -361,6 +368,42 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_one_to_one_room_shares: {
+        Row: {
+          id: string
+          document_id: string
+          one_to_one_room_id: string
+          shared_at: string
+        }
+        Insert: {
+          id?: string
+          document_id: string
+          one_to_one_room_id: string
+          shared_at?: string
+        }
+        Update: {
+          id?: string
+          document_id?: string
+          one_to_one_room_id?: string
+          shared_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_one_to_one_room_shares_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_one_to_one_room_shares_one_to_one_room_id_fkey"
+            columns: ["one_to_one_room_id"]
+            isOneToOne: false
+            referencedRelation: "one_to_one_rooms"
             referencedColumns: ["id"]
           },
         ]
@@ -737,6 +780,53 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_students: {
+        Row: {
+          workspace_id: string
+          student_id: string
+          created_at: string
+        }
+        Insert: {
+          workspace_id: string
+          student_id: string
+          created_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          student_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      one_to_one_rooms: {
+        Row: {
+          id: string
+          workspace_id: string
+          tutor_id: string
+          student_id: string
+          name: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          tutor_id: string
+          student_id: string
+          name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          tutor_id?: string
+          student_id?: string
+          name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       workspace_subscriptions: {
         Row: {
           id: string
@@ -910,7 +1000,7 @@ export type Database = {
       quizzes: {
         Row: {
           id: string
-          classroom_id: string
+          classroom_id: string | null
           teacher_id: string
           title: string
           description: string | null
@@ -927,10 +1017,11 @@ export type Database = {
           published_at: string | null
           created_at: string
           updated_at: string
+          one_to_one_room_id: string | null
         }
         Insert: {
           id?: string
-          classroom_id: string
+          classroom_id?: string | null
           teacher_id: string
           title: string
           description?: string | null
@@ -947,10 +1038,11 @@ export type Database = {
           published_at?: string | null
           created_at?: string
           updated_at?: string
+          one_to_one_room_id?: string | null
         }
         Update: {
           id?: string
-          classroom_id?: string
+          classroom_id?: string | null
           teacher_id?: string
           title?: string
           description?: string | null
@@ -967,6 +1059,7 @@ export type Database = {
           published_at?: string | null
           created_at?: string
           updated_at?: string
+          one_to_one_room_id?: string | null
         }
         Relationships: [
           {
@@ -974,6 +1067,13 @@ export type Database = {
             columns: ["classroom_id"]
             isOneToOne: false
             referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quizzes_one_to_one_room_id_fkey"
+            columns: ["one_to_one_room_id"]
+            isOneToOne: false
+            referencedRelation: "one_to_one_rooms"
             referencedColumns: ["id"]
           },
         ]
@@ -1717,7 +1817,6 @@ export type Database = {
       get_classroom_by_join_code: {
         Args: { code: string }
         Returns: {
-          description: string
           id: string
           name: string
           subject: string

@@ -257,18 +257,6 @@ const StudentClassroomDetail = () => {
           </Card>
         </div>
 
-        {/* Description */}
-        {classroom?.description && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">About This Classroom</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">{classroom.description}</p>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Search */}
         <Card>
           <CardContent className="pt-6">

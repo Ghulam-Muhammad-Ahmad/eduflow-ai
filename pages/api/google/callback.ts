@@ -77,24 +77,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const refreshToken = tokenPayload.refreshToken ?? existingConnection?.refresh_token ?? null;
     const now = new Date().toISOString();
 
+    const row: Record<string, unknown> = {
+      user_id: user.id,
+      google_email: googleEmail ?? null,
+      google_calendar_id: "primary",
+      access_token: tokenPayload.accessToken,
+      refresh_token: refreshToken,
+      token_type: tokenPayload.tokenType ?? null,
+      scope: tokenPayload.scope ?? null,
+      expires_at: tokenPayload.expiresAt ?? null,
+      created_at: now,
+      updated_at: now,
+    };
+    if (existingConnection?.id) {
+      row.id = existingConnection.id;
+    }
+
     const { error: upsertError } = await supabaseAdmin
       .from("google_calendar_connections")
-      .upsert(
-        {
-          id: existingConnection?.id,
-          user_id: user.id,
-          google_email: googleEmail,
-          google_calendar_id: "primary",
-          access_token: tokenPayload.accessToken,
-          refresh_token: refreshToken,
-          token_type: tokenPayload.tokenType,
-          scope: tokenPayload.scope,
-          expires_at: tokenPayload.expiresAt,
-          created_at: now,
-          updated_at: now,
-        },
-        { onConflict: "user_id" }
-      );
+      .upsert(row, { onConflict: "user_id" });
 
     if (upsertError) throw upsertError;
 

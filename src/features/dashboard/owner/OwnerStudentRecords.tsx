@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { useTeacherStudentRecords, type StudentRecord } from "@/hooks/useTeacherStudentRecords";
-import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
+import { useOwnerStudentRecords } from "@/hooks/useOwnerStudentRecords";
+import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
+import type { StudentRecord } from "@/hooks/useTeacherStudentRecords";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,19 +40,17 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const TeacherStudentRecords = () => {
+const OwnerStudentRecords = () => {
   const router = useRouter();
   const queryClassroomId = router.query.classroomId as string | undefined;
   const queryRoomId = router.query.roomId as string | undefined;
-  const [contextFilter, setContextFilter] = useState<string>("all");
+  const [contextFilter, setContextFilter] = useState<string>("all"); // "all" | "classroom:id" | "room:id"
   const [searchQuery, setSearchQuery] = useState("");
-  const { oneToOneRooms = [] } = useOneToOneRooms();
+  const { oneToOneRooms = [] } = useOwnerWorkspace();
   const classroomId = contextFilter.startsWith("classroom:") ? contextFilter.replace("classroom:", "") : null;
   const oneToOneRoomId = contextFilter.startsWith("room:") ? contextFilter.replace("room:", "") : null;
-  const { data, isLoading, error } = useTeacherStudentRecords(
-    contextFilter === "all" ? null : classroomId,
-    oneToOneRoomId
-  );
+  const effectiveClassroomId = contextFilter === "all" ? null : classroomId;
+  const { data, isLoading, error } = useOwnerStudentRecords(effectiveClassroomId, oneToOneRoomId);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,9 +61,9 @@ const TeacherStudentRecords = () => {
   const goToStudentRecord = (student: StudentRecord) => {
     const is1v1 = student.classroom_name.startsWith("1v1:");
     if (is1v1)
-      router.push(`/dashboard/teacher/student-records/${student.student_id}?roomId=${student.classroom_id}`);
+      router.push(`/dashboard/owner/student-records/${student.student_id}?roomId=${student.classroom_id}`);
     else
-      router.push(`/dashboard/teacher/student-records/${student.student_id}?classroomId=${student.classroom_id}`);
+      router.push(`/dashboard/owner/student-records/${student.student_id}?classroomId=${student.classroom_id}`);
   };
 
   const classrooms = data?.classrooms ?? [];
@@ -133,7 +132,7 @@ const TeacherStudentRecords = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Students (this view)
+                Students
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -168,15 +167,15 @@ const TeacherStudentRecords = () => {
           <CardHeader>
             <CardTitle>Centralized grades</CardTitle>
             <CardDescription>
-              Select a classroom or view all. Use the row expand to see assignment and quiz details.
+              Select a classroom / 1v1 room or view all. Use the row expand to see assignment and quiz details.
             </CardDescription>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Select value={contextFilter} onValueChange={setContextFilter}>
                 <SelectTrigger className="w-full sm:w-[280px]">
-                  <SelectValue placeholder="Select classroom or 1v1 room" />
+                  <SelectValue placeholder="Select classroom / 1v1 room" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All classrooms</SelectItem>
+                  <SelectItem value="all">All (classrooms & 1v1 rooms)</SelectItem>
                   {classrooms.map((c) => (
                     <SelectItem key={c.id} value={`classroom:${c.id}`}>
                       {c.name} ({c.studentCount})
@@ -291,4 +290,4 @@ const TeacherStudentRecords = () => {
   );
 };
 
-export default TeacherStudentRecords;
+export default OwnerStudentRecords;

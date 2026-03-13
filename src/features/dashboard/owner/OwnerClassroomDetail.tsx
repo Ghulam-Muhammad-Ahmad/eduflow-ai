@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { useClassroomRoster } from "@/hooks/useClassrooms";
+import { useClassroomLectureSessions } from "@/hooks/useLectureSessions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,17 +43,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ArrowLeft,
-  Users,
   UserPlus,
   UserMinus,
   BookOpen,
-  ClipboardList,
   Search,
   Video,
+  MoreVertical,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
+import { format, startOfWeek, subWeeks } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 type ProfileLike = { display_name?: string | null; email?: string | null; avatar_url?: string | null };
@@ -65,13 +81,105 @@ export default function OwnerClassroomDetail() {
     tutors,
     tutorsByClassroomId,
     assignedStudents,
+    assignments: workspaceAssignments,
+    quizzes: workspaceQuizzes,
+    documents: workspaceDocuments,
     updateClassroomTutors,
     addStudentToClassroom,
     isLoading: workspaceLoading,
   } = useOwnerWorkspace();
   const queryClient = useQueryClient();
   const { data: roster = [], isLoading: rosterLoading } = useClassroomRoster(id || null);
+  const { data: classSessions = [] } = useClassroomLectureSessions(id || null);
   const { toast } = useToast();
+
+  const classroom = classrooms.find((c) => c.id === id);
+  const tutorIds = id ? (tutorsByClassroomId.get(id) ?? (classroom ? [classroom.teacher_id] : [])) : [];
+
+  const classAssignmentIds = useMemo(
+    () => (id ? workspaceAssignments.filter((a) => (a as { classroom_id?: string }).classroom_id === id).map((a) => a.id) : []),
+    [id, workspaceAssignments]
+  );
+  const classQuizIds = useMemo(
+    () => (id ? workspaceQuizzes.filter((q) => (q as { classroom_id?: string }).classroom_id === id).map((q) => q.id) : []),
+    [id, workspaceQuizzes]
+  );
+
+  const { data: classSubmissions = [] } = useQuery({
+    queryKey: ["classroom-submissions", id, classAssignmentIds],
+    queryFn: async () => {
+      if (!id || classAssignmentIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("submissions")
+        .select("id, submitted_at")
+        .in("assignment_id", classAssignmentIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && classAssignmentIds.length > 0,
+  });
+
+  const { data: classQuizAttempts = [] } = useQuery({
+    queryKey: ["classroom-quiz-attempts", id, classQuizIds],
+    queryFn: async () => {
+      if (!id || classQuizIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("quiz_attempts")
+        .select("id, submitted_at")
+        .in("quiz_id", classQuizIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && classQuizIds.length > 0,
+  });
+
+  const activityTimeline = useMemo(() => {
+    const weeks: { week: string; sessions: number; submissions: number; quizzes: number }[] = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const weekStart = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      const sessionsCount = classSessions.filter((s) => {
+        const d = s.status === "completed" ? new Date((s as { ends_at?: string }).ends_at ?? s.starts_at) : new Date(s.starts_at);
+        return d >= weekStart && d < weekEnd;
+      }).length;
+      const submissionsCount = classSubmissions.filter((s) => {
+        const d = new Date((s as { submitted_at: string }).submitted_at);
+        return d >= weekStart && d < weekEnd;
+      }).length;
+      const quizzesCount = classQuizAttempts.filter((q) => {
+        const subAt = (q as { submitted_at?: string | null }).submitted_at;
+        if (!subAt) return false;
+        const d = new Date(subAt);
+        return d >= weekStart && d < weekEnd;
+      }).length;
+      weeks.push({
+        week: format(weekStart, "d MMM"),
+        sessions: sessionsCount,
+        submissions: submissionsCount,
+        quizzes: quizzesCount,
+      });
+    }
+    return weeks;
+  }, [classSessions, classSubmissions, classQuizAttempts]);
+
+  const classAssignments = useMemo(
+    () => (id ? workspaceAssignments.filter((a) => (a as { classroom_id?: string }).classroom_id === id) : []),
+    [id, workspaceAssignments]
+  );
+  const classQuizzes = useMemo(
+    () => (id ? workspaceQuizzes.filter((q) => (q as { classroom_id?: string }).classroom_id === id) : []),
+    [id, workspaceQuizzes]
+  );
+  const classMemberIds = useMemo(
+    () => new Set([...tutorIds, ...roster.map((r) => r.student_id)]),
+    [tutorIds, roster]
+  );
+  const classDocuments = useMemo(
+    () => workspaceDocuments.filter((d) => classMemberIds.has(d.user_id)),
+    [workspaceDocuments, classMemberIds]
+  );
 
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -85,8 +193,6 @@ export default function OwnerClassroomDetail() {
   const [removeTutorId, setRemoveTutorId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const classroom = classrooms.find((c) => c.id === id);
-  const tutorIds = id ? (tutorsByClassroomId.get(id) ?? (classroom ? [classroom.teacher_id] : [])) : [];
   const tutorMap = new Map(tutors.map((t) => [t.user_id, t.profile?.display_name ?? t.profile?.email ?? "Tutor"]));
 
   const enrolledStudentIds = new Set(roster.map((r) => r.student_id));
@@ -253,83 +359,88 @@ export default function OwnerClassroomDetail() {
           )}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Assigned tutors */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Assigned tutors
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {tutorIds.map((uid) => (
-                <div key={uid} className="flex items-center justify-between gap-2">
-                  <span className="text-sm">
-                    {tutorMap.get(uid)} {uid === classroom?.teacher_id && "(primary)"}
-                  </span>
-                  {tutorIds.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => {
-                        setRemoveTutorId(uid);
-                        setRemoveTutorOpen(true);
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setReassignOpen(true)}>
-                  Set primary
-                </Button>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Assigned tutors</CardTitle>
                 <Button variant="outline" size="sm" onClick={() => setAddTutorOpen(true)}>
                   Add tutor
                 </Button>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {tutorIds.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No tutors assigned. Add a workspace tutor to teach this class.</p>
+              ) : (
+                <>
+                  {tutorIds.map((uid) => {
+                    const tutor = tutors.find((t) => t.user_id === uid);
+                    const name = tutorMap.get(uid) ?? "Tutor";
+                    const isPrimary = uid === classroom?.teacher_id;
+                    const hasMenuActions = !isPrimary || tutorIds.length > 1;
+                    return (
+                      <div key={uid} className="flex items-center justify-between gap-2 py-1.5">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarImage src={tutor?.profile?.avatar_url ?? undefined} />
+                            <AvatarFallback className="text-xs">{(name[0] || "T").toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm truncate">
+                            {name} {isPrimary && <span className="text-muted-foreground">(primary)</span>}
+                          </span>
+                        </div>
+                        {hasMenuActions && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Tutor actions">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {!isPrimary && (
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setNewPrimaryTutorId(uid);
+                                    setReassignOpen(true);
+                                  }}
+                                >
+                                  Set as primary
+                                </DropdownMenuItem>
+                              )}
+                              {tutorIds.length > 1 && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => {
+                                    setRemoveTutorId(uid);
+                                    setRemoveTutorOpen(true);
+                                  }}
+                                >
+                                  Remove from class
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </CardContent>
           </Card>
 
+          {/* Students count */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Students
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{roster.length}</div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <ClipboardList className="h-4 w-4" />
-                About
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground line-clamp-3">
-                {classroom?.description || "No description."}
-              </p>
-            </CardContent>
-          </Card>
         </div>
-
-        {classroom?.description && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Description</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">{classroom.description}</p>
-            </CardContent>
-          </Card>
-        )}
 
         <Card>
           <CardHeader>
@@ -352,8 +463,7 @@ export default function OwnerClassroomDetail() {
                 </div>
                 <Dialog open={addStudentOpen} onOpenChange={setAddStudentOpen}>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1">
-                      <UserPlus className="h-4 w-4" />
+                    <Button size="sm">
                       Add student
                     </Button>
                   </DialogTrigger>
@@ -400,51 +510,258 @@ export default function OwnerClassroomDetail() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {rosterLoading ? (
-              <div className="space-y-2">
+              <div className="px-6 py-4 space-y-2">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-14 rounded-lg border bg-secondary/30 animate-pulse" />
                 ))}
               </div>
             ) : filteredRoster.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="px-6 py-12 text-center text-muted-foreground">
                 {searchQuery ? "No students match your search." : "No students enrolled yet. Add students above."}
               </div>
             ) : (
-              <div className="space-y-2">
-                {filteredRoster.map((enrollment) => {
-                  const p = (enrollment as { profiles?: ProfileLike }).profiles;
-                  const name = p?.display_name ?? "Student";
-                  const email = p?.email ?? "";
-                  return (
-                    <div
-                      key={enrollment.id}
-                      className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30"
-                    >
-                      <Avatar className="h-10 w-10">
-                      <AvatarImage src={p?.avatar_url ?? undefined} />
-                        <AvatarFallback>{(name[0] || "S").toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{name}</p>
-                        <p className="text-sm text-muted-foreground truncate">{email}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => handleRemoveStudent(enrollment.id, name)}
-                      >
-                        <UserMinus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/80 bg-muted/30">
+                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Student
+                      </th>
+                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
+                        Email
+                      </th>
+                      <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground w-24">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredRoster.map((enrollment) => {
+                      const p = (enrollment as { profiles?: ProfileLike }).profiles;
+                      const name = p?.display_name ?? "Student";
+                      const email = p?.email ?? "";
+                      return (
+                        <tr key={enrollment.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-6 py-3.5">
+                            <Link
+                              href={`/dashboard/owner/students/${enrollment.student_id}`}
+                              className="flex items-center gap-3 font-medium text-foreground hover:text-primary transition-colors"
+                            >
+                              <Avatar className="h-9 w-9 shrink-0">
+                                <AvatarImage src={p?.avatar_url ?? undefined} />
+                                <AvatarFallback>{(name[0] || "S").toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <span className="truncate">{name}</span>
+                            </Link>
+                            {email && (
+                              <p className="text-muted-foreground text-xs sm:hidden mt-0.5 truncate pl-12">{email}</p>
+                            )}
+                          </td>
+                          <td className="px-6 py-3.5 text-muted-foreground hidden sm:table-cell">
+                            {email || "—"}
+                          </td>
+                          <td className="px-6 py-3.5 text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-white gap-2 hover:bg-destructive"
+                              onClick={() => handleRemoveStudent(enrollment.id, name)}
+                            >
+                              <UserMinus className="h-4 w-4" />
+                              Remove
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Class overview: report, assignments, quizzes, activities, documents */}
+        <section className="space-y-6" aria-labelledby="class-overview-heading">
+          <h2 id="class-overview-heading" className="text-lg font-semibold tracking-tight text-foreground border-b border-border/60 pb-2">
+            Class overview
+          </h2>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Class report */}
+            <Card>
+             
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-2xl font-semibold">Class report</CardTitle>
+                  <CardDescription>
+                    Student records, grades, and progress for this class
+                  </CardDescription>
+                </CardHeader>
+            <CardContent>
+              <Link
+                href={id ? `/dashboard/owner/student-records?classroomId=${id}` : "#"}
+                className="block"
+              >
+                <Button variant="default" className="w-fit">
+                  View full student records
+                </Button>
+              </Link>
+            </CardContent>
+            </Card>
+
+            {/* Assignments */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-2xl font-semibold">Assignments</CardTitle>
+                <CardDescription>
+                  {classAssignments.length} assignment{classAssignments.length !== 1 ? "s" : ""} in this class
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {classAssignments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No assignments yet. Tutors can create them from the class.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-40 overflow-y-auto">
+                    {classAssignments.slice(0, 5).map((a) => (
+                      <li key={a.id} className="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-border/40 last:border-0">
+                        <span className="font-medium truncate">{(a as { title?: string }).title ?? "Assignment"}</span>
+                        <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
+                          (a as { status?: string }).status === "published"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {(a as { status?: string }).status ?? "draft"}
+                        </span>
+                      </li>
+                    ))}
+                    {classAssignments.length > 5 && (
+                      <li className="text-xs text-muted-foreground pt-1">{classAssignments.length - 5} more</li>
+                    )}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Quizzes */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-2xl font-semibold">Quizzes</CardTitle>
+                <CardDescription>
+                  {classQuizzes.length} quiz{classQuizzes.length !== 1 ? "zes" : ""} in this class
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {classQuizzes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No quizzes yet. Tutors can create them from the class.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-40 overflow-y-auto">
+                    {classQuizzes.slice(0, 5).map((q) => (
+                      <li key={q.id} className="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-border/40 last:border-0">
+                        <span className="font-medium truncate">{(q as { title?: string }).title ?? "Quiz"}</span>
+                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {(q as { status?: string }).status ?? "—"}
+                        </span>
+                      </li>
+                    ))}
+                    {classQuizzes.length > 5 && (
+                      <li className="text-xs text-muted-foreground pt-1">{classQuizzes.length - 5} more</li>
+                    )}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Documents shared */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-2xl font-semibold">Documents shared</CardTitle>
+                <CardDescription>
+                  Files shared by tutors and students in this class
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {classDocuments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No documents yet from this class.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-40 overflow-y-auto">
+                    {classDocuments.slice(0, 5).map((d) => (
+                      <li key={d.id} className="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-border/40 last:border-0">
+                        <span className="font-medium truncate">{d.name}</span>
+                        {d.file_size != null && (
+                          <span className="shrink-0 text-xs text-muted-foreground ml-auto">
+                            {(d.file_size / 1024).toFixed(1)} KB
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                    {classDocuments.length > 5 && (
+                      <li className="text-xs text-muted-foreground pt-1">{classDocuments.length - 5} more</li>
+                    )}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Activities graph */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-2xl">Activities</CardTitle>
+              <CardDescription>
+                Sessions, submissions, and quiz attempts in the last 6 weeks
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {activityTimeline.length === 0 ? (
+                <div className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20">
+                  <p className="text-sm text-muted-foreground">No activity data yet for this class.</p>
+                </div>
+              ) : (
+                <div className="h-[260px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={activityTimeline} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" vertical={false} />
+                      <XAxis
+                        dataKey="week"
+                        tick={{ fontSize: 12 }}
+                        className="text-muted-foreground"
+                        tickLine={false}
+                        axisLine={{ stroke: "hsl(var(--border))" }}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        className="text-muted-foreground"
+                        tickLine={false}
+                        axisLine={false}
+                        allowDecimals={false}
+                        width={24}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) =>
+                          active && payload?.length ? (
+                            <div className="rounded-lg border border-border bg-card px-3 py-2.5 text-xs shadow-lg">
+                              <p className="font-medium text-foreground mb-1.5">{label}</p>
+                              <p className="text-muted-foreground">Sessions: {(payload.find((p) => p.dataKey === "sessions")?.value as number) ?? 0}</p>
+                              <p className="text-muted-foreground">Submissions: {(payload.find((p) => p.dataKey === "submissions")?.value as number) ?? 0}</p>
+                              <p className="text-muted-foreground">Quizzes: {(payload.find((p) => p.dataKey === "quizzes")?.value as number) ?? 0}</p>
+                            </div>
+                          ) : null
+                        }
+                      />
+                      <Bar dataKey="sessions" name="Sessions" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} maxBarSize={36} />
+                      <Bar dataKey="submissions" name="Submissions" fill="rgb(16, 185, 129)" radius={[2, 2, 0, 0]} maxBarSize={36} />
+                      <Bar dataKey="quizzes" name="Quizzes" fill="rgb(59, 130, 246)" radius={[2, 2, 0, 0]} maxBarSize={36} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
 
         <AlertDialog open={removeStudentOpen} onOpenChange={setRemoveStudentOpen}>
           <AlertDialogContent>

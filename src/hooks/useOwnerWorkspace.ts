@@ -131,7 +131,7 @@ export function useOwnerWorkspace() {
     ? [workspace.owner_id, ...tutors.map((t) => t.user_id)]
     : [];
 
-  /** Students assigned in this workspace (tutor_student_assignments) */
+  /** Students in this workspace (workspace_students) */
   const {
     data: assignedStudents = [],
     isLoading: studentsLoading,
@@ -140,8 +140,8 @@ export function useOwnerWorkspace() {
     queryFn: async () => {
       if (!workspaceId) return [];
       const { data: rows, error } = await supabase
-        .from("tutor_student_assignments")
-        .select("id, workspace_id, tutor_id, student_id, created_at")
+        .from("workspace_students")
+        .select("workspace_id, student_id, created_at")
         .eq("workspace_id", workspaceId);
       if (error) throw error;
       if (!rows?.length) return [];
@@ -200,6 +200,37 @@ export function useOwnerWorkspace() {
       return data ?? [];
     },
     enabled: !!workspaceId && classroomIds.length > 0,
+  });
+
+  /** 1v1 rooms in this workspace (with tutor/student profiles for display) */
+  const {
+    data: oneToOneRooms = [],
+    isLoading: oneToOneRoomsLoading,
+  } = useQuery({
+    queryKey: ["owner-workspace-one-to-one-rooms", workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      const { data: rows, error } = await supabase
+        .from("one_to_one_rooms")
+        .select("id, workspace_id, tutor_id, student_id, name, created_at, updated_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      if (!rows?.length) return rows ?? [];
+      const tutorIds = [...new Set(rows.map((r) => r.tutor_id))];
+      const studentIds = [...new Set(rows.map((r) => r.student_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, email, avatar_url")
+        .in("user_id", [...tutorIds, ...studentIds]);
+      const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+      return rows.map((r) => ({
+        ...r,
+        tutorProfile: profileMap.get(r.tutor_id) ?? null,
+        studentProfile: profileMap.get(r.student_id) ?? null,
+      }));
+    },
+    enabled: !!workspaceId,
   });
 
   /** Map classroom_id -> user_id[] for assigned tutors (including primary teacher_id) */
@@ -314,19 +345,17 @@ export function useOwnerWorkspace() {
     mutationFn: async (params: {
       name: string;
       subject: string | null;
-      description: string | null;
       teacher_id: string;
       additionalTutorIds?: string[];
     }) => {
       if (!workspaceId) throw new Error("No workspace");
-      const { name, subject, description, teacher_id, additionalTutorIds = [] } = params;
+      const { name, subject, teacher_id, additionalTutorIds = [] } = params;
       const tutorIds = [teacher_id, ...additionalTutorIds.filter((id) => id !== teacher_id)];
       const { data: classroom, error: classError } = await supabase
         .from("classrooms")
         .insert({
           name,
           subject,
-          description,
           workspace_id: workspaceId,
           teacher_id,
           join_code: null,
@@ -402,7 +431,62 @@ export function useOwnerWorkspace() {
     onSuccess: ({ classroomId }) => {
       queryClient.invalidateQueries({ queryKey: ["classroom-roster", classroomId] });
       queryClient.invalidateQueries({ queryKey: ["owner-workspace-classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-students"] });
       queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+    },
+  });
+
+  /** Create 1v1 room (owner): select existing tutor + student */
+  const createOneToOneRoom = useMutation({
+    mutationFn: async (params: { tutorId: string; studentId: string; name?: string | null }) => {
+      if (!workspaceId) throw new Error("No workspace");
+      const { data, error } = await supabase
+        .from("one_to_one_rooms")
+        .insert({
+          workspace_id: workspaceId,
+          tutor_id: params.tutorId,
+          student_id: params.studentId,
+          name: params.name ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-one-to-one-rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["one-to-one-rooms"] });
+    },
+  });
+
+  /** Update 1v1 room (owner): name, or tutor/student */
+  const updateOneToOneRoom = useMutation({
+    mutationFn: async (params: { id: string; name?: string | null; tutorId?: string; studentId?: string }) => {
+      const { id, ...updates } = params;
+      const payload: { name?: string | null; tutor_id?: string; student_id?: string } = {};
+      if (updates.name !== undefined) payload.name = updates.name;
+      if (updates.tutorId !== undefined) payload.tutor_id = updates.tutorId;
+      if (updates.studentId !== undefined) payload.student_id = updates.studentId;
+      const { data, error } = await supabase.from("one_to_one_rooms").update(payload).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-one-to-one-rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["one-to-one-rooms"] });
+    },
+  });
+
+  /** Delete 1v1 room (owner) */
+  const deleteOneToOneRoom = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("one_to_one_rooms").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-one-to-one-rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["one-to-one-rooms"] });
     },
   });
 
@@ -411,6 +495,7 @@ export function useOwnerWorkspace() {
     workspaceId,
     tutors,
     assignedStudents,
+    oneToOneRooms,
     classrooms,
     tutorsByClassroomId,
     assignments,
@@ -423,12 +508,16 @@ export function useOwnerWorkspace() {
     createClassroom,
     updateClassroomTutors,
     addStudentToClassroom,
+    createOneToOneRoom,
+    updateOneToOneRoom,
+    deleteOneToOneRoom,
     isLoading:
       workspaceLoading ||
       tutorsLoading ||
       contractsLoading ||
       studentsLoading ||
       classroomsLoading ||
+      oneToOneRoomsLoading ||
       assignmentsLoading ||
       quizzesLoading ||
       documentsLoading ||

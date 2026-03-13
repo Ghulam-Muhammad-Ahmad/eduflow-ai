@@ -70,6 +70,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz, QuizQuestion } from "@/hooks/useQuizzes";
 import { useClassrooms } from "@/hooks/useClassrooms";
+import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { useAIStudio } from "@/hooks/useAIStudio";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
@@ -148,6 +149,7 @@ const TeacherQuizBuilder = () => {
     updateQuiz,
   } = useQuizzes();
   const { classrooms } = useClassrooms();
+  const { oneToOneRooms } = useOneToOneRooms();
   const { loading: aiLoading } = useAIStudio();
 
   const [saving, setSaving] = useState(false);
@@ -159,7 +161,9 @@ const TeacherQuizBuilder = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [targetType, setTargetType] = useState<"classroom" | "1v1">("classroom");
   const [classroomId, setClassroomId] = useState("");
+  const [oneToOneRoomId, setOneToOneRoomId] = useState("");
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | undefined>();
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
@@ -206,7 +210,9 @@ const TeacherQuizBuilder = () => {
       setTitle(quiz.title ?? "");
       setDescription(quiz.description ?? "");
       setInstructions(quiz.instructions ?? "");
+      setTargetType(quiz.one_to_one_room_id ? "1v1" : "classroom");
       setClassroomId(quiz.classroom_id ?? "");
+      setOneToOneRoomId(quiz.one_to_one_room_id ?? "");
       setTimeLimitMinutes(quiz.time_limit_minutes ?? undefined);
       setAvailableFrom(quiz.available_from ? quiz.available_from.slice(0, 16) : "");
       setAvailableUntil(quiz.available_until ? quiz.available_until.slice(0, 16) : "");
@@ -232,6 +238,7 @@ const TeacherQuizBuilder = () => {
       setDescription("");
       setInstructions("");
       setClassroomId("");
+      setOneToOneRoomId("");
       setTimeLimitMinutes(undefined);
       setAvailableFrom("");
       setAvailableUntil("");
@@ -371,7 +378,8 @@ const TeacherQuizBuilder = () => {
 
   const validateQuiz = (): string | null => {
     if (!title.trim()) return "Quiz title is required";
-    if (!classroomId) return "Please select a classroom";
+    if (targetType === "classroom" && !classroomId) return "Please select a classroom";
+    if (targetType === "1v1" && !oneToOneRoomId) return "Please select a 1v1 room";
     if (questions.length === 0) return "Add at least one question";
     if (availableFrom && availableUntil) {
       const fromDate = new Date(availableFrom);
@@ -405,7 +413,8 @@ const TeacherQuizBuilder = () => {
         title,
         description: description || undefined,
         instructions: instructions || undefined,
-        classroom_id: classroomId || undefined,
+        classroom_id: targetType === "classroom" ? classroomId || null : null,
+        one_to_one_room_id: targetType === "1v1" ? oneToOneRoomId || null : null,
         teacher_id: user?.id,
         time_limit_minutes: timeLimitMinutes ?? undefined,
         available_from: availableFrom ? new Date(availableFrom).toISOString() : undefined,
@@ -486,21 +495,56 @@ const TeacherQuizBuilder = () => {
                   />
                 </div>
                 <div className="space-y-2 flex-1">
-                  <Label htmlFor="classroom">
-                    Classroom <span className="text-destructive">*</span>
-                  </Label>
-                  <Select value={classroomId} onValueChange={setClassroomId}>
-                    <SelectTrigger id="classroom" className="h-11">
-                      <SelectValue placeholder="Select classroom" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(classrooms || []).map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Assign to <span className="text-destructive">*</span></Label>
+                  <div className="flex gap-4 mb-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="quizTarget"
+                        checked={targetType === "classroom"}
+                        onChange={() => setTargetType("classroom")}
+                        className="rounded border-input"
+                      />
+                      <span>Classroom</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="quizTarget"
+                        checked={targetType === "1v1"}
+                        onChange={() => setTargetType("1v1")}
+                        className="rounded border-input"
+                      />
+                      <span>1v1 Room</span>
+                    </label>
+                  </div>
+                  {targetType === "classroom" ? (
+                    <Select value={classroomId} onValueChange={setClassroomId}>
+                      <SelectTrigger id="classroom" className="h-11">
+                        <SelectValue placeholder="Select classroom" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(classrooms || []).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Select value={oneToOneRoomId} onValueChange={setOneToOneRoomId}>
+                      <SelectTrigger id="oneToOneRoom" className="h-11">
+                        <SelectValue placeholder="Select 1v1 room" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(oneToOneRooms || []).map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name || `${r.studentProfile?.display_name ?? "Student"} (1v1)`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 </div>
                 <div className="space-y-2 sm:col-span-2">

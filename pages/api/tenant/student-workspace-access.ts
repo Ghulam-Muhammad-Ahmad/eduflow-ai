@@ -21,16 +21,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ hasAccess: false });
   }
 
-  const { data: assignments, error: assignErr } = await supabaseAdmin
-    .from("tutor_student_assignments")
+  const { data: wsStudents, error: wsErr } = await supabaseAdmin
+    .from("workspace_students")
     .select("workspace_id")
     .eq("student_id", user.id);
 
-  if (assignErr || !assignments?.length) {
+  if (wsErr || !wsStudents?.length) {
     return res.status(200).json({ hasAccess: false });
   }
 
-  const workspaceIds = [...new Set(assignments.map((a) => a.workspace_id))];
+  const workspaceIds = [...new Set(wsStudents.map((w) => w.workspace_id))];
   const { data: subs, error: subErr } = await supabaseAdmin
     .from("workspace_subscriptions")
     .select("id")

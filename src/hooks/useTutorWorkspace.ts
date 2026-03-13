@@ -48,26 +48,7 @@ export function useTutorWorkspace() {
 
       const workspaceType = (workspace.type as "business" | "solo") ?? "solo";
 
-      // Business + tutor role: only students assigned to this tutor
-      if (workspaceType === "business" && member.role === "tutor") {
-        const { data: assignments, error: assignError } = await supabase
-          .from("tutor_student_assignments")
-          .select("student_id")
-          .eq("workspace_id", member.workspace_id)
-          .eq("tutor_id", user.id);
-
-        if (assignError) throw assignError;
-        const assignedStudentIds = (assignments ?? []).map((r) => r.student_id);
-
-        return {
-          workspaceId: member.workspace_id,
-          workspaceType: "business",
-          memberRole: "tutor",
-          assignedStudentIds,
-        };
-      }
-
-      // Solo (owner is the tutor) or business owner: no assignment filter; "all" for their context
+      // Students come from classrooms + 1v1 rooms (no tutor_student_assignments filter)
       return {
         workspaceId: member.workspace_id,
         workspaceType,
@@ -107,44 +88,38 @@ export function useTutorStudents() {
     queryFn: async (): Promise<TutorStudentRow[]> => {
       if (!user?.id || role !== "teacher") return [];
 
-      if (assignedStudentIds && assignedStudentIds.length > 0) {
-        const { data: profiles, error } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, email, avatar_url")
-          .in("user_id", assignedStudentIds);
-        if (error) throw error;
-        return (profiles ?? []).map((p) => ({
-          id: p.user_id,
-          display_name: p.display_name ?? null,
-          email: p.email ?? null,
-          avatar_url: p.avatar_url ?? null,
-        }));
+      // Students from (1) classrooms where I'm teacher or in classroom_tutors, (2) 1v1 rooms where I'm tutor
+      const [classroomsRes, tutorsRes, oneToOneRes] = await Promise.all([
+        supabase.from("classrooms").select("id").eq("teacher_id", user.id).eq("is_archived", false),
+        supabase.from("classroom_tutors").select("classroom_id").eq("user_id", user.id),
+        supabase.from("one_to_one_rooms").select("student_id").eq("tutor_id", user.id),
+      ]);
+
+      const primaryClassIds = (classroomsRes.data ?? []).map((c) => c.id);
+      const extraClassIds = (tutorsRes.data ?? [])
+        .map((r) => r.classroom_id)
+        .filter((id) => !primaryClassIds.includes(id));
+      const allClassIds = [...primaryClassIds, ...extraClassIds];
+
+      let studentIds = new Set<string>((oneToOneRes.data ?? []).map((r) => r.student_id));
+
+      if (allClassIds.length > 0) {
+        const { data: enrollments, error: enrollError } = await supabase
+          .from("enrollments")
+          .select("student_id")
+          .in("classroom_id", allClassIds)
+          .eq("status", "active");
+        if (!enrollError && enrollments) {
+          enrollments.forEach((e) => studentIds.add(e.student_id));
+        }
       }
 
-      // Solo or no workspace: students enrolled in my classrooms
-      const { data: myClassrooms, error: classError } = await supabase
-        .from("classrooms")
-        .select("id")
-        .eq("teacher_id", user.id)
-        .eq("is_archived", false);
-      if (classError) throw classError;
-      if (!myClassrooms?.length) return [];
-
-      const classroomIds = myClassrooms.map((c) => c.id);
-      const { data: enrollments, error: enrollError } = await supabase
-        .from("enrollments")
-        .select("student_id")
-        .in("classroom_id", classroomIds)
-        .eq("status", "active");
-      if (enrollError) throw enrollError;
-
-      const studentIds = [...new Set((enrollments ?? []).map((e) => e.student_id))];
-      if (studentIds.length === 0) return [];
+      if (studentIds.size === 0) return [];
 
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
         .select("user_id, display_name, email, avatar_url")
-        .in("user_id", studentIds);
+        .in("user_id", Array.from(studentIds));
       if (profileError) throw profileError;
       return (profiles ?? []).map((p) => ({
         id: p.user_id,

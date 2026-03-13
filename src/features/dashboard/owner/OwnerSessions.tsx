@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +27,6 @@ import {
   useGoogleCalendarConnection,
   useCancelLectureSession,
   useUpdateLectureSession,
-  useCompleteLectureSession,
   useCreateLectureSession,
   useSaveLectureSessionNote,
   useSaveLectureSessionFinancial,
@@ -39,8 +37,8 @@ import {
   type TutorRateType,
   type StudentChargeType,
 } from "@/hooks/useLectureSessions";
-import { SessionsTable } from "@/components/lectures/SessionsTable";
-import { AlertTriangle, CalendarClock, Plus, Search } from "lucide-react";
+import { SessionsListCard } from "@/components/lectures/SessionsListCard";
+import { AlertTriangle, Plus } from "lucide-react";
 import { addMinutes, format, setHours, setMinutes, startOfTomorrow } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -71,12 +69,11 @@ function toLocalInputValue(value: string) {
 
 export default function OwnerSessions() {
   const router = useRouter();
-  const { workspaceId, classrooms, tutors, tutorsByClassroomId, isLoading: workspaceLoading } = useOwnerWorkspace();
+  const { workspaceId, classrooms, tutors, tutorsByClassroomId, oneToOneRooms = [], isLoading: workspaceLoading } = useOwnerWorkspace();
   const { data: sessions = [], isLoading: sessionsLoading } = useWorkspaceLectureSessions(workspaceId);
   const { data: googleCalendarConnection } = useGoogleCalendarConnection();
   const cancelLecture = useCancelLectureSession();
   const updateLecture = useUpdateLectureSession();
-  const completeLecture = useCompleteLectureSession();
   const saveLectureNote = useSaveLectureSessionNote();
   const saveLectureFinancial = useSaveLectureSessionFinancial();
   const { toast } = useToast();
@@ -85,7 +82,9 @@ export default function OwnerSessions() {
 
   const [sessionFilter, setSessionFilter] = useState<SessionFilter>("active");
   const [searchQuery, setSearchQuery] = useState("");
-  const [classroomFilter, setClassroomFilter] = useState<string>(classroomIdFromQuery ?? "all");
+  const [scopeFilter, setScopeFilter] = useState<string>(
+    classroomIdFromQuery ? `classroom:${classroomIdFromQuery}` : "all"
+  );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<LectureSession | null>(null);
   const [editForm, setEditForm] = useState({ title: "", description: "", startsAt: "", endsAt: "" });
@@ -118,6 +117,15 @@ export default function OwnerSessions() {
     [tutors]
   );
   const classroomMap = useMemo(() => new Map(classrooms.map((c) => [c.id, c.name])), [classrooms]);
+  const oneToOneRoomOptions = useMemo(
+    () =>
+      oneToOneRooms.map((r) => {
+        const profile = (r as { studentProfile?: { display_name?: string | null; email?: string | null } }).studentProfile;
+        const fallback = (profile?.display_name ?? profile?.email ?? "Room") as string;
+        return { id: r.id, label: r.name || fallback };
+      }),
+    [oneToOneRooms]
+  );
 
   const noteSessionIds = useMemo(
     () => sessions.filter((s) => s.status === "completed").map((s) => s.id),
@@ -159,14 +167,25 @@ export default function OwnerSessions() {
           : sessionFilter === "active"
             ? session.status === "scheduled"
             : session.status === sessionFilter;
-      const matchClassroom =
-        classroomFilter === "all" || session.classroom_id === classroomFilter;
+      let matchScope = true;
+      if (scopeFilter !== "all") {
+        if (scopeFilter.startsWith("classroom:")) {
+          matchScope = session.classroom_id === scopeFilter.replace("classroom:", "");
+        } else if (scopeFilter.startsWith("room:")) {
+          const roomId = scopeFilter.replace("room:", "");
+          const room = oneToOneRooms.find((r) => r.id === roomId);
+          matchScope =
+            !!room &&
+            (session as { scope_type?: string }).scope_type === "one_to_one" &&
+            session.student_id === room.student_id;
+        }
+      }
       const matchSearch =
         !q ||
         `${session.title} ${session.description ?? ""}`.toLowerCase().includes(q);
-      return matchFilter && matchClassroom && matchSearch;
+      return matchFilter && matchScope && matchSearch;
     });
-  }, [orderedSessions, sessionFilter, classroomFilter, searchQuery]);
+  }, [orderedSessions, sessionFilter, scopeFilter, searchQuery, oneToOneRooms]);
 
   const disableSchedulingReason = !googleCalendarConnection?.configured
     ? "Google Meet scheduling is unavailable until Google OAuth is configured on the server."
@@ -269,14 +288,6 @@ export default function OwnerSessions() {
     });
   };
 
-  const handleComplete = async (session: LectureSession) => {
-    if (typeof window !== "undefined") {
-      const confirmed = window.confirm(`Mark "${session.title}" as completed?`);
-      if (!confirmed) return;
-    }
-    await completeLecture.mutateAsync(session.id);
-  };
-
   const openEditDialog = (session: LectureSession) => {
     setEditingSession(session);
     setEditForm({
@@ -354,11 +365,11 @@ export default function OwnerSessions() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row items-center sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Lecture sessions</h1>
+            <h1 className="text-2xl font-bold text-foreground">Sessions</h1>
             <p className="text-muted-foreground mt-1">
-              Schedule and manage Google Meet lectures for your classrooms.
+              Schedule and manage Google Meet lectures for your classrooms or one-to-one sessions with tutors.
             </p>
           </div>
           <Button
@@ -368,111 +379,50 @@ export default function OwnerSessions() {
             title={disableSchedulingReason ?? undefined}
           >
             <Plus className="h-4 w-4" />
-            Schedule lecture
+            Schedule session
           </Button>
         </div>
 
         {disableSchedulingReason && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2 items-center justify-between">
+            <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <p>{disableSchedulingReason}</p>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/settings">Go to Settings</Link>
-            </Button>
+            </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/dashboard/settings">Go to Settings</Link>
+              </Button>
           </div>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarClock className="h-5 w-5 text-primary" />
-              Sessions
-            </CardTitle>
-            <CardDescription>
-              Filter by status, classroom, or search. Connect Google Calendar in Settings to schedule.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ["active", "Scheduled"],
-                    ["completed", "Completed"],
-                    ["cancelled", "Cancelled"],
-                    ["all", "All"],
-                  ] as Array<[SessionFilter, string]>
-                ).map(([value, label]) => (
-                  <Button
-                    key={value}
-                    variant={sessionFilter === value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSessionFilter(value)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-                <Select value={classroomFilter} onValueChange={setClassroomFilter}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Classroom" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All classrooms</SelectItem>
-                    {classrooms.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="relative w-full lg:max-w-xs">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search sessions"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {workspaceLoading || sessionsLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-24 rounded-lg border bg-secondary/30 animate-pulse" />
-                ))}
-              </div>
-            ) : visibleSessions.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-                {searchQuery.trim() || classroomFilter !== "all"
-                  ? "No sessions match the current filters."
-                  : "No lecture sessions yet. Connect Google Calendar in Settings, then schedule a lecture."}
-              </div>
-            ) : (
-              <SessionsTable
-                sessions={visibleSessions}
-                role="owner"
-                tutorMap={tutorMap}
-                classroomMap={classroomMap}
-                notesBySession={notesBySession}
-                onEdit={openEditDialog}
-                onCancelSingle={(s) => handleCancel(s, "single")}
-                onCancelSeries={(s) => handleCancel(s, "series")}
-                onComplete={handleComplete}
-                onEditNotes={openNotesDialog}
-                onEditFinancials={openFinancialDialog}
-              />
-            )}
-          </CardContent>
-        </Card>
+        <SessionsListCard
+          role="owner"
+          isLoading={workspaceLoading || sessionsLoading}
+          visibleSessions={visibleSessions}
+          sessionFilter={sessionFilter}
+          onSessionFilterChange={setSessionFilter}
+          scopeFilter={scopeFilter}
+          onScopeFilterChange={setScopeFilter}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          classrooms={classrooms}
+          oneToOneRoomOptions={oneToOneRoomOptions}
+          classroomMap={classroomMap}
+          tutorMap={tutorMap}
+          notesBySession={notesBySession}
+          onEdit={openEditDialog}
+          onCancelSingle={(s) => handleCancel(s, "single")}
+          onCancelSeries={(s) => handleCancel(s, "series")}
+          onEditNotes={openNotesDialog}
+          onEditFinancials={openFinancialDialog}
+        />
       </div>
 
       {/* Edit dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit lecture</DialogTitle>
+            <DialogTitle>Edit session</DialogTitle>
             <DialogDescription>Update the session title and time.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -677,7 +627,7 @@ export default function OwnerSessions() {
       >
         <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
-            <DialogTitle>Schedule lecture</DialogTitle>
+            <DialogTitle>Schedule session</DialogTitle>
             <DialogDescription>
               Choose classroom, date and time. Add optional notes for the session.
             </DialogDescription>
@@ -860,7 +810,7 @@ export default function OwnerSessions() {
               Cancel
             </Button>
             <Button onClick={handleCreateSchedule} disabled={createLecture.isPending}>
-              {createLecture.isPending ? "Scheduling..." : "Schedule lecture"}
+              {createLecture.isPending ? "Scheduling..." : "Schedule session"}
             </Button>
           </DialogFooter>
         </DialogContent>

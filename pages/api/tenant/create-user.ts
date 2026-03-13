@@ -27,7 +27,8 @@ const bodySchema = {
 /**
  * Tenant-style account creation: only workspace owners can create tutors and students.
  * Email is unique system-wide (enforced by Supabase Auth).
- * Creates auth user + profile + user_roles + workspace_members (tutor) or tutor_student_assignments (student).
+ * Creates auth user + profile + user_roles + workspace_members (tutor) or workspace_students (student).
+ * Optional classroomIds: add new student to those classrooms (enrollments) after adding to workspace.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -51,6 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     lastName?: unknown;
     role?: unknown;
     tutorId?: unknown;
+    classroomIds?: unknown;
     initialCredits?: unknown;
     initialStorageMb?: unknown;
     payType?: unknown;
@@ -58,6 +60,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     rateCurrency?: unknown;
     subjects?: unknown;
   };
+
+  const classroomIdsRaw = body.classroomIds;
+  const classroomIds: string[] = Array.isArray(classroomIdsRaw)
+    ? (classroomIdsRaw as unknown[]).filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
 
   if (
     !bodySchema.email(body.email) ||
@@ -69,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ) {
     return res.status(400).json({
       error:
-        "Invalid body: email, password, firstName, lastName, role (tutor|student) required; tutorId optional for student (owner must pass tutor when creating student).",
+        "Invalid body: email, password, firstName, lastName, role (tutor|student) required; tutorId optional (only for legacy).",
     });
   }
 
@@ -124,27 +131,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "No workspace found for owner" });
   }
   const workspaceId = workspace.id;
-  let assignmentTutorId: string;
-  if (role === "student") {
-    if (!tutorId) {
-      return res.status(400).json({
-        error: "When creating a student, tutorId is required so the student is assigned to a tutor.",
-      });
-    }
-    const { data: tutorMember } = await supabaseAdmin
-      .from("workspace_members")
-      .select("user_id")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", tutorId)
-      .eq("role", "tutor")
-      .maybeSingle();
-    if (!tutorMember) {
-      return res.status(400).json({ error: "Selected tutor is not in this workspace" });
-    }
-    assignmentTutorId = tutorId;
-  } else {
-    assignmentTutorId = ""; // unused for tutor
-  }
 
   const appRole: AppRole = role === "tutor" ? "teacher" : "student";
   // Create auth user; trigger will create user_roles from user_metadata.role
@@ -226,14 +212,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: "Failed to create tutor contract record" });
     }
   } else {
-    const { error: assignErr } = await supabaseAdmin.from("tutor_student_assignments").insert({
+    const { error: wsStudentErr } = await supabaseAdmin.from("workspace_students").insert({
       workspace_id: workspaceId,
-      tutor_id: assignmentTutorId,
       student_id: newUserId,
     });
-    if (assignErr) {
-      console.error("[tenant/create-user] tutor_student_assignments insert:", assignErr);
-      return res.status(500).json({ error: "Failed to assign student to tutor" });
+    if (wsStudentErr) {
+      console.error("[tenant/create-user] workspace_students insert:", wsStudentErr);
+      return res.status(500).json({ error: "Failed to add student to workspace" });
+    }
+    if (classroomIds.length > 0) {
+      const { data: validClassrooms } = await supabaseAdmin
+        .from("classrooms")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .in("id", classroomIds);
+      const validIds = (validClassrooms ?? []).map((c) => c.id);
+      for (const classroomId of validIds) {
+        const { error: enrollErr } = await supabaseAdmin.from("enrollments").insert({
+          classroom_id: classroomId,
+          student_id: newUserId,
+          status: "active",
+        });
+        if (enrollErr) {
+          console.error("[tenant/create-user] enrollments insert:", enrollErr);
+        }
+      }
     }
   }
 

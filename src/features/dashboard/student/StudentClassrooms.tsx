@@ -267,12 +267,6 @@ const StudentClassrooms = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {classroom.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {classroom.description}
-                    </p>
-                  )}
-
                   {/* Quick Stats */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms } from "@/hooks/useClassrooms";
+import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -133,6 +134,7 @@ function getUniqueDocumentName(originalName: string, existingNames: string[]): s
 const TeacherDocuments = () => {
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
+  const { oneToOneRooms } = useOneToOneRooms();
   const {
     limitBytes: storageLimit,
     usedBytes: storageUsed,
@@ -152,6 +154,7 @@ const TeacherDocuments = () => {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [documentToShare, setDocumentToShare] = useState<DocumentType | null>(null);
   const [selectedClassrooms, setSelectedClassrooms] = useState<string[]>([]);
+  const [selectedOneToOneRooms, setSelectedOneToOneRooms] = useState<string[]>([]);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [documentToRename, setDocumentToRename] = useState<DocumentType | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -404,14 +407,19 @@ const TeacherDocuments = () => {
 
   const openShareDialog = async (doc: DocumentType) => {
     setDocumentToShare(doc);
-    
-    // Fetch existing shares for this document
-    const { data: existingShares } = await supabase
+
+    const { data: existingClassroomShares } = await supabase
       .from("document_classroom_shares")
       .select("classroom_id")
       .eq("document_id", doc.id);
-    
-    setSelectedClassrooms(existingShares?.map((s) => s.classroom_id) || []);
+    setSelectedClassrooms(existingClassroomShares?.map((s) => s.classroom_id) || []);
+
+    const { data: existingRoomShares } = await supabase
+      .from("document_one_to_one_room_shares")
+      .select("one_to_one_room_id")
+      .eq("document_id", doc.id);
+    setSelectedOneToOneRooms(existingRoomShares?.map((s) => s.one_to_one_room_id) || []);
+
     setShareDialogOpen(true);
   };
 
@@ -419,64 +427,66 @@ const TeacherDocuments = () => {
     if (!documentToShare) return;
 
     try {
-      const { data: existingShares, error: existingError } = await supabase
+      // Classrooms
+      const { data: existingClassroomShares, error: existingClassError } = await supabase
         .from("document_classroom_shares")
         .select("classroom_id")
         .eq("document_id", documentToShare.id);
-      if (existingError) throw existingError;
+      if (existingClassError) throw existingClassError;
+      const existingClassIds = existingClassroomShares?.map((s) => s.classroom_id) || [];
+      const classIdsToRemove = existingClassIds.filter((id) => !selectedClassrooms.includes(id));
+      const classIdsToAdd = selectedClassrooms.filter((id) => !existingClassIds.includes(id));
 
-      const existingIds = existingShares?.map((s) => s.classroom_id) || [];
-      const idsToRemove = existingIds.filter((id) => !selectedClassrooms.includes(id));
-      const idsToAdd = selectedClassrooms.filter((id) => !existingIds.includes(id));
-      let removedIds: string[] = [];
-
-      if (idsToRemove.length > 0) {
+      if (classIdsToRemove.length > 0) {
         const { error: deleteError } = await supabase
           .from("document_classroom_shares")
           .delete()
-          .in("classroom_id", idsToRemove)
+          .in("classroom_id", classIdsToRemove)
           .eq("document_id", documentToShare.id);
         if (deleteError) throw deleteError;
-        removedIds = idsToRemove;
       }
-
-      // Then add new shares
-      if (idsToAdd.length > 0) {
-        const shares = idsToAdd.map((classroomId) => ({
-          document_id: documentToShare.id,
-          classroom_id: classroomId,
-        }));
-
+      if (classIdsToAdd.length > 0) {
         const { error } = await supabase
           .from("document_classroom_shares")
-          .insert(shares);
-
-        if (error) {
-          if (removedIds.length > 0) {
-            const { error: rollbackError } = await supabase
-              .from("document_classroom_shares")
-              .insert(
-                removedIds.map((classroomId) => ({
-                  document_id: documentToShare.id,
-                  classroom_id: classroomId,
-                }))
-              );
-            if (rollbackError) {
-              console.error("Rollback failed after share insert error:", rollbackError);
-            }
-          }
-          throw error;
-        }
+          .insert(classIdsToAdd.map((classroom_id) => ({ document_id: documentToShare.id, classroom_id })));
+        if (error) throw error;
       }
 
+      // 1v1 rooms
+      const { data: existingRoomShares, error: existingRoomError } = await supabase
+        .from("document_one_to_one_room_shares")
+        .select("one_to_one_room_id")
+        .eq("document_id", documentToShare.id);
+      if (existingRoomError) throw existingRoomError;
+      const existingRoomIds = existingRoomShares?.map((s) => s.one_to_one_room_id) || [];
+      const roomIdsToRemove = existingRoomIds.filter((id) => !selectedOneToOneRooms.includes(id));
+      const roomIdsToAdd = selectedOneToOneRooms.filter((id) => !existingRoomIds.includes(id));
+
+      if (roomIdsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("document_one_to_one_room_shares")
+          .delete()
+          .in("one_to_one_room_id", roomIdsToRemove)
+          .eq("document_id", documentToShare.id);
+        if (deleteError) throw deleteError;
+      }
+      if (roomIdsToAdd.length > 0) {
+        const { error } = await supabase
+          .from("document_one_to_one_room_shares")
+          .insert(roomIdsToAdd.map((one_to_one_room_id) => ({ document_id: documentToShare.id, one_to_one_room_id })));
+        if (error) throw error;
+      }
+
+      const total = selectedClassrooms.length + selectedOneToOneRooms.length;
       toast.success(
-        selectedClassrooms.length > 0
-          ? `Shared with ${selectedClassrooms.length} classroom(s)`
-          : "Document unshared from all classrooms"
+        total > 0
+          ? `Shared with ${total} target(s)`
+          : "Document unshared from all"
       );
       setShareDialogOpen(false);
       setDocumentToShare(null);
       setSelectedClassrooms([]);
+      setSelectedOneToOneRooms([]);
     } catch (error) {
       console.error("Error sharing document:", error);
       toast.error("Failed to share document");
@@ -488,6 +498,14 @@ const TeacherDocuments = () => {
       prev.includes(classroomId)
         ? prev.filter((id) => id !== classroomId)
         : [...prev, classroomId]
+    );
+  };
+
+  const toggleOneToOneRoomSelection = (roomId: string) => {
+    setSelectedOneToOneRooms((prev) =>
+      prev.includes(roomId)
+        ? prev.filter((id) => id !== roomId)
+        : [...prev, roomId]
     );
   };
 
@@ -1544,42 +1562,65 @@ const TeacherDocuments = () => {
           <DialogHeader>
             <DialogTitle>
               <Share2 className="w-5 h-5 inline-block mr-2" />
-              Share with Classrooms
+              Share with Classrooms & 1v1 Rooms
             </DialogTitle>
             <DialogDescription>
-              Select classrooms to share &quot;{documentToShare?.name}&quot; with
+              Select classrooms and/or 1v1 rooms to share &quot;{documentToShare?.name}&quot; with
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            {(!classrooms || classrooms.length === 0) ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No classrooms available</p>
-                <p className="text-sm">Create a classroom first to share documents</p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {classrooms.map((classroom) => (
-                  <div
-                    key={classroom.id}
-                    className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
-                    onClick={() => toggleClassroomSelection(classroom.id)}
-                  >
-                    <Checkbox
-                      checked={selectedClassrooms.includes(classroom.id)}
-                      onCheckedChange={() => toggleClassroomSelection(classroom.id)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <Label className="font-medium cursor-pointer">
-                        {classroom.name}
-                      </Label>
-                      {classroom.subject && (
-                        <p className="text-sm text-muted-foreground">
-                          {classroom.subject}
-                        </p>
-                      )}
+          <div className="py-4 space-y-4 max-h-80 overflow-y-auto">
+            {classrooms && classrooms.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">Classrooms</p>
+                <div className="space-y-2">
+                  {classrooms.map((classroom) => (
+                    <div
+                      key={classroom.id}
+                      className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
+                      onClick={() => toggleClassroomSelection(classroom.id)}
+                    >
+                      <Checkbox
+                        checked={selectedClassrooms.includes(classroom.id)}
+                        onCheckedChange={() => toggleClassroomSelection(classroom.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Label className="font-medium cursor-pointer">{classroom.name}</Label>
+                        {classroom.subject && (
+                          <p className="text-sm text-muted-foreground">{classroom.subject}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </div>
+            )}
+            {oneToOneRooms && oneToOneRooms.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">1v1 Rooms</p>
+                <div className="space-y-2">
+                  {oneToOneRooms.map((room) => (
+                    <div
+                      key={room.id}
+                      className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
+                      onClick={() => toggleOneToOneRoomSelection(room.id)}
+                    >
+                      <Checkbox
+                        checked={selectedOneToOneRooms.includes(room.id)}
+                        onCheckedChange={() => toggleOneToOneRoomSelection(room.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Label className="font-medium cursor-pointer">
+                          {room.name || `${room.studentProfile?.display_name ?? "Student"} (1v1)`}
+                        </Label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(!classrooms || classrooms.length === 0) && (!oneToOneRooms || oneToOneRooms.length === 0) && (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No classrooms or 1v1 rooms available</p>
               </div>
             )}
           </div>
@@ -1590,13 +1631,14 @@ const TeacherDocuments = () => {
                 setShareDialogOpen(false);
                 setDocumentToShare(null);
                 setSelectedClassrooms([]);
+                setSelectedOneToOneRooms([]);
               }}
             >
               Cancel
             </Button>
             <Button onClick={handleShareDocument}>
-              {selectedClassrooms.length > 0
-                ? `Share with ${selectedClassrooms.length} class${selectedClassrooms.length > 1 ? "es" : ""}`
+              {selectedClassrooms.length + selectedOneToOneRooms.length > 0
+                ? `Share with ${selectedClassrooms.length + selectedOneToOneRooms.length} target(s)`
                 : "Remove all shares"}
             </Button>
           </DialogFooter>

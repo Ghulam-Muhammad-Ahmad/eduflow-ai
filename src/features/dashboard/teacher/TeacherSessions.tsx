@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useClassrooms } from "@/hooks/useClassrooms";
+import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import {
   useTeacherAllLectureSessions,
   useGoogleCalendarConnection,
@@ -41,8 +41,8 @@ import {
   type StudentChargeType,
 } from "@/hooks/useLectureSessions";
 import { useTutorStudents } from "@/hooks/useTutorWorkspace";
-import { SessionsTable } from "@/components/lectures/SessionsTable";
-import { AlertTriangle, CalendarClock, Plus, Search } from "lucide-react";
+import { SessionsListCard } from "@/components/lectures/SessionsListCard";
+import { AlertTriangle, Plus } from "lucide-react";
 import { addMinutes, format, setHours, setMinutes, startOfTomorrow } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -75,6 +75,7 @@ export default function TeacherSessions() {
   const router = useRouter();
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
+  const { oneToOneRooms = [] } = useOneToOneRooms();
   const { students: tutorStudents } = useTutorStudents();
   const { data: sessions = [], isLoading: sessionsLoading } = useTeacherAllLectureSessions();
   const { data: googleCalendarConnection } = useGoogleCalendarConnection();
@@ -89,7 +90,9 @@ export default function TeacherSessions() {
 
   const [sessionFilter, setSessionFilter] = useState<SessionFilter>("active");
   const [searchQuery, setSearchQuery] = useState("");
-  const [classroomFilter, setClassroomFilter] = useState<string>(classroomIdFromQuery ?? "all");
+  const [scopeFilter, setScopeFilter] = useState<string>(
+    classroomIdFromQuery ? `classroom:${classroomIdFromQuery}` : "all"
+  );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<LectureSession | null>(null);
   const [editForm, setEditForm] = useState({ title: "", description: "", startsAt: "", endsAt: "" });
@@ -121,6 +124,14 @@ export default function TeacherSessions() {
   const classroomMap = useMemo(
     () => new Map((classrooms ?? []).map((c) => [c.id, c.name])),
     [classrooms]
+  );
+  const oneToOneRoomOptions = useMemo(
+    () =>
+      (oneToOneRooms ?? []).map((r) => ({
+        id: r.id,
+        label: r.name || r.studentProfile?.display_name ?? r.studentProfile?.email ?? "Room",
+      })),
+    [oneToOneRooms]
   );
 
   const noteSessionIds = useMemo(
@@ -163,14 +174,25 @@ export default function TeacherSessions() {
           : sessionFilter === "active"
             ? session.status === "scheduled"
             : session.status === sessionFilter;
-      const matchClassroom =
-        classroomFilter === "all" || session.classroom_id === classroomFilter;
+      let matchScope = true;
+      if (scopeFilter !== "all") {
+        if (scopeFilter.startsWith("classroom:")) {
+          matchScope = session.classroom_id === scopeFilter.replace("classroom:", "");
+        } else if (scopeFilter.startsWith("room:")) {
+          const roomId = scopeFilter.replace("room:", "");
+          const room = oneToOneRooms.find((r) => r.id === roomId);
+          matchScope =
+            !!room &&
+            (session as { scope_type?: string }).scope_type === "one_to_one" &&
+            session.student_id === room.student_id;
+        }
+      }
       const matchSearch =
         !q ||
         `${session.title} ${session.description ?? ""}`.toLowerCase().includes(q);
-      return matchFilter && matchClassroom && matchSearch;
+      return matchFilter && matchScope && matchSearch;
     });
-  }, [orderedSessions, sessionFilter, classroomFilter, searchQuery]);
+  }, [orderedSessions, sessionFilter, scopeFilter, searchQuery, oneToOneRooms]);
 
   const disableSchedulingReason = !googleCalendarConnection?.configured
     ? "Google Meet scheduling is unavailable until Google OAuth is configured on the server."
@@ -402,89 +424,27 @@ export default function TeacherSessions() {
           </div>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarClock className="h-5 w-5 text-primary" />
-              Sessions
-            </CardTitle>
-            <CardDescription>
-              Filter by status or classroom. Connect Google Calendar in Settings to schedule.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ["active", "Scheduled"],
-                    ["completed", "Completed"],
-                    ["cancelled", "Cancelled"],
-                    ["all", "All"],
-                  ] as Array<[SessionFilter, string]>
-                ).map(([value, label]) => (
-                  <Button
-                    key={value}
-                    variant={sessionFilter === value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSessionFilter(value)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-                <Select value={classroomFilter} onValueChange={setClassroomFilter}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Classroom" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All classrooms</SelectItem>
-                    {(classrooms ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="relative w-full lg:max-w-xs">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search sessions"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {sessionsLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-24 rounded-lg border bg-secondary/30 animate-pulse" />
-                ))}
-              </div>
-            ) : visibleSessions.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-                {searchQuery.trim() || classroomFilter !== "all"
-                  ? "No sessions match the current filters."
-                  : "No lecture sessions yet. Connect Google Calendar in Settings, then schedule a lecture."}
-              </div>
-            ) : (
-              <SessionsTable
-                sessions={visibleSessions}
-                role="teacher"
-                classroomMap={classroomMap}
-                notesBySession={notesBySession}
-                onEdit={openEditDialog}
-                onCancelSingle={(s) => handleCancel(s, "single")}
-                onCancelSeries={(s) => handleCancel(s, "series")}
-                onComplete={handleComplete}
-                onEditNotes={openNotesDialog}
-                onEditFinancials={openFinancialDialog}
-              />
-            )}
-          </CardContent>
-        </Card>
+        <SessionsListCard
+          role="teacher"
+          isLoading={sessionsLoading}
+          visibleSessions={visibleSessions}
+          sessionFilter={sessionFilter}
+          onSessionFilterChange={setSessionFilter}
+          scopeFilter={scopeFilter}
+          onScopeFilterChange={setScopeFilter}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          classrooms={classrooms ?? []}
+          oneToOneRoomOptions={oneToOneRoomOptions}
+          classroomMap={classroomMap}
+          notesBySession={notesBySession}
+          onEdit={openEditDialog}
+          onCancelSingle={(s) => handleCancel(s, "single")}
+          onCancelSeries={(s) => handleCancel(s, "series")}
+          onComplete={handleComplete}
+          onEditNotes={openNotesDialog}
+          onEditFinancials={openFinancialDialog}
+        />
       </div>
 
       {/* Edit dialog */}

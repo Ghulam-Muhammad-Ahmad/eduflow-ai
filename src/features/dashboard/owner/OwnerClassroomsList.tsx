@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -22,20 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { School, Plus, Users, BookOpen, MoreVertical, ArrowRight, UserCircle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { School, Plus, Users, BookOpen, UserCircle, Search, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,12 +42,24 @@ export default function OwnerClassroomsList() {
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
   const [primaryTutorId, setPrimaryTutorId] = useState<string>("");
   const [additionalTutorIds, setAdditionalTutorIds] = useState<string[]>([]);
 
   const tutorMap = new Map(tutors.map((t) => [t.user_id, t.profile?.display_name ?? t.profile?.email ?? "Tutor"]));
   const classroomIds = classrooms.map((c) => c.id);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredClassrooms = useMemo(() => {
+    if (!searchQuery.trim()) return classrooms;
+    const q = searchQuery.toLowerCase().trim();
+    const map = new Map(tutors.map((t) => [t.user_id, t.profile?.display_name ?? t.profile?.email ?? "Tutor"]));
+    return classrooms.filter((c) => {
+      const name = (c.name ?? "").toLowerCase();
+      const subject = (c.subject ?? "").toLowerCase();
+      const primaryName = (map.get(c.teacher_id) ?? "").toLowerCase();
+      return name.includes(q) || subject.includes(q) || primaryName.includes(q);
+    });
+  }, [classrooms, searchQuery, tutors]);
 
   const { data: enrollmentCounts = {} } = useQuery({
     queryKey: ["owner-classroom-enrollment-counts", classroomIds],
@@ -101,14 +101,12 @@ export default function OwnerClassroomsList() {
       await createClassroom.mutateAsync({
         name: name.trim(),
         subject: subject.trim() || null,
-        description: description.trim() || null,
         teacher_id: primaryTutorId,
         additionalTutorIds: additionalTutorIds.filter((id) => id !== primaryTutorId),
       });
       toast({ title: "Class created", description: "You can add students from the class detail page." });
       setName("");
       setSubject("");
-      setDescription("");
       setPrimaryTutorId("");
       setAdditionalTutorIds([]);
       setCreateOpen(false);
@@ -161,15 +159,6 @@ export default function OwnerClassroomsList() {
                     placeholder="e.g. Mathematics"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    placeholder="Brief description..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={2}
                   />
                 </div>
                 <div className="space-y-2">
@@ -250,19 +239,7 @@ export default function OwnerClassroomsList() {
 
         {/* Loading state */}
         {isLoading && (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-6 bg-secondary rounded w-3/4" />
-                  <div className="h-4 bg-secondary rounded w-1/2 mt-2" />
-                </CardHeader>
-                <CardContent>
-                  <div className="h-20 bg-secondary rounded" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <p className="text-muted-foreground">Loading...</p>
         )}
 
         {/* Empty state */}
@@ -284,82 +261,107 @@ export default function OwnerClassroomsList() {
           </Card>
         )}
 
-        {/* Classrooms grid (tutor-style cards) */}
+        {/* Classrooms table */}
         {!isLoading && classrooms.length > 0 && (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {classrooms.map((c) => {
-              const tutorIds = tutorsByClassroomId.get(c.id) ?? [c.teacher_id];
-              const primaryName = tutorMap.get(c.teacher_id) ?? "Tutor";
-              const others = tutorIds.filter((id) => id !== c.teacher_id);
-              const studentCount = enrollmentCounts[c.id] ?? 0;
-
-              return (
-                <Card
-                  key={c.id}
-                  className="group hover:shadow-lg transition-shadow"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg truncate">
-                          {c.name}
-                        </CardTitle>
-                        {c.subject && (
-                          <CardDescription className="truncate">
-                            {c.subject}
-                          </CardDescription>
-                        )}
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+          <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden />
+                <Input
+                  type="search"
+                  placeholder="Search by class name, subject, or tutor..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  aria-label="Search classes"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/80 bg-muted/30">
+                    <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Class
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
+                      Subject
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Primary tutor
+                    </th>
+                    <th className="px-6 py-3.5 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground w-24">
+                      Students
+                    </th>
+                    <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground w-24">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {filteredClassrooms.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        No classes match &quot;{searchQuery}&quot;. Try a different search.
+                      </td>
+                    </tr>
+                  ) : filteredClassrooms.map((c) => {
+                    const tutorIds = tutorsByClassroomId.get(c.id) ?? [c.teacher_id];
+                    const primaryName = tutorMap.get(c.teacher_id) ?? "Tutor";
+                    const others = tutorIds.filter((id) => id !== c.teacher_id);
+                    const studentCount = enrollmentCounts[c.id] ?? 0;
+                    return (
+                      <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-6 py-3.5">
+                          <Link
+                            href={`/dashboard/owner/classrooms/${c.id}`}
+                            className="font-medium text-foreground hover:text-primary transition-colors"
                           >
-                            <MoreVertical className="h-4 w-4" />
+                            {c.name}
+                          </Link>
+                          {c.subject && (
+                            <p className="text-muted-foreground text-xs sm:hidden mt-0.5">{c.subject}</p>
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5 text-muted-foreground hidden sm:table-cell">
+                          {c.subject ?? "—"}
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <span className="flex items-center gap-2 text-muted-foreground">
+                            <UserCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {primaryName}
+                            {others.length > 0 && (
+                              <span className="text-xs">+{others.length}</span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3.5 text-center">
+                          <Link
+                            href={`/dashboard/owner/classrooms/${c.id}`}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                          >
+                            <Users className="h-4 w-4 shrink-0" aria-hidden />
+                            {studentCount}
+                          </Link>
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <Button variant="default" size="sm" asChild>
+                            <Link
+                              href={`/dashboard/owner/classrooms/${c.id}`}
+                              className="inline-flex items-center gap-2"
+                              aria-label={`View ${c.name}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                              View
+                            </Link>
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(`/dashboard/owner/classrooms/${c.id}`)}>
-                            <BookOpen className="w-4 h-4 mr-2" />
-                            Manage class
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => router.push(`/dashboard/owner/classrooms/${c.id}`)}>
-                            <Users className="w-4 h-4 mr-2" />
-                            View roster
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <UserCircle className="h-4 w-4" />
-                        {primaryName}
-                        {others.length > 0 && (
-                          <span className="text-xs">+{others.length}</span>
-                        )}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Users className="h-4 w-4" />
-                        {studentCount} student{studentCount !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-
-                    <Button
-                      className="w-full gap-2"
-                      onClick={() => router.push(`/dashboard/owner/classrooms/${c.id}`)}
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      Manage class
-                      <ArrowRight className="h-4 w-4 ml-auto" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

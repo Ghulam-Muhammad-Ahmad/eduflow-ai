@@ -94,8 +94,7 @@ const TeacherClassrooms = () => {
     return classrooms.filter(
       (c) =>
         c.name?.toLowerCase().includes(q) ||
-        c.subject?.toLowerCase().includes(q) ||
-        (c.description?.toLowerCase().includes(q))
+        c.subject?.toLowerCase().includes(q)
     );
   }, [classrooms, searchQuery]);
 
@@ -259,12 +258,6 @@ const TeacherClassrooms = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {classroom.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {classroom.description}
-                      </p>
-                    )}
-
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5 font-medium">
                         <Users className="w-4 h-4" />

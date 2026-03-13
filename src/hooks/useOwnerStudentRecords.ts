@@ -1,89 +1,45 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-
-export interface AssignmentGrade {
-  assignment_id: string;
-  title: string;
-  points_possible: number | null;
-  grade: number | null;
-  status: string;
-  submitted_at: string | null;
-  graded_at: string | null;
-  classroom_name: string;
-}
-
-export interface QuizGrade {
-  quiz_id: string;
-  title: string;
-  attempt_number: number;
-  score: number | null;
-  points_earned: number | null;
-  points_possible: number | null;
-  status: string;
-  submitted_at: string | null;
-  classroom_name: string;
-}
-
-export interface StudentRecord {
-  student_id: string;
-  display_name: string | null;
-  email: string | null;
-  avatar_url: string | null;
-  classroom_id: string;
-  classroom_name: string;
-  joined_at: string;
-  assignmentGrades: AssignmentGrade[];
-  quizGrades: QuizGrade[];
-  /** Average assignment score (0-100) for graded assignments only */
-  assignmentAvg: number | null;
-  /** Average quiz score (0-100) for graded attempts only */
-  quizAvg: number | null;
-  /** Overall average (assignments + quizzes) 0-100 */
-  overallAvg: number | null;
-  totalAssignments: number;
-  totalQuizzes: number;
-  gradedAssignments: number;
-  gradedQuizzes: number;
-}
-
-export interface ClassroomSummary {
-  id: string;
-  name: string;
-  subject: string | null;
-  studentCount: number;
-}
+import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
+import type {
+  StudentRecord,
+  ClassroomSummary,
+  AssignmentGrade,
+  QuizGrade,
+} from "@/hooks/useTeacherStudentRecords";
 
 /**
- * Fetches all data needed for teacher student records: classrooms, 1v1 rooms,
+ * Fetches all data needed for owner student records: workspace classrooms (and 1v1 rooms),
  * roster, assignments, quizzes, submissions, and quiz attempts.
  * When oneToOneRoomId is set, returns a single-student "1v1 room student report" view.
  */
-export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoomId: string | null = null) {
-  const { user } = useAuth();
+export function useOwnerStudentRecords(classroomId: string | null, oneToOneRoomId: string | null = null) {
+  const { workspaceId } = useOwnerWorkspace();
 
   return useQuery({
-    queryKey: ["teacher-student-records", user?.id, classroomId, oneToOneRoomId],
+    queryKey: ["owner-student-records", workspaceId, classroomId, oneToOneRoomId],
     queryFn: async (): Promise<{
       classrooms: ClassroomSummary[];
       students: StudentRecord[];
       assignments: { id: string; title: string; points_possible: number | null; classroom_id: string; classroom_name: string }[];
       quizzes: { id: string; title: string; classroom_id: string; classroom_name: string }[];
     }> => {
-      if (!user) return { classrooms: [], students: [], assignments: [], quizzes: [] };
+      if (!workspaceId) return { classrooms: [], students: [], assignments: [], quizzes: [] };
 
-      // 1v1 room mode: single student, assignments/quizzes for that room (teacher must be tutor)
+      // 1v1 room mode: single student, assignments/quizzes for that room
       if (oneToOneRoomId) {
         const { data: room, error: roomError } = await supabase
           .from("one_to_one_rooms")
           .select("id, name, student_id, created_at")
           .eq("id", oneToOneRoomId)
-          .eq("tutor_id", user.id)
+          .eq("workspace_id", workspaceId)
           .single();
         if (roomError || !room) return { classrooms: [], students: [], assignments: [], quizzes: [] };
 
+        const studentIds = [room.student_id];
         const roomName = room.name || "1v1 Room";
+
         const { data: assignData, error: assignErr } = await supabase
           .from("assignments")
           .select("id, title, points_possible, one_to_one_room_id")
@@ -97,6 +53,8 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
           classroom_id: oneToOneRoomId,
           classroom_name: roomName,
         }));
+        const assignmentIds = assignmentsList.map((a) => a.id);
+
         const { data: quizData, error: quizErr } = await supabase
           .from("quizzes")
           .select("id, title, one_to_one_room_id")
@@ -109,30 +67,36 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
           classroom_id: oneToOneRoomId,
           classroom_name: roomName,
         }));
+        const quizIds = quizzesList.map((q) => q.id);
+
         let submissions: any[] = [];
-        if (assignmentsList.length > 0) {
-          const { data: subData } = await supabase
+        if (assignmentIds.length > 0) {
+          const { data: subData, error: subError } = await supabase
             .from("submissions")
             .select("id, assignment_id, student_id, grade, status, submitted_at, graded_at")
-            .in("assignment_id", assignmentsList.map((a) => a.id))
+            .in("assignment_id", assignmentIds)
             .eq("student_id", room.student_id);
-          if (subData) submissions = subData;
+          if (!subError && subData) submissions = subData;
         }
         let attempts: any[] = [];
-        if (quizzesList.length > 0) {
-          const { data: attemptData } = await supabase
+        if (quizIds.length > 0) {
+          const { data: attemptData, error: attemptError } = await supabase
             .from("quiz_attempts")
             .select("id, quiz_id, student_id, attempt_number, score, points_earned, points_possible, status, submitted_at")
-            .in("quiz_id", quizzesList.map((q) => q.id))
+            .in("quiz_id", quizIds)
             .eq("student_id", room.student_id)
             .in("status", ["submitted", "graded"]);
-          if (attemptData) attempts = attemptData;
+          if (!attemptError && attemptData) attempts = attemptData;
         }
+
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, display_name, avatar_url, email")
-          .in("user_id", [room.student_id]);
-        const profile = Array.isArray(profiles) && profiles[0] ? profiles[0] : null;
+          .in("user_id", studentIds);
+        const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+        const profile = profileMap.get(room.student_id);
+        const profileObj = profile && typeof profile === "object" ? profile : null;
+
         const assignmentGrades: AssignmentGrade[] = assignmentsList.map((a) => {
           const sub = submissions.find((s) => s.assignment_id === a.id);
           return {
@@ -160,6 +124,7 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
             classroom_name: roomName,
           };
         });
+
         const gradedAssignments = assignmentGrades.filter((g) => g.grade != null);
         const gradedAttemptsByQuiz = new Map<string, QuizGrade[]>();
         quizGrades.forEach((g) => {
@@ -177,22 +142,25 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
             .filter((x) => x.g.score != null || (x.g.points_earned != null && (x.g.points_possible ?? 0) > 0));
           return withScore.length ? Math.max(...withScore.map((x) => x.value)) : 0;
         });
-        const assignmentAvg = gradedAssignments.length > 0
-          ? gradedAssignments.reduce((sum, g) => {
-              const possible = g.points_possible ?? 100;
-              return sum + (possible > 0 ? ((g.grade ?? 0) / possible) * 100 : 0);
-            }, 0) / gradedAssignments.length
-          : null;
+        const assignmentAvg =
+          gradedAssignments.length > 0
+            ? gradedAssignments.reduce((sum, g) => {
+                const possible = g.points_possible ?? 100;
+                return sum + (possible > 0 ? ((g.grade ?? 0) / possible) * 100 : 0);
+              }, 0) / gradedAssignments.length
+            : null;
         const quizAvg = bestScoresPerQuiz.length > 0 ? bestScoresPerQuiz.reduce((sum, s) => sum + s, 0) / bestScoresPerQuiz.length : null;
         const totalGraded = gradedAssignments.length + gradedQuizzesCount;
-        const overallAvg = totalGraded > 0
-          ? ((assignmentAvg ?? 0) * gradedAssignments.length + (quizAvg ?? 0) * gradedQuizzesCount) / totalGraded
-          : null;
+        const overallAvg =
+          totalGraded > 0
+            ? ((assignmentAvg ?? 0) * gradedAssignments.length + (quizAvg ?? 0) * gradedQuizzesCount) / totalGraded
+            : null;
+
         const studentRecord: StudentRecord = {
           student_id: room.student_id,
-          display_name: profile?.display_name ?? null,
-          email: profile?.email ?? null,
-          avatar_url: profile?.avatar_url ?? null,
+          display_name: profileObj && "display_name" in profileObj ? (profileObj.display_name as string | null) : null,
+          email: profileObj && "email" in profileObj ? (profileObj.email as string | null) : null,
+          avatar_url: profileObj && "avatar_url" in profileObj ? (profileObj.avatar_url as string | null) : null,
           classroom_id: oneToOneRoomId,
           classroom_name: `1v1: ${roomName}`,
           joined_at: room.created_at,
@@ -206,14 +174,20 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
           gradedAssignments: gradedAssignments.length,
           gradedQuizzes: gradedQuizzesCount,
         };
-        return { classrooms: [], students: [studentRecord], assignments: assignmentsList, quizzes: quizzesList };
+
+        return {
+          classrooms: [],
+          students: [studentRecord],
+          assignments: assignmentsList,
+          quizzes: quizzesList,
+        };
       }
 
-      // 1. Teacher's classrooms
+      // 1. Workspace classrooms
       const { data: classrooms, error: classroomsError } = await supabase
         .from("classrooms")
         .select("id, name, subject")
-        .eq("teacher_id", user.id)
+        .eq("workspace_id", workspaceId)
         .eq("is_archived", false)
         .order("name");
 
@@ -243,15 +217,13 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
       const roster = Array.isArray(enrollments) ? enrollments : [];
       const studentIds = [...new Set(roster.map((e) => e.student_id))];
 
-      // 3. Profiles for students
+      // 3. Profiles for students (include email for owner view)
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url")
+        .select("user_id, display_name, avatar_url, email")
         .in("user_id", studentIds);
 
       if (profilesError) throw profilesError;
-      // If profiles query fails, profiles may be returned as an error object, not an array.
-      // Only map if profiles is an array.
       const profileMap = Array.isArray(profiles)
         ? new Map(profiles.map((p) => [p.user_id, p]))
         : new Map();
@@ -304,7 +276,7 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
         : [];
       const quizIds = quizzesList.map((q) => q.id);
 
-      // 6. Submissions for these assignments (any student in roster)
+      // 6. Submissions
       let submissions: any[] = [];
       if (assignmentIds.length > 0 && studentIds.length > 0) {
         const { data: subData, error: subError } = await supabase
@@ -312,14 +284,11 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
           .select("id, assignment_id, student_id, grade, status, submitted_at, graded_at")
           .in("assignment_id", assignmentIds)
           .in("student_id", studentIds);
-        if (subError) {
-          console.error("submissions query failed:", subError);
-          throw subError;
-        }
+        if (subError) throw subError;
         if (Array.isArray(subData)) submissions = subData;
       }
 
-      // 7. Quiz attempts for these quizzes (any student in roster)
+      // 7. Quiz attempts
       let attempts: any[] = [];
       if (quizIds.length > 0 && studentIds.length > 0) {
         const { data: attemptData, error: attemptError } = await supabase
@@ -328,21 +297,12 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
           .in("quiz_id", quizIds)
           .in("student_id", studentIds)
           .in("status", ["submitted", "graded"]);
-        
-        if (attemptError) {
-          console.error("quiz attempts query failed:", attemptError);
-          attempts = [];
-          throw attemptError;
-        }
+        if (attemptError) throw attemptError;
         if (Array.isArray(attemptData)) attempts = attemptData;
       }
 
-      // Build classroom name lookup
-      const classroomNameById = new Map(
-        classroomList.map((c) => [c.id, c.name])
-      );
+      const classroomNameById = new Map(classroomList.map((c) => [c.id, c.name]));
 
-      // Build student records (one per enrollment so same student in two classes = two rows, or we can merge by student; per-enrollment is better for "per classroom" view)
       const students: StudentRecord[] = roster.map((enrollment) => {
         const profile = profileMap.get(enrollment.student_id);
         const classroomName = classroomNameById.get(enrollment.classroom_id) ?? "";
@@ -432,11 +392,12 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
               totalGraded
             : null;
 
+        const profileObj = profile && typeof profile === "object" ? profile : null;
         return {
           student_id: enrollment.student_id,
-          display_name: profile && typeof profile === "object" && "display_name" in profile ? (profile.display_name as string | null) : null,
-          email: null,
-          avatar_url: profile && typeof profile === "object" && "avatar_url" in profile ? (profile.avatar_url as string | null) : null,
+          display_name: profileObj && "display_name" in profileObj ? (profileObj.display_name as string | null) : null,
+          email: profileObj && "email" in profileObj ? (profileObj.email as string | null) : null,
+          avatar_url: profileObj && "avatar_url" in profileObj ? (profileObj.avatar_url as string | null) : null,
           classroom_id: enrollment.classroom_id,
           classroom_name: classroomName,
           joined_at: enrollment.joined_at,
@@ -452,7 +413,6 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
         };
       });
 
-      // Classroom summary with student counts
       const classroomsSummary: ClassroomSummary[] = classroomList.map((c) => ({
         id: c.id,
         name: c.name,
@@ -467,6 +427,6 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
         quizzes: quizzesList,
       };
     },
-    enabled: !!user,
+    enabled: !!workspaceId,
   });
 }

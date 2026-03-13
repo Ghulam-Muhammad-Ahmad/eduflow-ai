@@ -7,18 +7,18 @@ import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 type Assignment = Tables<"assignments">;
 type AssignmentInsert = TablesInsert<"assignments">;
 
-export const useAssignments = (classroomId?: string) => {
+export const useAssignments = (classroomId?: string, oneToOneRoomId?: string) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch assignments for teacher (all their assignments or filtered by classroom)
+  // Fetch assignments for teacher (all their assignments or filtered by classroom / 1v1 room)
   const {
     data: assignments,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["assignments", user?.id, classroomId],
+    queryKey: ["assignments", user?.id, classroomId, oneToOneRoomId],
     queryFn: async () => {
       if (!user) return [];
 
@@ -30,6 +30,12 @@ export const useAssignments = (classroomId?: string) => {
             id,
             name,
             subject
+          ),
+          one_to_one_rooms (
+            id,
+            name,
+            tutor_id,
+            student_id
           )
         `)
         .eq("teacher_id", user.id)
@@ -37,6 +43,9 @@ export const useAssignments = (classroomId?: string) => {
 
       if (classroomId) {
         query = query.eq("classroom_id", classroomId);
+      }
+      if (oneToOneRoomId) {
+        query = query.eq("one_to_one_room_id", oneToOneRoomId);
       }
 
       const { data, error } = await query;
@@ -250,63 +259,62 @@ export const useAssignmentSubmissions = (assignmentId: string | null) => {
   });
 };
 
-// Hook for student assignments
-export const useStudentAssignments = (classroomId?: string) => {
+// Hook for student assignments (classroom and 1v1 room assignments)
+export const useStudentAssignments = (classroomId?: string, oneToOneRoomId?: string) => {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["student-assignments", user?.id, classroomId],
+    queryKey: ["student-assignments", user?.id, classroomId, oneToOneRoomId],
     queryFn: async () => {
       if (!user) return [];
 
-      // First get enrolled classroom IDs
+      const enrolledClassroomIds: string[] = [];
       const { data: enrollments, error: enrollError } = await supabase
         .from("enrollments")
         .select("classroom_id")
         .eq("student_id", user.id)
         .eq("status", "active");
+      if (!enrollError && enrollments) {
+        enrolledClassroomIds.push(...enrollments.map((e) => e.classroom_id));
+      }
 
-      if (enrollError) throw enrollError;
-      
-      const enrolledClassroomIds = enrollments?.map((e) => e.classroom_id) || [];
-      
-      if (enrolledClassroomIds.length === 0) return [];
+      const oneToOneRoomIds: string[] = [];
+      const { data: rooms, error: roomsError } = await supabase
+        .from("one_to_one_rooms")
+        .select("id")
+        .eq("student_id", user.id);
+      if (!roomsError && rooms) {
+        oneToOneRoomIds.push(...rooms.map((r) => r.id));
+      }
 
-      // Get assignments from enrolled classrooms (with attached documents for students)
+      const orParts: string[] = [];
+      if (enrolledClassroomIds.length) orParts.push(`classroom_id.in.(${enrolledClassroomIds.join(",")})`);
+      if (oneToOneRoomIds.length) orParts.push(`one_to_one_room_id.in.(${oneToOneRoomIds.join(",")})`);
+      if (orParts.length === 0) return [];
+
       let query = supabase
         .from("assignments")
         .select(`
           *,
-          classrooms (
-            id,
-            name,
-            subject
-          ),
+          classrooms (id, name, subject),
+          one_to_one_rooms (id, name, tutor_id, student_id),
           assignment_attachments (
             document_id,
-            documents (
-              id,
-              name,
-              file_path,
-              file_type
-            )
+            documents (id, name, file_path, file_type)
           )
         `)
         .eq("status", "published")
-        .in("classroom_id", enrolledClassroomIds)
+        .or(orParts.join(","))
         .order("due_date", { ascending: true, nullsFirst: false });
 
-      if (classroomId) {
-        query = query.eq("classroom_id", classroomId);
-      }
+      if (classroomId) query = query.eq("classroom_id", classroomId);
+      if (oneToOneRoomId) query = query.eq("one_to_one_room_id", oneToOneRoomId);
 
       const { data: assignmentsData, error } = await query;
-
       if (error) throw error;
+      const list = assignmentsData ?? [];
 
-      // Get submissions for these assignments
-      const assignmentIds = assignmentsData?.map((a) => a.id) || [];
-      
+      const assignmentIds = list.map((a) => a.id);
       if (assignmentIds.length === 0) return [];
 
       const { data: submissions } = await supabase
@@ -315,12 +323,9 @@ export const useStudentAssignments = (classroomId?: string) => {
         .eq("student_id", user.id)
         .in("assignment_id", assignmentIds);
 
-      // Merge submissions with assignments
-      return assignmentsData?.map((assignment) => ({
+      return list.map((assignment) => ({
         ...assignment,
-        mySubmission: submissions?.find(
-          (s) => s.assignment_id === assignment.id
-        ) || null,
+        mySubmission: submissions?.find((s) => s.assignment_id === assignment.id) ?? null,
       }));
     },
     enabled: !!user,

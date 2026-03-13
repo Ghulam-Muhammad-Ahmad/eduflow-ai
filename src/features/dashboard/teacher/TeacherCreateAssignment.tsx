@@ -4,6 +4,7 @@ import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignments } from "@/hooks/useAssignments";
 import { useClassrooms } from "@/hooks/useClassrooms";
+import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,11 +34,14 @@ const TeacherCreateAssignment = () => {
     addAssignmentAttachments,
   } = useAssignments();
   const { classrooms } = useClassrooms();
+  const { oneToOneRooms } = useOneToOneRooms();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [targetType, setTargetType] = useState<"classroom" | "1v1">("classroom");
   const [classroomId, setClassroomId] = useState("");
+  const [oneToOneRoomId, setOneToOneRoomId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [pointsPossible, setPointsPossible] = useState("100");
   const [aiPrompt, setAiPrompt] = useState("");
@@ -103,8 +107,10 @@ const TeacherCreateAssignment = () => {
   };
 
   const handleCreate = async () => {
-    if (!title.trim() || !classroomId) {
-      toast.error("Please provide a title and classroom before saving.");
+    const hasClassroom = targetType === "classroom" && classroomId;
+    const hasRoom = targetType === "1v1" && oneToOneRoomId;
+    if (!title.trim() || (!hasClassroom && !hasRoom)) {
+      toast.error("Please provide a title and select a classroom or 1v1 room before saving.");
       return;
     }
 
@@ -114,7 +120,8 @@ const TeacherCreateAssignment = () => {
         title: title.trim(),
         description: description.trim() || null,
         instructions: instructions.trim() || null,
-        classroom_id: classroomId,
+        classroom_id: targetType === "classroom" ? classroomId : null,
+        one_to_one_room_id: targetType === "1v1" ? oneToOneRoomId : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         points_possible: parseInt(pointsPossible) || 100,
         status: "draft",
@@ -198,22 +205,65 @@ const TeacherCreateAssignment = () => {
             <CardDescription>Title, classroom, due date, and instructions.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Classroom *</Label>
-                <Select value={classroomId} onValueChange={setClassroomId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select classroom" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classrooms?.map((classroom) => (
-                      <SelectItem key={classroom.id} value={classroom.id}>
-                        {classroom.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <Label>Assign to *</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="targetType"
+                    checked={targetType === "classroom"}
+                    onChange={() => setTargetType("classroom")}
+                    className="rounded border-input"
+                  />
+                  <span>Classroom</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="targetType"
+                    checked={targetType === "1v1"}
+                    onChange={() => setTargetType("1v1")}
+                    className="rounded border-input"
+                  />
+                  <span>1v1 Room</span>
+                </label>
               </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {targetType === "classroom" ? (
+                <div className="space-y-2">
+                  <Label>Classroom *</Label>
+                  <Select value={classroomId} onValueChange={setClassroomId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select classroom" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classrooms?.map((classroom) => (
+                        <SelectItem key={classroom.id} value={classroom.id}>
+                          {classroom.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>1v1 Room *</Label>
+                  <Select value={oneToOneRoomId} onValueChange={setOneToOneRoomId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select 1v1 room" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {oneToOneRooms?.map((room) => (
+                        <SelectItem key={room.id} value={room.id}>
+                          {room.name || `${room.studentProfile?.display_name ?? "Student"} (1v1)`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Points</Label>
                 <Input
@@ -315,7 +365,7 @@ const TeacherCreateAssignment = () => {
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={!title.trim() || !classroomId || createAssignment.isPending || isCreating}
+            disabled={!title.trim() || (targetType === "classroom" ? !classroomId : !oneToOneRoomId) || createAssignment.isPending || isCreating}
           >
             {createAssignment.isPending || isCreating ? "Saving..." : "Save as Draft"}
           </Button>

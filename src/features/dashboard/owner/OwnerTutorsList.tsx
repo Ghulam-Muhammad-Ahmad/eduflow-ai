@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
@@ -18,16 +20,42 @@ const contractStatusLabel: Record<string, string> = {
 type ClassroomRow = { id: string; name: string; subject?: string | null };
 
 export default function OwnerTutorsList() {
-  const { workspace, tutors, assignedStudents, contractByTutorId, classrooms, tutorsByClassroomId, isLoading } = useOwnerWorkspace();
+  const { workspace, tutors, oneToOneRooms, contractByTutorId, classrooms, tutorsByClassroomId, isLoading } = useOwnerWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
-
-  const studentCountByTutor = (assignedStudents as Array<{ tutor_id: string }>).reduce(
-    (acc, s) => {
-      acc[s.tutor_id] = (acc[s.tutor_id] ?? 0) + 1;
-      return acc;
+  const classroomIds = useMemo(() => classrooms.map((c) => c.id), [classrooms]);
+  const { data: enrollmentCounts = {} } = useQuery({
+    queryKey: ["owner-classroom-enrollment-counts", classroomIds],
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (classroomIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("classroom_id")
+        .in("classroom_id", classroomIds)
+        .eq("status", "active");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const row of data ?? []) {
+        counts[row.classroom_id] = (counts[row.classroom_id] ?? 0) + 1;
+      }
+      return counts;
     },
-    {} as Record<string, number>
-  );
+    enabled: classroomIds.length > 0,
+  });
+
+  const studentCountByTutor = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const r of oneToOneRooms) {
+      acc[r.tutor_id] = (acc[r.tutor_id] ?? 0) + 1;
+    }
+    for (const c of classrooms) {
+      const tutorIds = tutorsByClassroomId.get(c.id) ?? [];
+      const count = enrollmentCounts[c.id] ?? 0;
+      for (const uid of tutorIds) {
+        acc[uid] = (acc[uid] ?? 0) + count;
+      }
+    }
+    return acc;
+  }, [oneToOneRooms, classrooms, tutorsByClassroomId, enrollmentCounts]);
 
   /** Map tutor user_id -> classrooms they are involved in (teacher or in classroom_tutors) */
   const classesByTutorId = useMemo(() => {

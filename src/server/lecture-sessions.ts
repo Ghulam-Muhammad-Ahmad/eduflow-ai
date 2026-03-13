@@ -187,13 +187,13 @@ async function getClassroomById(classroomId: string): Promise<ClassroomRecord> {
   return data as ClassroomRecord;
 }
 
-async function getStudentAssignmentById(
+async function getOneToOneRoom(
   studentId: string,
   tutorId?: string
 ): Promise<StudentAssignmentRecord> {
   const admin = assertAdminClient();
   let query = admin
-    .from("tutor_student_assignments")
+    .from("one_to_one_rooms")
     .select("workspace_id, tutor_id, student_id")
     .eq("student_id", studentId);
 
@@ -201,13 +201,13 @@ async function getStudentAssignmentById(
     query = query.eq("tutor_id", tutorId);
   }
 
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await query.limit(1);
 
-  if (error || !data) {
-    throw new Error("Student assignment not found.");
+  if (error || !data?.length) {
+    throw new Error("1v1 room not found for this student.");
   }
 
-  return data as StudentAssignmentRecord;
+  return data[0] as StudentAssignmentRecord;
 }
 
 async function getStudentProfile(studentId: string) {
@@ -314,7 +314,7 @@ export async function resolveLectureCreationContext(params: {
     throw new Error("studentId is required for one-to-one sessions.");
   }
 
-  let assignment = await getStudentAssignmentById(params.studentId, params.requestedTutorId);
+  let assignment = await getOneToOneRoom(params.studentId, params.requestedTutorId);
   let tutorId = assignment.tutor_id;
 
   if (params.callerRole === "admin") {
@@ -323,7 +323,7 @@ export async function resolveLectureCreationContext(params: {
       throw new Error("You do not have access to schedule lectures for this student.");
     }
   } else if (params.callerRole === "teacher") {
-    assignment = await getStudentAssignmentById(params.studentId, params.callerId);
+    assignment = await getOneToOneRoom(params.studentId, params.callerId);
     tutorId = params.callerId;
   } else {
     throw new Error("You do not have permission to schedule lectures.");

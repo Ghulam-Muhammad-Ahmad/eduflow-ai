@@ -169,18 +169,6 @@ const TeacherClassroomDetail = () => {
           </Card>
         </div>
 
-        {/* Description */}
-        {classroom?.description && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">About This Classroom</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">{classroom.description}</p>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Students Roster */}
         <Card>
           <CardHeader>
@@ -202,12 +190,12 @@ const TeacherClassroomDetail = () => {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {rosterLoading && (
-              <div className="space-y-3">
+              <div className="p-6 space-y-3">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="flex items-center gap-3 p-4 rounded-lg border animate-pulse">
-                    <div className="w-12 h-12 bg-secondary rounded-full" />
+                    <div className="w-10 h-10 bg-secondary rounded-full shrink-0" />
                     <div className="flex-1">
                       <div className="h-4 bg-secondary rounded w-32 mb-2" />
                       <div className="h-3 bg-secondary rounded w-24" />
@@ -218,7 +206,7 @@ const TeacherClassroomDetail = () => {
             )}
 
             {!rosterLoading && (!filteredRoster || filteredRoster.length === 0) && !searchQuery && (
-              <div className="text-center py-12">
+              <div className="text-center py-12 px-6">
                 <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No students enrolled yet</h3>
                 <p className="text-muted-foreground mb-4">
@@ -228,7 +216,7 @@ const TeacherClassroomDetail = () => {
             )}
 
             {!rosterLoading && (!filteredRoster || filteredRoster.length === 0) && searchQuery && (
-              <div className="text-center py-12">
+              <div className="text-center py-12 px-6">
                 <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No students found</h3>
                 <p className="text-muted-foreground">
@@ -238,52 +226,74 @@ const TeacherClassroomDetail = () => {
             )}
 
             {!rosterLoading && filteredRoster && filteredRoster.length > 0 && (
-              <div className="space-y-2">
-                {filteredRoster.map((enrollment) => {
-                  const studentName = (enrollment.profiles as ProfileLike | null)?.display_name || "Student";
-                  const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "Email unavailable";
-                  const avatarUrl = (enrollment.profiles as ProfileLike | null)?.avatar_url;
-                  
-                  return (
-                    <div
-                      key={enrollment.id}
-                      className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/30 transition-colors group"
-                    >
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={avatarUrl} />
-                        <AvatarFallback className="text-lg">
-                          {(studentName[0] || "S").toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{studentName}</p>
-                        <p className="text-sm text-muted-foreground truncate">{studentEmail}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Joined {new Date(enrollment.joined_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 shrink-0"
-                          onClick={() => router.push(`/dashboard/teacher/student-records/${enrollment.student_id}?classroomId=${classroomId}`)}
-                        >
-                          <ScrollText className="w-4 h-4" />
-                          View record
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-60 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleRemoveStudent(enrollment.id, studentName)}
-                        >
-                          <UserMinus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/80 bg-muted/30">
+                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Student
+                      </th>
+                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Email
+                      </th>
+                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
+                        Joined
+                      </th>
+                      <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredRoster.map((enrollment) => {
+                      const studentName = (enrollment.profiles as ProfileLike | null)?.display_name || "Student";
+                      const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "—";
+                      const avatarUrl = (enrollment.profiles as ProfileLike | null)?.avatar_url;
+                      return (
+                        <tr key={enrollment.id} className="hover:bg-muted/30 transition-colors group">
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-9 w-9 shrink-0">
+                                <AvatarImage src={avatarUrl} />
+                                <AvatarFallback className="text-sm">
+                                  {(studentName[0] || "S").toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium truncate">{studentName}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3.5 text-muted-foreground truncate max-w-[200px]">
+                            {studentEmail}
+                          </td>
+                          <td className="px-6 py-3.5 text-muted-foreground text-xs hidden sm:table-cell">
+                            {new Date(enrollment.joined_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 shrink-0"
+                                onClick={() => router.push(`/dashboard/teacher/student-records/${enrollment.student_id}?classroomId=${classroomId}`)}
+                              >
+                                <ScrollText className="w-4 h-4" />
+                                View record
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleRemoveStudent(enrollment.id, studentName)}
+                              >
+                                <UserMinus className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>

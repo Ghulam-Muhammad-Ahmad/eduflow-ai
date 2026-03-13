@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClassrooms } from "@/hooks/useClassrooms";
+import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,10 @@ interface DocumentType {
     name: string;
     subject: string | null;
   };
+  oneToOneRoom?: {
+    id: string;
+    name: string | null;
+  };
 }
 
 const getFileIcon = (fileType: string) => {
@@ -77,11 +82,12 @@ const formatDate = (dateString: string) => {
 const StudentCourseMaterials = () => {
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
+  const { oneToOneRooms = [] } = useOneToOneRooms();
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
+  const [selectedTarget, setSelectedTarget] = useState<string>("all"); // "all" | "classroom:id" | "room:id"
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<string>("all");
 
@@ -90,60 +96,75 @@ const StudentCourseMaterials = () => {
   };
 
   const fetchSharedDocuments = useCallback(async () => {
-    if (!user || !classrooms) return;
+    if (!user) return;
     setLoading(true);
 
     try {
-      const classroomIds = classrooms.map((c) => c.id);
+      const classroomIds = classrooms?.map((c) => c.id) ?? [];
+      const { data: roomRows } = await supabase
+        .from("one_to_one_rooms")
+        .select("id, name")
+        .eq("student_id", user.id);
+      const oneToOneRoomIds = roomRows?.map((r) => r.id) ?? [];
 
-      if (classroomIds.length === 0) {
+      const allDocIds = new Set<string>();
+      const docToClassroom: Record<string, { id: string; name: string; subject: string | null }> = {};
+      const docToRoom: Record<string, { id: string; name: string | null }> = {};
+
+      if (classroomIds.length > 0) {
+        const { data: shares, error: sharesError } = await supabase
+          .from("document_classroom_shares")
+          .select("document_id, classroom_id, classrooms(id, name, subject)")
+          .in("classroom_id", classroomIds);
+        if (!sharesError && shares) {
+          shares.forEach((s) => {
+            allDocIds.add(s.document_id);
+            if (s.classrooms && !docToClassroom[s.document_id])
+              docToClassroom[s.document_id] = {
+                id: (s.classrooms as { id: string }).id,
+                name: (s.classrooms as { name: string }).name,
+                subject: (s.classrooms as { subject?: string | null }).subject ?? null,
+              };
+          });
+        }
+      }
+
+      if (oneToOneRoomIds.length > 0) {
+        const { data: roomShares, error: roomError } = await supabase
+          .from("document_one_to_one_room_shares")
+          .select("document_id, one_to_one_rooms(id, name)")
+          .in("one_to_one_room_id", oneToOneRoomIds);
+        if (!roomError && roomShares) {
+          roomShares.forEach((s) => {
+            allDocIds.add(s.document_id);
+            const room = s.one_to_one_rooms as { id: string; name: string | null } | null;
+            if (room && !docToRoom[s.document_id])
+              docToRoom[s.document_id] = { id: room.id, name: room.name };
+          });
+        }
+      }
+
+      if (allDocIds.size === 0) {
         setDocuments([]);
         setLoading(false);
         return;
       }
-
-      const { data: shares, error: sharesError } = await supabase
-        .from("document_classroom_shares")
-        .select(`
-          document_id,
-          classroom_id,
-          classrooms (
-            id,
-            name,
-            subject
-          )
-        `)
-        .in("classroom_id", classroomIds);
-
-      if (sharesError) throw sharesError;
-
-      if (!shares || shares.length === 0) {
-        setDocuments([]);
-        setLoading(false);
-        return;
-      }
-
-      const documentIds = [...new Set(shares.map((s) => s.document_id))];
 
       const { data: docs, error: docsError } = await supabase
         .from("documents")
         .select("*")
-        .in("id", documentIds)
+        .in("id", [...allDocIds])
         .order("created_at", { ascending: false });
 
       if (docsError) throw docsError;
 
-      const documentsWithClassrooms = docs?.map((doc) => {
-        const share = shares.find((s) => s.document_id === doc.id);
-        return {
-          ...doc,
-          classroom: share?.classrooms
-            ? { id: (share.classrooms as { id: string }).id, name: (share.classrooms as { name: string }).name, subject: (share.classrooms as { subject?: string | null }).subject ?? null }
-            : undefined,
-        };
-      }) || [];
+      const documentsWithContext = (docs ?? []).map((doc) => ({
+        ...doc,
+        classroom: docToClassroom[doc.id],
+        oneToOneRoom: docToRoom[doc.id],
+      }));
 
-      setDocuments(documentsWithClassrooms);
+      setDocuments(documentsWithContext);
     } catch (error) {
       console.error("Error fetching documents:", error);
       toast.error("Failed to load documents");
@@ -179,8 +200,10 @@ const StudentCourseMaterials = () => {
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesClassroom =
-      selectedClassroom === "all" || doc.classroom?.id === selectedClassroom;
+    const matchesTarget =
+      selectedTarget === "all" ||
+      (selectedTarget.startsWith("classroom:") && doc.classroom?.id === selectedTarget.replace("classroom:", "")) ||
+      (selectedTarget.startsWith("room:") && doc.oneToOneRoom?.id === selectedTarget.replace("room:", ""));
     const matchesType =
       selectedType === "all" ||
       (selectedType === "pdf" && doc.file_type.includes("pdf")) ||
@@ -188,7 +211,7 @@ const StudentCourseMaterials = () => {
       (selectedType === "spreadsheet" && (doc.file_type.includes("spreadsheet") || doc.file_type.includes("excel") || doc.file_type.includes("xlsx"))) ||
       (selectedType === "document" && (doc.file_type.includes("document") || doc.file_type.includes("docx") || doc.file_type.includes("word")));
     
-    return matchesSearch && matchesClassroom && matchesType;
+    return matchesSearch && matchesTarget && matchesType;
   });
 
   return (
@@ -269,17 +292,22 @@ const StudentCourseMaterials = () => {
 
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Classroom
+                    Classroom / 1v1 Room
                   </label>
-                  <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
+                  <Select value={selectedTarget} onValueChange={setSelectedTarget}>
                     <SelectTrigger className="w-48 bg-background">
-                      <SelectValue placeholder="All Classes" />
+                      <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Classes</SelectItem>
-                      {classrooms?.map((classroom) => (
-                        <SelectItem key={classroom.id} value={classroom.id}>
-                          {classroom.name}
+                      <SelectItem value="all">All</SelectItem>
+                      {classrooms?.map((c) => (
+                        <SelectItem key={c.id} value={`classroom:${c.id}`}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                      {oneToOneRooms?.map((r) => (
+                        <SelectItem key={r.id} value={`room:${r.id}`}>
+                          {r.name || `${r.tutorProfile?.display_name ?? "1v1"} (1v1)`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -292,7 +320,7 @@ const StudentCourseMaterials = () => {
                     size="sm"
                     className="text-muted-foreground hover:text-foreground"
                     onClick={() => {
-                      setSelectedClassroom("all");
+                      setSelectedTarget("all");
                       setSelectedType("all");
                       setSearchQuery("");
                     }}
@@ -378,9 +406,9 @@ const StudentCourseMaterials = () => {
                       <p className="text-xs text-muted-foreground">
                         {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
                       </p>
-                      {doc.classroom && (
+                      {(doc.classroom || doc.oneToOneRoom) && (
                         <Badge variant="secondary" className="text-xs">
-                          {doc.classroom.name}
+                          {doc.classroom ? doc.classroom.name : (doc.oneToOneRoom?.name || "1v1 Room")}
                         </Badge>
                       )}
                     </div>
@@ -413,8 +441,10 @@ const StudentCourseMaterials = () => {
                           {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
                         </p>
                       </div>
-                      {doc.classroom && (
-                        <Badge variant="secondary">{doc.classroom.name}</Badge>
+                      {(doc.classroom || doc.oneToOneRoom) && (
+                        <Badge variant="secondary">
+                          {doc.classroom ? doc.classroom.name : (doc.oneToOneRoom?.name || "1v1 Room")}
+                        </Badge>
                       )}
                       <Button
                         variant="ghost"

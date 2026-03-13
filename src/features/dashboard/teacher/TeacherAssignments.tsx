@@ -4,6 +4,7 @@ import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignments } from "@/hooks/useAssignments";
 import { useClassrooms } from "@/hooks/useClassrooms";
+import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,6 +19,7 @@ import {
   ClipboardCheck,
   Calendar,
   Users,
+  UserRound,
   MoreVertical,
   Send,
   Trash2,
@@ -33,6 +35,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -46,10 +55,19 @@ import { format } from "date-fns";
 
 const TeacherAssignments = () => {
   const router = useRouter();
-  const { assignments, isLoading, publishAssignment, deleteAssignment } = useAssignments();
-  useClassrooms();
+  const [roomFilter, setRoomFilter] = useState<string>("all");
+  const classroomFilter = roomFilter.startsWith("classroom:") ? roomFilter.replace("classroom:", "") : undefined;
+  const oneToOneFilter = roomFilter !== "all" && !roomFilter.startsWith("classroom:") ? roomFilter : undefined;
+  const { assignments, isLoading, publishAssignment, deleteAssignment } = useAssignments(classroomFilter, oneToOneFilter);
+  const { classrooms } = useClassrooms();
+  const { oneToOneRooms } = useOneToOneRooms();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; title: string } | null>(null);
+
+  const getAssignmentTargetName = (a: { classrooms?: { name?: string } | null; one_to_one_rooms?: { name?: string } | null }) => {
+    if (a.one_to_one_rooms) return a.one_to_one_rooms.name || "1v1 Room";
+    return (a.classrooms as { name?: string } | null)?.name ?? "Classroom";
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -78,12 +96,39 @@ const TeacherAssignments = () => {
               Create and manage assignments for your classrooms
             </p>
           </div>
-          <Button asChild className="gap-2">
-            <Link href="/dashboard/teacher/assignments/new">
-              <Plus className="w-4 h-4" />
-              Create Assignment
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={roomFilter} onValueChange={setRoomFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filter by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All (Classrooms & 1v1)</SelectItem>
+                {classrooms?.map((c) => (
+                  <SelectItem key={c.id} value={`classroom:${c.id}`}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+                {oneToOneRooms?.length ? (
+                  <>
+                    {oneToOneRooms.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        <span className="flex items-center gap-1">
+                          <UserRound className="w-3 h-3" />
+                          {r.name || `${r.studentProfile?.display_name ?? "Student"} (1v1)`}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </>
+                ) : null}
+              </SelectContent>
+            </Select>
+            <Button asChild className="gap-2">
+              <Link href="/dashboard/teacher/assignments/new">
+                <Plus className="w-4 h-4" />
+                Create Assignment
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -185,7 +230,7 @@ const TeacherAssignments = () => {
                         {assignment.title}
                       </CardTitle>
                       <CardDescription className="truncate">
-                        {(assignment as { classrooms?: { name?: string } }).classrooms?.name || "Unknown Classroom"}
+                        {getAssignmentTargetName(assignment as { classrooms?: { name?: string } | null; one_to_one_rooms?: { name?: string } | null })}
                       </CardDescription>
                     </div>
                     <DropdownMenu>

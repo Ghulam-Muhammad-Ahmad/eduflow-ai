@@ -1,7 +1,8 @@
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { useTeacherStudentRecords, type StudentRecord } from "@/hooks/useTeacherStudentRecords";
-import { StudentRecordView } from "./StudentRecordView";
+import { useOwnerStudentRecords } from "@/hooks/useOwnerStudentRecords";
+import type { StudentRecord } from "@/hooks/useTeacherStudentRecords";
+import { StudentRecordView } from "@/features/dashboard/teacher/StudentRecordView";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, ArrowLeft } from "lucide-react";
@@ -10,7 +11,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { generateStudentPDF } from "@/lib/pdfReports";
 
-const TeacherStudentRecordPage = () => {
+const OwnerStudentRecordPage = () => {
   const router = useRouter();
   const { studentId, classroomId, roomId } = router.query;
   const { toast } = useToast();
@@ -18,7 +19,7 @@ const TeacherStudentRecordPage = () => {
   const classroomIdStr = Array.isArray(classroomId) ? classroomId[0] : classroomId;
   const roomIdStr = Array.isArray(roomId) ? roomId[0] : roomId;
 
-  const { data, isLoading, error } = useTeacherStudentRecords(
+  const { data, isLoading, error } = useOwnerStudentRecords(
     classroomIdStr ?? null,
     roomIdStr ?? null
   );
@@ -50,7 +51,7 @@ const TeacherStudentRecordPage = () => {
   };
 
   const handleBack = () => {
-    router.push("/dashboard/teacher/student-records");
+    router.push("/dashboard/owner/student-records");
   };
 
   if (error) {
@@ -123,4 +124,4 @@ const TeacherStudentRecordPage = () => {
   );
 };
 
-export default TeacherStudentRecordPage;
+export default OwnerStudentRecordPage;
