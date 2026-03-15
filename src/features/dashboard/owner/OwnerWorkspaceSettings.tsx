@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Save, AlertCircle, Camera } from "lucide-react";
+import { Building2, Save, AlertCircle, ImageIcon, Settings, Pencil } from "lucide-react";
 import { CurrencySelect } from "@/components/ui/currency-select";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -115,6 +115,34 @@ export default function OwnerWorkspaceSettings() {
     logoInputRef.current?.click();
   };
 
+  const handleRemoveLogo = async () => {
+    if (!workspace?.id || !user?.id) return;
+    setLogoUploading(true);
+    try {
+      const { error: updateError } = await supabase
+        .from("workspaces")
+        .update({ logo_url: null, updated_at: new Date().toISOString() })
+        .eq("id", workspace.id)
+        .eq("owner_id", user.id);
+      if (updateError) {
+        toast.error(updateError.message);
+        return;
+      }
+      setLogoUrl(null);
+      invalidate();
+      toast.success("Workspace logo removed.");
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Failed to remove logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    if (workspace?.name != null) setName(workspace.name);
+    setError(null);
+  };
+
   const handleLogoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !workspace?.id || !user?.id) return;
@@ -168,120 +196,158 @@ export default function OwnerWorkspaceSettings() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-2xl">
+      <div className="w-full space-y-8">
         <div>
-          <h1 className="text-2xl font-bold">Workspace details</h1>
-          <p className="text-muted-foreground mt-1">
-            Edit your workspace name. It appears in the dashboard and in contract drafts.
+          <h1 className="text-2xl font-bold text-foreground">Workspace details</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Manage your workspace core identity, branding assets, and default regional configurations for your team.
           </p>
         </div>
 
         {isLoading && !workspace ? (
-          <p className="text-muted-foreground">Loading workspace…</p>
+          <p className="text-muted-foreground text-sm">Loading workspace…</p>
         ) : !workspace ? (
-          <p className="text-muted-foreground">No workspace found.</p>
+          <p className="text-muted-foreground text-sm">No workspace found.</p>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                Workspace
-              </CardTitle>
-              <CardDescription>
-                Change the display name of your workspace. Tutors and students will see this in relevant places.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Logo section - same pattern as profile avatar */}
-                <div className="flex items-center gap-6">
+          <>
+            {/* Workspace branding */}
+            <Card className="border-border shadow-none rounded-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-medium text-foreground">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  Workspace branding
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <p className="font-medium text-foreground text-sm">Workspace logo</p>
+                    <p className="text-sm text-muted-foreground">
+                      Square image recommended. PNG, JPG or WEBP. Max {LOGO_MAX_MB}MB.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleLogoSelect}
+                        disabled={logoUploading}
+                      >
+                        {logoUploading ? "Uploading…" : logoUrl ? "Change logo" : "Upload logo"}
+                      </Button>
+                      {logoUrl && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRemoveLogo}
+                          disabled={logoUploading}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   <div className="relative shrink-0">
-                    <div className="h-20 w-20 rounded-xl border-2 border-primary/20 bg-muted flex items-center justify-center overflow-hidden">
+                    <div className="h-20 w-20 rounded-lg border border-dashed border-border bg-muted/50 flex items-center justify-center overflow-hidden">
                       {logoUrl ? (
                         <img src={logoUrl} alt="Workspace logo" className="h-full w-full object-contain" />
                       ) : (
-                        <Building2 className="h-10 w-10 text-muted-foreground" />
+                        <Building2 className="h-8 w-8 text-muted-foreground" />
                       )}
                     </div>
                     <button
                       type="button"
                       onClick={handleLogoSelect}
                       disabled={logoUploading}
-                      className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+                      className="absolute bottom-0 right-0 p-1 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+                      aria-label="Change logo"
                     >
-                      <Camera className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" />
                     </button>
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">Workspace logo</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Shown in the dashboard and contract drafts.
-                    </p>
-                    <input
-                      ref={logoInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={handleLogoChange}
+                </div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                />
+              </CardContent>
+            </Card>
+
+            {/* General settings */}
+            <Card className="border-border shadow-none rounded-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-medium text-foreground">
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  General settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <form id="workspace-settings-form" onSubmit={handleSubmit} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="workspace-name" className="text-foreground text-sm">Workspace name</Label>
+                    <Input
+                      id="workspace-name"
+                      type="text"
+                      placeholder="e.g. Acme Tutoring"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="max-w-md h-9"
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={handleLogoSelect}
-                      disabled={logoUploading}
-                    >
-                      {logoUploading ? "Uploading…" : logoUrl ? "Change logo" : "Upload logo"}
-                    </Button>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      PNG, JPG, or WEBP. Max {LOGO_MAX_MB}MB.
+                    <p className="text-xs text-muted-foreground">
+                      Visible to all members of the workspace.
                     </p>
+                    {error && (
+                      <p className="text-sm text-destructive flex items-center gap-1">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {error}
+                      </p>
+                    )}
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="workspace-currency">Default currency</Label>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Used for new tutor contracts and rate display. You can override when creating a tutor.
-                  </p>
-                  <CurrencySelect
-                    id="workspace-currency"
-                    value={defaultCurrency}
-                    onChange={handleCurrencyChange}
-                    placeholder="Select currency"
-                    className="max-w-[220px]"
-                    disabled={currencySaving}
-                  />
-                  {currencySaving && (
-                    <p className="text-xs text-muted-foreground">Saving…</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="workspace-name">Workspace name</Label>
-                  <Input
-                    id="workspace-name"
-                    type="text"
-                    placeholder="e.g. Acme Tutoring"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="max-w-md"
-                  />
-                  {error && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {error}
+                  <div className="space-y-1.5 flex flex-col gap-1">
+                    <Label htmlFor="workspace-currency" className="text-foreground text-sm">Default currency</Label>
+                    <CurrencySelect
+                      id="workspace-currency"
+                      value={defaultCurrency}
+                      onChange={handleCurrencyChange}
+                      placeholder="Select currency"
+                      className="max-w-[400px]"
+                      disabled={currencySaving}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Default for new invoices and projects.
                     </p>
-                  )}
-                </div>
-                <Button type="submit" disabled={isSubmitting}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {isSubmitting ? "Saving…" : "Save changes"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                    {currencySaving && (
+                      <p className="text-xs text-muted-foreground">Saving…</p>
+                    )}
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Footer actions */}
+            <div className="flex flex-row items-center justify-between gap-3 pt-4 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDiscard}
+              >
+                Discard changes
+              </Button>
+              <Button
+                type="submit"
+                form="workspace-settings-form"
+                size="sm"
+                disabled={isSubmitting}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isSubmitting ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </>
         )}
       </div>
     </DashboardLayout>

@@ -7,6 +7,8 @@ import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
+import { parseAmountFromDisplay } from "@/lib/formatAmount";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -94,9 +96,12 @@ export default function OwnerContractNew() {
   const router = useRouter();
   const preselectedTutorId = typeof router.query.tutorId === "string" ? router.query.tutorId : null;
   const { workspace, tutors, contractByTutorId, invalidate, isLoading } = useOwnerWorkspace();
+  const workspaceCurrency = (workspace?.settings?.default_currency?.trim()) || "PKR";
   const [selectedTutorId, setSelectedTutorId] = useState<string | null>(preselectedTutorId);
   const [durationPreset, setDurationPreset] = useState<string>("12 months");
   const [durationCustom, setDurationCustom] = useState("");
+  const [payType, setPayType] = useState<"hourly" | "per_session" | "fixed_monthly">("hourly");
+  const [rateAmount, setRateAmount] = useState("");
   const [instructions, setInstructions] = useState("");
   const [generating, setGenerating] = useState(false);
 
@@ -108,6 +113,16 @@ export default function OwnerContractNew() {
 
   const tutorsWithoutContract = tutors.filter((t) => !contractByTutorId.get(t.user_id)?.contract_body_text);
   const contract = selectedTutorId ? contractByTutorId.get(selectedTutorId) : null;
+
+  // Sync pay/rate/currency from contract when tutor changes (contract_type takes precedence for billing)
+  const contractPayType = (contract as { contract_type?: string } | undefined)?.contract_type ?? contract?.pay_type;
+  useEffect(() => {
+    if (contract) {
+      const pt = contractPayType === "per_session" ? "per_session" : contractPayType === "fixed_monthly" ? "fixed_monthly" : "hourly";
+      setPayType(pt);
+      setRateAmount(contract.rate_amount != null ? String(contract.rate_amount) : "0");
+    }
+  }, [contract?.id, contract?.rate_amount, contractPayType]);
   const tutor = selectedTutorId ? tutors.find((t) => t.user_id === selectedTutorId) : null;
   const tutorName = tutor?.profile?.display_name ?? tutor?.profile?.email ?? "Tutor";
   const isCustomDuration = durationPreset === "__custom__";
@@ -126,10 +141,15 @@ export default function OwnerContractNew() {
         : typeof contract.subjects === "string"
           ? contract.subjects
           : "";
+      const rateVal = parseAmountFromDisplay(rateAmount);
+      const currencyVal = workspaceCurrency || "PKR";
       const contextBlock = `Context:
 - Business/Workspace: ${workspace?.name ?? "The Business"}
 - Tutor: ${tutorName}
-- Rate: ${contract.rate_amount} ${contract.rate_currency} per ${contract.pay_type === "per_session" ? "session" : "hour"}
+- Pay type: ${payType === "per_session" ? "Per session" : payType === "fixed_monthly" ? "Monthly (fixed)" : "Hourly"}
+- Rate amount: ${rateVal}
+- Currency: ${currencyVal}
+- Rate (for contract): ${rateVal} ${currencyVal} per ${payType === "per_session" ? "session" : payType === "fixed_monthly" ? "month" : "hour"}
 - Subjects: ${subjectsList || "General tutoring"}${contractDuration ? `\n- Contract duration/term: ${contractDuration}` : ""}`;
       const prompt = `${contextBlock}\n\nOwner's instructions:\n${instructions.trim()}`;
 
@@ -162,6 +182,10 @@ export default function OwnerContractNew() {
           tutor_contract_id: contract.id,
           contract_body_text: content,
           set_pending_signature: true,
+          pay_type: payType,
+          contract_type: payType,
+          rate_amount: rateVal,
+          rate_currency: currencyVal,
         }),
         credentials: "include",
       });
@@ -249,11 +273,57 @@ export default function OwnerContractNew() {
                   </Select>
                 </section>
 
-                {/* Step 2: Duration */}
+                {/* Step 2: Pay type, Rate, Currency */}
+                {contract && (
+                  <section className="p-6 border-b border-border/80">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/15 text-primary text-xs font-medium">
+                        2
+                      </span>
+                      <Label className="text-base font-medium text-foreground">Compensation (for contract)</Label>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="payType">Pay type</Label>
+                        <Select value={payType} onValueChange={(v) => setPayType(v as "hourly" | "per_session" | "fixed_monthly")}>
+                          <SelectTrigger id="payType" className="mt-2 h-11 bg-background/50">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hourly">Hourly</SelectItem>
+                            <SelectItem value="per_session">Per session</SelectItem>
+                            <SelectItem value="fixed_monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="rateAmount">Rate amount</Label>
+                        <AmountInput
+                          id="rateAmount"
+                          placeholder="0"
+                          value={rateAmount}
+                          onChange={setRateAmount}
+                          className="mt-2 h-11 bg-background/50"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label>Currency</Label>
+                        <p className="text-sm font-medium text-foreground rounded-md border border-border bg-muted/40 px-3 py-2 inline-block">
+                          {workspaceCurrency || "PKR"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Workspace default currency. Set in Workspace settings.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Step 3: Duration */}
                 <section className="p-6 border-b border-border/80">
                   <div className="flex items-center gap-2 mb-4">
                     <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/15 text-primary text-xs font-medium">
-                      2
+                      3
                     </span>
                     <Label className="text-base font-medium text-foreground">Contract duration</Label>
                     <Calendar className="h-4 w-4 text-muted-foreground ml-0.5" />
@@ -282,12 +352,12 @@ export default function OwnerContractNew() {
                   </div>
                 </section>
 
-                {/* Step 3: Instructions */}
+                {/* Step 4: Instructions */}
                 {contract && (
                   <section className="p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/15 text-primary text-xs font-medium">
-                        3
+                        4
                       </span>
                       <Label htmlFor="instructions" className="text-base font-medium text-foreground">
                         Instructions for the AI

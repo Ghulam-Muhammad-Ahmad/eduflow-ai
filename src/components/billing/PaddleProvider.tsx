@@ -9,9 +9,16 @@ declare global {
       Initialize: (opts: { token: string }) => void;
       Checkout?: {
         open: (opts: {
+          transactionId?: string;
           items?: Array<{ priceId: string; quantity: number }>;
           customData?: Record<string, string>;
-          settings?: { displayMode?: string; successUrl?: string };
+          settings?: {
+            displayMode?: string;
+            frameTarget?: string;
+            frameInitialHeight?: string;
+            frameStyle?: string;
+            successUrl?: string;
+          };
         }) => void;
       };
     };

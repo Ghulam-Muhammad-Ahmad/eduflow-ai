@@ -1,12 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAuthUser } from "@/integrations/supabase/server";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
-import {
-  buildMockFinancialSummary,
-  getCallerRole,
-  getSessionFinancialMocksBySessionIds,
-  type SessionRecord,
-} from "@/server/lecture-sessions";
+import { getCallerRole } from "@/server/lecture-sessions";
+import { getRealFinancialSummary } from "@/server/billing/financial-summary";
 
 type SummaryFilters = {
   tutorId?: string;
@@ -32,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const callerRole = await getCallerRole(user.id);
     if (callerRole !== "admin" && callerRole !== "teacher") {
-      return res.status(403).json({ error: "Only owners and tutors can access mock summaries." });
+      return res.status(403).json({ error: "Only owners and tutors can access financial summary." });
     }
 
     const filters: SummaryFilters = {
@@ -42,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       studentId: typeof req.query.studentId === "string" ? req.query.studentId : undefined,
     };
 
-    let query = supabaseAdmin.from("sessions").select("*").neq("status", "cancelled");
+    let query = supabaseAdmin.from("sessions").select("id, title, status, scope_type, starts_at, ends_at, workspace_id, classroom_id, student_id").neq("status", "cancelled");
 
     if (callerRole === "teacher") {
       query = query.eq("tutor_id", user.id);
@@ -63,18 +59,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (sessionsError) throw sessionsError;
+    const sessionList = (sessions ?? []) as Array<{
+      id: string;
+      title: string;
+      status: string;
+      scope_type: string;
+      starts_at: string;
+      ends_at: string;
+      workspace_id: string;
+      classroom_id: string | null;
+      student_id: string | null;
+    }>;
 
-    const sessionIds = (sessions ?? []).map((session) => session.id);
-    const financialMocks = await getSessionFinancialMocksBySessionIds(sessionIds);
-    const summary = await buildMockFinancialSummary(
-      ((sessions ?? []) as SessionRecord[]),
-      financialMocks
-    );
+    const workspaceId = sessionList[0]?.workspace_id;
+    if (!workspaceId) {
+      return res.status(200).json({
+        summary: {
+          completedSessions: 0,
+          scheduledSessions: 0,
+          completedDurationMinutes: 0,
+          participantCountTotal: 0,
+          tutorPayrollByCurrency: [],
+          studentChargesByCurrency: [],
+          lineItems: [],
+        },
+      });
+    }
+
+    const summary = await getRealFinancialSummary({
+      workspaceId,
+      sessions: sessionList,
+      tutorId: filters.tutorId ?? null,
+    });
 
     return res.status(200).json({ summary });
   } catch (error) {
     return res.status(400).json({
-      error: error instanceof Error ? error.message : "Failed to read mock financial summary.",
+      error: error instanceof Error ? error.message : "Failed to read financial summary.",
     });
   }
 }

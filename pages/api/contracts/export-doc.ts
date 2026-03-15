@@ -49,14 +49,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     owner_signed_at: string | null;
     updated_at: string;
   };
-  const isOwner = await (async () => {
-    const { data: w } = await supabaseAdmin
-      .from("workspaces")
-      .select("owner_id")
-      .eq("id", c.workspace_id)
-      .maybeSingle();
-    return (w as { owner_id?: string } | null)?.owner_id === user.id;
-  })();
+  const { data: workspace } = await supabaseAdmin
+    .from("workspaces")
+    .select("owner_id, logo_url, name")
+    .eq("id", c.workspace_id)
+    .maybeSingle();
+  const w = workspace as {
+    owner_id?: string;
+    logo_url?: string | null;
+    name?: string | null;
+  } | null;
+  const isOwner = w?.owner_id === user.id;
   const isTutor = c.tutor_id === user.id;
   if (!isOwner && !isTutor) {
     return res.status(403).json({ error: "Not allowed to export this contract" });
@@ -66,13 +69,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Contract has no content to export; generate or revise the contract first" });
   }
 
-  const docBuffer = await generateContractDoc(c.contract_body_text, {
-    tutorSignatureName: c.tutor_signature_name,
-    contractSignedAt: c.contract_signed_at,
-    ownerSignatureName: c.owner_signature_name,
-    ownerSignedAt: c.owner_signed_at,
-    updatedAt: c.updated_at,
-  });
+  let watermarkLogo: { data: Buffer; type: "png" | "jpg" } | undefined;
+  if (w?.logo_url?.trim()) {
+    try {
+      const imgRes = await fetch(w.logo_url.trim());
+      if (imgRes.ok) {
+        const arr = new Uint8Array(await imgRes.arrayBuffer());
+        const data = Buffer.from(arr);
+        const ct = (imgRes.headers.get("content-type") ?? "").toLowerCase();
+        const type: "png" | "jpg" =
+          ct.includes("png") ? "png" : ct.includes("jpeg") || ct.includes("jpg") ? "jpg" : "png";
+        watermarkLogo = { data, type };
+      }
+    } catch {
+      // omit watermark if fetch fails
+    }
+  }
+
+  const docBuffer = await generateContractDoc(
+    c.contract_body_text,
+    {
+      tutorSignatureName: c.tutor_signature_name,
+      contractSignedAt: c.contract_signed_at,
+      ownerSignatureName: c.owner_signature_name,
+      ownerSignedAt: c.owner_signed_at,
+      updatedAt: c.updated_at,
+    },
+    watermarkLogo || w?.name
+      ? { watermarkLogo: watermarkLogo ?? undefined, workspaceName: w?.name ?? undefined }
+      : undefined
+  );
   const storagePath = `${c.workspace_id}/${c.tutor_id}.docx`;
 
   const { error: uploadError } = await supabaseAdmin.storage

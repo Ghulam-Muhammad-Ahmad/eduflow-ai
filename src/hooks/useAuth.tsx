@@ -28,7 +28,6 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, displayName: string, roleOrAccountType: AppRole | AccountType) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   setRoleForOAuthUser: (role: AppRole) => Promise<{ error: Error | null }>;
   setAccountTypeForOAuthUser: (accountType: AccountType) => Promise<{ error: Error | null }>;
@@ -363,24 +362,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const getRedirectUrl = () => {
-    if (typeof window === "undefined") return "";
-    return `${window.location.origin}/auth/callback`;
-  };
-
-  const signInWithGoogle = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: getRedirectUrl() },
-      });
-      if (error) throw error;
-      return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  };
-
   const signOut = async () => {
     await supabase.auth.signOut();
     setRole(null);
@@ -550,7 +531,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loading,
         signUp,
         signIn,
-        signInWithGoogle,
         signOut,
         setRoleForOAuthUser,
         setAccountTypeForOAuthUser,

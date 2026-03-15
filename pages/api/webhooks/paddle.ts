@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Readable } from "stream";
 import { verifyPaddleSignature } from "@/lib/paddle-webhook";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
+import type { Database } from "@/integrations/supabase/types";
 import { getPlanFromPriceId, getCreditsForPlan } from "@/lib/ai-credits";
 import { getProductCustomData, docStorageGbToMb } from "@/lib/paddle-product";
 
@@ -18,6 +19,8 @@ async function getRawBody(readable: Readable): Promise<Buffer> {
 }
 
 type PaddleSubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "inactive";
+type WorkspaceSubscriptionInsert = Database["public"]["Tables"]["workspace_subscriptions"]["Insert"];
+type UserSubscriptionInsert = Database["public"]["Tables"]["user_subscriptions"]["Insert"];
 
 function mapPaddleStatus(s: string): PaddleSubscriptionStatus {
   const lower = (s || "").toLowerCase();
@@ -169,22 +172,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const docStorageLimitMb = docStorageGbToMb(productCustomData.doc_storage_gb);
     const isActiveOrTrialing = status === "active" || status === "trialing";
 
-    const workspaceSubscriptionRow: Record<string, unknown> = {
-      workspace_id: workspaceId,
-      paddle_subscription_id: subscriptionId,
-      paddle_customer_id: customerId,
-      price_id: priceId,
-      status,
-      current_period_ends_at: periodEndsAt,
-      trial_ends_at: trialEndsAt,
-      updated_at: new Date().toISOString(),
-    };
-    if (docStorageLimitMb != null) workspaceSubscriptionRow.doc_storage_limit_mb = docStorageLimitMb;
-
     if (workspaceId) {
+      const workspaceSubscriptionRow: WorkspaceSubscriptionInsert = {
+        workspace_id: workspaceId,
+        paddle_subscription_id: subscriptionId,
+        paddle_customer_id: customerId,
+        price_id: priceId,
+        status,
+        current_period_ends_at: periodEndsAt,
+        trial_ends_at: trialEndsAt,
+        updated_at: new Date().toISOString(),
+      };
+      if (docStorageLimitMb != null) workspaceSubscriptionRow.doc_storage_limit_mb = docStorageLimitMb;
       const { error } = await admin
         .from("workspace_subscriptions")
-        .upsert(workspaceSubscriptionRow as Record<string, string | number | null>, {
+        .upsert(workspaceSubscriptionRow, {
           onConflict: "workspace_id",
         });
       if (error) {
@@ -202,22 +204,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
     }
-    const userSubscriptionRow: Record<string, unknown> = {
-      user_id: userId,
-      paddle_subscription_id: subscriptionId,
-      paddle_customer_id: customerId,
-      price_id: priceId,
-      status,
-      current_period_ends_at: periodEndsAt,
-      trial_ends_at: trialEndsAt,
-      updated_at: new Date().toISOString(),
-    };
-    if (docStorageLimitMb != null) userSubscriptionRow.doc_storage_limit_mb = docStorageLimitMb;
-
     if (userId) {
+      const userSubscriptionRow: UserSubscriptionInsert = {
+        user_id: userId,
+        paddle_subscription_id: subscriptionId,
+        paddle_customer_id: customerId,
+        price_id: priceId,
+        status,
+        current_period_ends_at: periodEndsAt,
+        trial_ends_at: trialEndsAt,
+        updated_at: new Date().toISOString(),
+      };
+      if (docStorageLimitMb != null) userSubscriptionRow.doc_storage_limit_mb = docStorageLimitMb;
       const { error } = await admin
         .from("user_subscriptions")
-        .upsert(userSubscriptionRow as Record<string, string | number | null>, {
+        .upsert(userSubscriptionRow, {
           onConflict: "user_id",
         });
       if (error) {

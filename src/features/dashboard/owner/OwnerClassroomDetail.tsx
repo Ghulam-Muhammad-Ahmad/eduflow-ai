@@ -70,6 +70,7 @@ import {
 } from "recharts";
 import { format, startOfWeek, subWeeks } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { ClassroomSettingsSection, type ClassroomSettingsForm } from "@/features/dashboard/shared/ClassroomSettingsSection";
 
 type ProfileLike = { display_name?: string | null; email?: string | null; avatar_url?: string | null };
 
@@ -86,6 +87,7 @@ export default function OwnerClassroomDetail() {
     documents: workspaceDocuments,
     updateClassroomTutors,
     addStudentToClassroom,
+    updateClassroomSettings,
     isLoading: workspaceLoading,
   } = useOwnerWorkspace();
   const queryClient = useQueryClient();
@@ -192,7 +194,6 @@ export default function OwnerClassroomDetail() {
   const [removeTutorOpen, setRemoveTutorOpen] = useState(false);
   const [removeTutorId, setRemoveTutorId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-
   const tutorMap = new Map(tutors.map((t) => [t.user_id, t.profile?.display_name ?? t.profile?.email ?? "Tutor"]));
 
   const enrolledStudentIds = new Set(roster.map((r) => r.student_id));
@@ -441,6 +442,18 @@ export default function OwnerClassroomDetail() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Classroom Settings (owner and teacher can edit) */}
+        {classroom && (
+          <ClassroomSettingsSection
+            classroomName={classroom.name}
+            settings={classroom.settings as ClassroomSettingsForm | null | undefined}
+            onSave={async (settings) => {
+              await updateClassroomSettings.mutateAsync({ id: classroom.id, settings });
+            }}
+            isSaving={updateClassroomSettings.isPending}
+          />
+        )}
 
         <Card>
           <CardHeader>
@@ -852,6 +865,7 @@ export default function OwnerClassroomDetail() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </div>
     </DashboardLayout>
   );

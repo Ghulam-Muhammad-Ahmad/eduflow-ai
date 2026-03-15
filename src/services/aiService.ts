@@ -1,19 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import type { AITaskType } from '@/types/ai';
 
 // AI Provider Types - OpenAI only
 export type AIProvider = 'openai';
 export type { AITaskType } from '@/types/ai';
 
+type CreditContextRow = Database["public"]["Functions"]["get_credit_context"]["Returns"][number];
+
 // Optional pre-check for UX (get remaining credits). Enforcement is server-side.
 export const checkAIUsageLimit = async (userId: string) => {
   try {
-    const { data, error } = await (supabase.rpc as (name: string, args: { _user_id: string }) => ReturnType<typeof supabase.rpc>)('get_credit_context', {
+    const { data, error } = await supabase.rpc('get_credit_context', {
       _user_id: userId,
     });
     if (error) throw error;
-    const row = Array.isArray(data) ? data[0] : data;
+    const row: CreditContextRow | null = Array.isArray(data) ? (data[0] ?? null) : null;
     const limit = row?.credits_limit ?? 0;
     const used = row?.credits_used ?? 0;
     const remaining = row?.remaining ?? Math.max(0, limit - used);

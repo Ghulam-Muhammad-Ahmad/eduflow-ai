@@ -3,8 +3,8 @@ import { getAuthUser } from "@/integrations/supabase/server";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
 
 /**
- * POST body: { tutor_contract_id: string, contract_body_text: string, set_pending_signature?: boolean }
- * Updates contract_body_text. If set_pending_signature is true, also sets contract_status to "pending_signature".
+ * POST body: { tutor_contract_id: string, contract_body_text: string, set_pending_signature?: boolean, pay_type?: 'hourly'|'per_session'|'fixed_monthly', contract_type?: same, rate_amount?: number, rate_currency?: string }
+ * Updates contract_body_text and optionally pay_type, contract_type, rate_amount, rate_currency. If set_pending_signature is true, also sets contract_status to "pending_signature".
  * Caller must be workspace owner; contract must not be signed.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -25,6 +25,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const tutorContractId = typeof req.body?.tutor_contract_id === "string" ? req.body.tutor_contract_id.trim() : null;
   const contractBodyText = typeof req.body?.contract_body_text === "string" ? req.body.contract_body_text : null;
   const setPendingSignature = req.body?.set_pending_signature === true;
+  const validPayTypes = ["hourly", "per_session", "fixed_monthly"] as const;
+  const payType = validPayTypes.includes(req.body?.pay_type) ? req.body.pay_type : undefined;
+  const contractType = validPayTypes.includes(req.body?.contract_type) ? req.body.contract_type : payType;
+  const rateAmount = typeof req.body?.rate_amount === "number" && req.body.rate_amount >= 0 ? req.body.rate_amount : typeof req.body?.rate_amount === "string" && /^\d+(\.\d+)?$/.test(req.body.rate_amount) ? parseFloat(req.body.rate_amount) : undefined;
+  const rateCurrency = typeof req.body?.rate_currency === "string" && req.body.rate_currency.trim().length > 0 && req.body.rate_currency.trim().length <= 10 ? req.body.rate_currency.trim() : undefined;
 
   if (!tutorContractId) {
     return res.status(400).json({ error: "tutor_contract_id is required" });
@@ -58,13 +63,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Only the workspace owner can edit the contract" });
   }
 
-  const updatePayload: { contract_body_text: string; updated_at: string; contract_status?: string } = {
+  type ContractType = "hourly" | "per_session" | "fixed_monthly";
+  const updatePayload: {
+    contract_body_text: string;
+    updated_at: string;
+    contract_status?: string;
+    pay_type?: ContractType;
+    contract_type?: ContractType;
+    rate_amount?: number;
+    rate_currency?: string;
+  } = {
     contract_body_text: contractBodyText,
     updated_at: new Date().toISOString(),
   };
   if (setPendingSignature) {
     updatePayload.contract_status = "pending_signature";
   }
+  if (payType !== undefined) updatePayload.pay_type = payType;
+  if (contractType !== undefined) updatePayload.contract_type = contractType;
+  if (rateAmount !== undefined) updatePayload.rate_amount = rateAmount;
+  if (rateCurrency !== undefined) updatePayload.rate_currency = rateCurrency;
 
   const { error: updateError } = await supabaseAdmin
     .from("tutor_contracts")

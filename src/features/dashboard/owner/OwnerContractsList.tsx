@@ -106,6 +106,8 @@ export default function OwnerContractsList() {
                   ) : filteredContracts.map((c) => {
                     const name = getTutorName(c.tutor_id);
                     const statusLabel = contractStatusLabel[c.contract_status] ?? c.contract_status;
+                    const payType = (c as { contract_type?: string }).contract_type ?? c.pay_type;
+                    const rateUnit = payType === "per_session" ? "session" : payType === "fixed_monthly" ? "month" : "hour";
                     return (
                       <tr key={c.id} className="border-b border-border last:border-b-0">
                         <td className="px-4 py-3">
@@ -130,7 +132,7 @@ export default function OwnerContractsList() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">
-                          {c.rate_amount} {c.rate_currency} / {c.pay_type === "per_session" ? "session" : "hour"}
+                          {c.rate_amount} {c.rate_currency} / {rateUnit}
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">
                           {c.contract_signed_at

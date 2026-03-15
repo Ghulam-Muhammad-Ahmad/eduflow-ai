@@ -7,7 +7,9 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
+import { parseAmountFromDisplay } from "@/lib/formatAmount";
 import { ArrowLeft, PenLine, Pencil, DollarSign, Download, Send } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useState } from "react";
@@ -22,7 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { CurrencySelect } from "@/components/ui/currency-select";
+import { useWorkspaceCurrency } from "@/hooks/useWorkspaceCurrency";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const contractStatusLabel: Record<string, string> = {
@@ -36,6 +38,7 @@ export default function OwnerContractDetail() {
   const router = useRouter();
   const contractId = typeof router.query.id === "string" ? router.query.id : null;
   const { tutors, tutorContracts, invalidate, isLoading } = useOwnerWorkspace();
+  const workspaceCurrency = useWorkspaceCurrency();
   const contract = contractId ? tutorContracts.find((c) => c.id === contractId) : null;
   const tutor = contract ? tutors.find((t) => t.user_id === contract.tutor_id) : null;
   const tutorName = tutor?.profile?.display_name ?? tutor?.profile?.email ?? "Tutor";
@@ -49,9 +52,8 @@ export default function OwnerContractDetail() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [editPayType, setEditPayType] = useState<"hourly" | "per_session">("hourly");
+  const [editPayType, setEditPayType] = useState<"hourly" | "per_session" | "fixed_monthly">("hourly");
   const [editRateAmount, setEditRateAmount] = useState("");
-  const [editRateCurrency, setEditRateCurrency] = useState("GBP");
   const [editSignedAt, setEditSignedAt] = useState("");
   const [savingDetails, setSavingDetails] = useState(false);
 
@@ -60,9 +62,9 @@ export default function OwnerContractDetail() {
 
   const openDetailsDialog = () => {
     if (!contract) return;
-    setEditPayType((contract.pay_type as "hourly" | "per_session") || "hourly");
+    const ct = (contract as { contract_type?: string }).contract_type ?? contract.pay_type;
+    setEditPayType((ct === "per_session" ? "per_session" : ct === "fixed_monthly" ? "fixed_monthly" : "hourly") as "hourly" | "per_session" | "fixed_monthly");
     setEditRateAmount(String(contract.rate_amount ?? ""));
-    setEditRateCurrency(contract.rate_currency?.trim() || "GBP");
     setEditSignedAt(
       contract.contract_signed_at
         ? new Date(contract.contract_signed_at).toISOString().slice(0, 10)
@@ -76,14 +78,16 @@ export default function OwnerContractDetail() {
     setSavingDetails(true);
     try {
       const payload: {
-        pay_type: "hourly" | "per_session";
+        pay_type: "hourly" | "per_session" | "fixed_monthly";
+        contract_type: "hourly" | "per_session" | "fixed_monthly";
         rate_amount: number;
         rate_currency: string;
         contract_signed_at: string | null;
       } = {
         pay_type: editPayType,
-        rate_amount: parseFloat(editRateAmount) || 0,
-        rate_currency: (editRateCurrency || "GBP").trim(),
+        contract_type: editPayType,
+        rate_amount: parseAmountFromDisplay(editRateAmount),
+        rate_currency: workspaceCurrency.trim(),
         contract_signed_at: editSignedAt ? new Date(editSignedAt).toISOString() : null,
       };
       const { error } = await supabase
@@ -527,37 +531,35 @@ Output only the full contract Markdown, no preamble or explanation.`;
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-pay-type">Pay type</Label>
-                <Select value={editPayType} onValueChange={(v) => setEditPayType(v as "hourly" | "per_session")}>
+                <Select value={editPayType} onValueChange={(v) => setEditPayType(v as "hourly" | "per_session" | "fixed_monthly")}>
                   <SelectTrigger id="edit-pay-type" className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="hourly">Hourly</SelectItem>
                     <SelectItem value="per_session">Per session</SelectItem>
+                    <SelectItem value="fixed_monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label htmlFor="edit-rate-amount">Rate amount</Label>
-                <Input
+                <AmountInput
                   id="edit-rate-amount"
-                  type="number"
-                  min={0}
-                  step={0.01}
                   value={editRateAmount}
-                  onChange={(e) => setEditRateAmount(e.target.value)}
+                  onChange={setEditRateAmount}
                   className="mt-2"
                 />
               </div>
             </div>
             <div>
               <Label htmlFor="edit-rate-currency">Currency</Label>
-              <CurrencySelect
+              <Input
                 id="edit-rate-currency"
-                value={editRateCurrency}
-                onChange={setEditRateCurrency}
-                placeholder="Select currency"
-                className="mt-2 max-w-full"
+                value={workspaceCurrency}
+                readOnly
+                disabled
+                className="mt-2 bg-muted"
               />
             </div>
             <div>

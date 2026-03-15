@@ -7,9 +7,72 @@ const PADDLE_API_BASE =
     ? "https://api.paddle.com"
     : "https://sandbox-api.paddle.com";
 
+type PaddleUser = { id: string; email?: string | null; user_metadata?: Record<string, unknown> };
+
+/**
+ * Resolves a Paddle customer_id for the caller so checkout can prefill email/name.
+ * Uses existing paddle_customer_id from workspace_subscriptions if available, otherwise
+ * lists Paddle customers by email or creates one.
+ */
+async function getOrCreatePaddleCustomerId(
+  apiKey: string,
+  caller: PaddleUser,
+  workspaceId: string | null,
+  customerName: string | null
+): Promise<string | null> {
+  if (!supabaseAdmin) return null;
+
+  // Reuse existing Paddle customer for this workspace if we have one (e.g. from a previous subscription)
+  if (workspaceId) {
+    const { data: subs } = await supabaseAdmin
+      .from("workspace_subscriptions")
+      .select("paddle_customer_id")
+      .eq("workspace_id", workspaceId)
+      .not("paddle_customer_id", "is", null)
+      .limit(1);
+    const existingId = Array.isArray(subs) && subs[0]?.paddle_customer_id ? subs[0].paddle_customer_id : null;
+    if (existingId) return existingId;
+  }
+
+  const email = caller.email?.trim();
+  if (!email) return null;
+
+  const listRes = await fetch(
+    `${PADDLE_API_BASE}/customers?email=${encodeURIComponent(email)}&per_page=1`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    }
+  );
+  if (listRes.ok) {
+    const listJson = (await listRes.json()) as { data?: Array<{ id: string }> };
+    if (Array.isArray(listJson.data) && listJson.data.length > 0) {
+      return listJson.data[0].id;
+    }
+  }
+
+  const createRes = await fetch(`${PADDLE_API_BASE}/customers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      email,
+      name: customerName || null,
+    }),
+  });
+  if (!createRes.ok) {
+    console.warn("[checkout-url] Paddle create customer failed:", createRes.status, await createRes.text());
+    return null;
+  }
+  const createJson = (await createRes.json()) as { data?: { id: string } };
+  return createJson.data?.id ?? null;
+}
+
 /**
  * Creates a Paddle transaction and returns the checkout URL.
  * Only workspace owners can start checkout; workspaceId in customData must be owned by the caller.
+ * Prefills checkout email/name by linking the transaction to a Paddle customer when possible.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -66,14 +129,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  const payload = {
+  // Resolve customer name for prefill (profile display_name or auth user_metadata)
+  let customerName: string | null = null;
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("display_name")
+    .eq("user_id", caller.id)
+    .maybeSingle();
+  if (profile?.display_name?.trim()) {
+    customerName = profile.display_name.trim();
+  } else {
+    const meta = caller.user_metadata as Record<string, unknown> | undefined;
+    const full = (meta?.full_name as string) ?? (meta?.name as string);
+    if (typeof full === "string" && full.trim()) customerName = full.trim();
+  }
+
+  const customerId = await getOrCreatePaddleCustomerId(
+    apiKey,
+    caller,
+    workspaceId,
+    customerName
+  );
+
+  const payload: {
+    items: Array<{ price_id: string; quantity: number }>;
+    custom_data: Record<string, string>;
+    collection_mode: "automatic";
+    checkout: { url: null };
+    customer_id?: string;
+  } = {
     items: [{ price_id: priceId, quantity: 1 }],
     custom_data: customData,
-    collection_mode: "automatic" as const,
+    collection_mode: "automatic",
     checkout: {
       url: null,
     },
   };
+  if (customerId) payload.customer_id = customerId;
 
   const response = await fetch(`${PADDLE_API_BASE}/transactions`, {
     method: "POST",

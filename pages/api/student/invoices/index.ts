@@ -1,0 +1,32 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getAuthUser } from "@/integrations/supabase/server";
+import { supabaseAdmin } from "@/integrations/supabase/admin";
+
+/**
+ * GET /api/student/invoices
+ * Returns invoice rows for the current user (student). Student role only.
+ */
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const { user, error: authError } = await getAuthUser(req, res);
+  if (authError || !user) {
+    return res.status(401).json({ error: authError?.message ?? "Unauthorized" });
+  }
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: "Server configuration error" });
+  }
+
+  const { data: rows, error } = await supabaseAdmin
+    .from("student_invoice_rows")
+    .select("*")
+    .eq("student_id", user.id)
+    .order("due_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ invoices: rows ?? [] });
+}

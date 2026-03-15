@@ -3,8 +3,6 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CurrencySelect } from "@/components/ui/currency-select";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
@@ -12,7 +10,7 @@ import { useWorkspaceStorageSummary } from "@/hooks/useStorage";
 import { ArrowLeft, UserPlus, Eye, EyeOff, Copy, FileText, CheckCircle2, KeyRound, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { passwordSchema } from "@/lib/validation";
+import { strongPasswordSchema } from "@/lib/validation";
 import {
   bytesToWholeMb,
   formatStorageSize,
@@ -32,15 +30,10 @@ export default function OwnerInviteTutor() {
   const { workspaceStorage, isLoading: storageLoading, refetch: refetchStorage } = useWorkspaceStorageSummary(true);
   const availableCredits = usage?.remainingCredits ?? 0;
   const availableStorageMb = bytesToWholeMb(workspaceStorage?.unassignedBytes ?? 0);
-  const workspaceCurrency =
-    (workspace?.settings?.default_currency?.trim()) || "GBP";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [payType, setPayType] = useState<"hourly" | "per_session">("hourly");
-  const [rateAmount, setRateAmount] = useState("");
-  const [rateCurrency, setRateCurrency] = useState("GBP");
   const [subjects, setSubjects] = useState("");
   const [initialCredits, setInitialCredits] = useState(0);
   const [initialStorageMb, setInitialStorageMb] = useState(0);
@@ -57,10 +50,6 @@ export default function OwnerInviteTutor() {
   useEffect(() => {
     if (availableStorageMb < initialStorageMb) setInitialStorageMb(availableStorageMb);
   }, [availableStorageMb, initialStorageMb]);
-
-  useEffect(() => {
-    if (workspaceCurrency) setRateCurrency(workspaceCurrency);
-  }, [workspaceCurrency]);
 
   const getFormattedDetails = () => {
     if (!createdTutor) return "";
@@ -98,7 +87,6 @@ export default function OwnerInviteTutor() {
     setPassword("");
     setFirstName("");
     setLastName("");
-    setRateAmount("");
     setSubjects("");
     setInitialCredits(0);
     setInitialStorageMb(0);
@@ -116,9 +104,9 @@ export default function OwnerInviteTutor() {
       setErrors({ firstName: "First and last name are required" });
       return;
     }
-    const passResult = passwordSchema.safeParse(password);
+    const passResult = strongPasswordSchema.safeParse(password);
     if (!passResult.success) {
-      setErrors({ password: passResult.error.errors[0]?.message ?? "Password must be at least 6 characters" });
+      setErrors({ password: passResult.error.errors[0]?.message ?? "Invalid password" });
       return;
     }
     setCreating(true);
@@ -129,9 +117,6 @@ export default function OwnerInviteTutor() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         role: "tutor",
-        payType,
-        rateAmount: rateAmount === "" ? 0 : parseFloat(rateAmount) || 0,
-        rateCurrency: rateCurrency.trim() || "GBP",
         subjects: subjects
           .split(/[,;]/)
           .map((s) => s.trim())
@@ -180,7 +165,6 @@ export default function OwnerInviteTutor() {
         setPassword("");
         setFirstName("");
         setLastName("");
-        setRateAmount("");
         setSubjects("");
         setInitialCredits(0);
         setInitialStorageMb(0);
@@ -319,15 +303,15 @@ export default function OwnerInviteTutor() {
               {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
             </div>
             <div>
-              <Label htmlFor="password">Password (min 6 characters)</Label>
+              <Label htmlFor="password">Password</Label>
               <div className="relative mt-2">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="Min 8 chars, uppercase, lowercase, number"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
+                  className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
                 />
                 <button
                   type="button"
@@ -338,46 +322,6 @@ export default function OwnerInviteTutor() {
                 </button>
               </div>
               {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="payType">Pay type</Label>
-                <Select value={payType} onValueChange={(v) => setPayType(v as "hourly" | "per_session")}>
-                  <SelectTrigger id="payType" className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hourly">Hourly</SelectItem>
-                    <SelectItem value="per_session">Per session</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="rateAmount">Rate amount</Label>
-                <Input
-                  id="rateAmount"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  placeholder="0"
-                  value={rateAmount}
-                  onChange={(e) => setRateAmount(e.target.value)}
-                  className="mt-2"
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="rateCurrency">Currency</Label>
-              <p className="text-xs text-muted-foreground mt-0.5 mb-1">
-                Defaults from Workspace settings. Override here if needed.
-              </p>
-              <CurrencySelect
-                id="rateCurrency"
-                value={rateCurrency}
-                onChange={setRateCurrency}
-                placeholder="Select currency"
-                className="mt-2 max-w-full w-full"
-              />
             </div>
             <div>
               <Label htmlFor="subjects">Subjects (comma-separated)</Label>

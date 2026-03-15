@@ -78,7 +78,7 @@ export function useTeacherDashboardStats() {
       }
 
       // 2. Assignments (for counts and list)
-      const { data: assignments = [] } = await supabase
+      const { data: assignmentsData } = await supabase
         .from("assignments")
         .select(`
           id,
@@ -90,6 +90,7 @@ export function useTeacherDashboardStats() {
         `)
         .eq("teacher_id", teacherId)
         .order("created_at", { ascending: false });
+      const assignments = assignmentsData ?? [];
 
       const assignmentIds = assignments.map((a) => a.id);
       const pendingAssignmentsCount = assignments.filter(
@@ -97,12 +98,13 @@ export function useTeacherDashboardStats() {
       ).length;
 
       // 3. Documents count and recent (from documents table by user_id)
-      const { data: docs = [] } = await supabase
+      const { data: docsData } = await supabase
         .from("documents")
         .select("id, name, file_type, updated_at")
         .eq("user_id", teacherId)
         .order("updated_at", { ascending: false })
         .limit(5);
+      const docs = docsData ?? [];
       const { count: totalDocsCount } = await supabase
         .from("documents")
         .select("id", { count: "exact", head: true })
@@ -199,7 +201,7 @@ export function useTeacherDashboardStats() {
         }
       });
 
-      type AssignmentRow = (typeof assignments)[number] & { classrooms?: { name: string } | null };
+      type AssignmentRow = NonNullable<typeof assignments>[number] & { classrooms?: { name: string } | null };
       const recentAssignments: AssignmentWithStats[] = assignments.slice(0, 5).map((a) => {
         const row = a as AssignmentRow;
         const classroomId = row.classroom_id;

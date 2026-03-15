@@ -659,6 +659,11 @@ export type Database = {
           change_request_note: string | null
           created_at: string
           updated_at: string
+          contract_type: "fixed_monthly" | "per_session" | "hourly"
+          platform_fee_pct: number
+          start_date: string
+          end_date: string | null
+          status: "active" | "paused" | "ended"
         }
         Insert: {
           id?: string
@@ -679,6 +684,11 @@ export type Database = {
           change_request_note?: string | null
           created_at?: string
           updated_at?: string
+          contract_type?: "fixed_monthly" | "per_session" | "hourly"
+          platform_fee_pct?: number
+          start_date?: string
+          end_date?: string | null
+          status?: "active" | "paused" | "ended"
         }
         Update: {
           id?: string
@@ -697,6 +707,110 @@ export type Database = {
           owner_signed_at?: string | null
           change_requested_at?: string | null
           change_request_note?: string | null
+          created_at?: string
+          updated_at?: string
+          contract_type?: "fixed_monthly" | "per_session" | "hourly"
+          platform_fee_pct?: number
+          start_date?: string
+          end_date?: string | null
+          status?: "active" | "paused" | "ended"
+        }
+        Relationships: []
+      }
+      tutor_earning_rows: {
+        Row: {
+          id: string
+          workspace_id: string
+          tutor_id: string
+          tutor_contract_id: string | null
+          session_id: string | null
+          earning_type: "session" | "monthly_salary"
+          period_date: string
+          description: string | null
+          gross_amount: number
+          platform_fee_amount: number
+          net_amount: number
+          currency: string
+          status: "pending" | "approved" | "paid"
+          payout_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          tutor_id: string
+          tutor_contract_id?: string | null
+          session_id?: string | null
+          earning_type: "session" | "monthly_salary"
+          period_date: string
+          description?: string | null
+          gross_amount?: number
+          platform_fee_amount?: number
+          net_amount?: number
+          currency?: string
+          status?: "pending" | "approved" | "paid"
+          payout_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          tutor_id?: string
+          tutor_contract_id?: string | null
+          session_id?: string | null
+          earning_type?: "session" | "monthly_salary"
+          period_date?: string
+          description?: string | null
+          gross_amount?: number
+          platform_fee_amount?: number
+          net_amount?: number
+          currency?: string
+          status?: "pending" | "approved" | "paid"
+          payout_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tutor_payouts: {
+        Row: {
+          id: string
+          workspace_id: string
+          tutor_id: string
+          total_net_amount: number
+          currency: string
+          payment_note: string | null
+          proof_storage_path: string | null
+          status: "pending" | "paid"
+          paid_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          tutor_id: string
+          total_net_amount?: number
+          currency?: string
+          payment_note?: string | null
+          proof_storage_path?: string | null
+          status?: "pending" | "paid"
+          paid_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          tutor_id?: string
+          total_net_amount?: number
+          currency?: string
+          payment_note?: string | null
+          proof_storage_path?: string | null
+          status?: "pending" | "paid"
+          paid_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1255,6 +1369,105 @@ export type Database = {
           },
         ]
       }
+      student_fee_configs: {
+        Row: {
+          id: string
+          workspace_id: string
+          student_id: string
+          fee_type: "monthly_fixed" | "per_session" | "per_hour"
+          amount: number
+          currency: string
+          description: string | null
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          student_id: string
+          fee_type: "monthly_fixed" | "per_session" | "per_hour"
+          amount?: number
+          currency?: string
+          description?: string | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          student_id?: string
+          fee_type?: "monthly_fixed" | "per_session" | "per_hour"
+          amount?: number
+          currency?: string
+          description?: string | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      student_invoice_rows: {
+        Row: {
+          id: string
+          workspace_id: string
+          student_id: string
+          fee_config_id: string | null
+          session_id: string | null
+          invoice_type: "monthly_fee" | "session_fee" | "manual_fine"
+          description: string | null
+          amount: number
+          currency: string
+          due_date: string
+          status: "unpaid" | "proof_submitted" | "paid" | "waived"
+          paid_at: string | null
+          proof_storage_path: string | null
+          proof_submitted_at: string | null
+          waived_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          student_id: string
+          fee_config_id?: string | null
+          session_id?: string | null
+          invoice_type: "monthly_fee" | "session_fee" | "manual_fine"
+          description?: string | null
+          amount?: number
+          currency?: string
+          due_date: string
+          status?: "unpaid" | "proof_submitted" | "paid" | "waived"
+          paid_at?: string | null
+          proof_storage_path?: string | null
+          proof_submitted_at?: string | null
+          waived_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          student_id?: string
+          fee_config_id?: string | null
+          session_id?: string | null
+          invoice_type?: "monthly_fee" | "session_fee" | "manual_fine"
+          description?: string | null
+          amount?: number
+          currency?: string
+          due_date?: string
+          status?: "unpaid" | "proof_submitted" | "paid" | "waived"
+          paid_at?: string | null
+          proof_storage_path?: string | null
+          proof_submitted_at?: string | null
+          waived_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           color: string
@@ -1621,6 +1834,7 @@ export type Database = {
         Row: {
           classroom_id: string | null
           completed_at: string | null
+          completed_by_user_id: string | null
           created_at: string
           created_by_user_id: string
           description: string | null
@@ -1644,6 +1858,7 @@ export type Database = {
         Insert: {
           classroom_id?: string | null
           completed_at?: string | null
+          completed_by_user_id?: string | null
           created_at?: string
           created_by_user_id: string
           description?: string | null
@@ -1667,6 +1882,7 @@ export type Database = {
         Update: {
           classroom_id?: string | null
           completed_at?: string | null
+          completed_by_user_id?: string | null
           created_at?: string
           created_by_user_id?: string
           description?: string | null

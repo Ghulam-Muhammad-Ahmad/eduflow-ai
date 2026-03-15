@@ -310,14 +310,21 @@ export function useLectureSessionNotes(sessionIds: string[], enabled: boolean) {
   });
 }
 
+/** Response from GET /api/sessions/[id]/financials (real earning/invoice rows; financial is always null). */
+export type SessionFinancialsData = {
+  financial: null;
+  earningRows: Array<Record<string, unknown>>;
+  invoiceRows: Array<Record<string, unknown>>;
+};
+
 export function useLectureSessionFinancial(sessionId: string | null, enabled = true) {
   return useQuery({
     queryKey: ["lecture-session-financial", sessionId],
-    queryFn: async (): Promise<LectureSessionFinancialMock | null> => {
-      if (!sessionId) return null;
+    queryFn: async (): Promise<SessionFinancialsData> => {
+      if (!sessionId) return { financial: null, earningRows: [], invoiceRows: [] };
       const response = await fetch(`/api/sessions/${sessionId}/financials`);
-      const payload = await readJson<{ financial: LectureSessionFinancialMock | null }>(response);
-      return payload.financial;
+      const payload = await readJson<SessionFinancialsData>(response);
+      return payload;
     },
     enabled: enabled && !!sessionId,
   });
@@ -526,6 +533,7 @@ export function useSaveLectureSessionNote() {
   });
 }
 
+/** Mock financials are deprecated; earnings/fees come from contracts and fee configs. Save is a no-op that shows a message. */
 export function useSaveLectureSessionFinancial() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -537,7 +545,10 @@ export function useSaveLectureSessionFinancial() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-
+      if (response.status === 410) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Mock financials are no longer used.");
+      }
       return readJson<{ financial: LectureSessionFinancialMock }>(response);
     },
     onSuccess: (_, variables) => {
@@ -546,13 +557,13 @@ export function useSaveLectureSessionFinancial() {
       });
       queryClient.invalidateQueries({ queryKey: ["lecture-financial-summary"] });
       toast({
-        title: "Mock financials saved",
-        description: "Preview payroll and billing inputs have been updated.",
+        title: "Saved",
+        description: "Financial data has been updated.",
       });
     },
     onError: (error) => {
       toast({
-        title: "Failed to save mock financials",
+        title: "Cannot save",
         description: error.message,
         variant: "destructive",
       });

@@ -10,6 +10,12 @@ const PENDING_STATUSES = [
   "pending_activation",
 ] as const;
 
+type TutorInviteContract = {
+  invite_token: string | null;
+  invite_token_expires_at: string | null;
+  status: string | null;
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -46,12 +52,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "No workspace found for owner" });
   }
 
-  const { data: contract, error: contractErr } = await supabaseAdmin
+  const { data: contractData, error: contractErr } = await supabaseAdmin
     .from("tutor_contracts")
     .select("invite_token, invite_token_expires_at, status")
     .eq("workspace_id", workspace.id)
     .eq("tutor_id", tutorId)
     .maybeSingle();
+  const contract = contractData as unknown as TutorInviteContract | null;
 
   if (contractErr || !contract?.invite_token) {
     return res.status(404).json({ error: "No invite found for this tutor" });

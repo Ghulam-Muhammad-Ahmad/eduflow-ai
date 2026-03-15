@@ -40,6 +40,7 @@ import {
   Building2,
   Video,
   ChevronsUpDownIcon,
+  Wallet,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -66,6 +67,7 @@ const roleConfig = {
       { icon: UserRound, label: "1v1 Rooms", path: "/dashboard/teacher/rooms" },
       { icon: FileText, label: "Documents", path: "/dashboard/teacher/documents" },
       { icon: PenLine, label: "Contract", path: "/dashboard/teacher/contract" },
+      { icon: Wallet, label: "Earnings", path: "/dashboard/teacher/earnings" },
       { icon: User, label: "My profile", path: "/dashboard/teacher/profile" },
       { icon: Sparkles, label: "AI Content Generator", path: "/dashboard/teacher/ai-studio" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
@@ -90,6 +92,7 @@ const roleConfig = {
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
       { icon: ListChecks, label: "Quizzes", path: "/dashboard/student/quizzes" },
       { icon: GraduationCap, label: "Study Hub", path: "/dashboard/student/study" },
+      { icon: Wallet, label: "My Billing", path: "/dashboard/student/billing" },
     ],
   },
   admin: {
@@ -103,7 +106,11 @@ const roleConfig = {
       { icon: ScrollText, label: "Student Records", path: "/dashboard/owner/student-records" },
       { icon: UserRound, label: "1v1 Rooms", path: "/dashboard/owner/rooms" },
       { icon: Video, label: "Sessions", path: "/dashboard/owner/sessions" },
+      { icon: FileText, label: "Documents", path: "/dashboard/owner/documents" },
+      { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/owner/assignments" },
+      { icon: ListChecks, label: "Quizzes", path: "/dashboard/owner/quizzes" },
       { icon: Building2, label: "Workspace", path: "/dashboard/owner/workspace" },
+      { icon: Wallet, label: "Finance", path: "/dashboard/owner/finance" },
       { icon: CreditCard, label: "Billing & Plan", path: "/dashboard/owner/billing" },
       { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],

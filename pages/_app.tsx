@@ -17,7 +17,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <TooltipProvider>
         <AuthProvider>
           <OnboardingDismissedProvider>
-            <Head />
+            <Head>{null}</Head>
             <Toaster />
             <Sonner />
             <Component {...pageProps} />

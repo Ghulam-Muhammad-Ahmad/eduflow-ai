@@ -15,9 +15,6 @@ const bodySchema = {
   tutorId: (v: unknown) => v === undefined || (typeof v === "string" && v.length > 0),
   initialCredits: (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0) || (typeof v === "string" && /^\d+$/.test(v)),
   initialStorageMb: (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0) || (typeof v === "string" && /^\d+$/.test(v)),
-  payType: (v: unknown) => v === undefined || v === "hourly" || v === "per_session",
-  rateAmount: (v: unknown) => v === undefined || (typeof v === "number" && v >= 0) || (typeof v === "string" && /^\d+(\.\d+)?$/.test(v)),
-  rateCurrency: (v: unknown) => v === undefined || (typeof v === "string" && v.trim().length <= 10),
   subjects: (v: unknown) =>
     v === undefined ||
     (Array.isArray(v) && v.every((s) => typeof s === "string")) ||
@@ -55,9 +52,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     classroomIds?: unknown;
     initialCredits?: unknown;
     initialStorageMb?: unknown;
-    payType?: unknown;
-    rateAmount?: unknown;
-    rateCurrency?: unknown;
     subjects?: unknown;
   };
 
@@ -91,13 +85,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const initialStorageMb = bodySchema.initialStorageMb(body.initialStorageMb)
     ? (typeof body.initialStorageMb === "number" ? body.initialStorageMb : parseInt(String(body.initialStorageMb), 10))
     : 0;
-  const payType = bodySchema.payType(body.payType) ? (body.payType as "hourly" | "per_session") ?? "hourly" : "hourly";
-  const rateAmount = bodySchema.rateAmount(body.rateAmount)
-    ? typeof body.rateAmount === "number"
-      ? body.rateAmount
-      : parseFloat(String(body.rateAmount || 0))
-    : 0;
-  const rateCurrency = (bodySchema.rateCurrency(body.rateCurrency) ? (body.rateCurrency as string)?.trim() : null) || "GBP";
   const subjectsRaw = body.subjects;
   const subjects: string[] = Array.isArray(subjectsRaw)
     ? (subjectsRaw as string[]).filter((s) => typeof s === "string")
@@ -123,7 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { data: workspace, error: wsErr } = await supabaseAdmin
     .from("workspaces")
-    .select("id")
+    .select("id, settings")
     .eq("owner_id", caller.id)
     .limit(1)
     .maybeSingle();
@@ -131,6 +118,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "No workspace found for owner" });
   }
   const workspaceId = workspace.id;
+  const workspaceSettings = (workspace.settings ?? {}) as { default_currency?: string };
+  const defaultCurrency =
+    typeof workspaceSettings.default_currency === "string" && workspaceSettings.default_currency.trim()
+      ? workspaceSettings.default_currency.trim()
+      : "GBP";
 
   const appRole: AppRole = role === "tutor" ? "teacher" : "student";
   // Create auth user; trigger will create user_roles from user_metadata.role
@@ -202,9 +194,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       workspace_id: workspaceId,
       tutor_id: newUserId,
       contract_status: "draft",
-      pay_type: payType,
-      rate_amount: rateAmount,
-      rate_currency: rateCurrency,
+      pay_type: "hourly",
+      rate_amount: 0,
+      rate_currency: defaultCurrency,
       subjects: subjects.length ? subjects : [],
     });
     if (contractErr) {

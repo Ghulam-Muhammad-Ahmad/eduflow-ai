@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ArrowRight, GraduationCap } from "lucide-react";
 import { BillingPlans } from "@/components/billing/BillingPlans";
 import { Spinner } from "@/components/ui/spinner";
+import type { PlanLine } from "@/lib/billing";
 
 export default function OnboardingStudent() {
   const router = useRouter();
@@ -123,7 +124,7 @@ export default function OnboardingStudent() {
           </div>
         </div>
         <BillingPlans
-          planLine="student"
+          planLine={"student" as unknown as PlanLine}
           userId={user.id}
           successUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/onboarding/student?checkout=success`}
         />

@@ -213,6 +213,20 @@ export default function OwnerStudentProfile() {
               <span className="mt-1.5 inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
                 Student
               </span>
+              {studentId && (
+                <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/owner/students/${studentId}/billing-setup`}>
+                      Billing setup
+                    </Link>
+                  </Button>
+                  <Button variant="default" size="sm" className="bg-primary" asChild>
+                    <Link href={`/dashboard/owner/students/${studentId}/billing`}>
+                      Billing
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 

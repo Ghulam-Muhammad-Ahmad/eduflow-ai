@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   PLAN_LIMITS,
   PLAN_DISPLAY_PRICES,
@@ -13,12 +20,14 @@ import {
   TIERS,
   hasTrial,
   getCheckoutPriceId,
+  getTierAndCycleFromPriceId,
+  isTierHigherThan,
   type PlanLine,
   type PlanTier,
   type BillingCycle,
 } from "@/lib/billing";
 import { openPaddleCheckout } from "./PaddleProvider";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Check } from "lucide-react";
 
 /** Fetched from GET /api/paddle/plan-prices */
@@ -50,11 +59,22 @@ export function BillingPlans({
   onSelectPlan,
   successUrl,
 }: BillingPlansProps) {
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const currentTierAndCycle = useMemo(
+    () => (currentPriceId ? getTierAndCycleFromPriceId(planLine, currentPriceId) : null),
+    [planLine, currentPriceId]
+  );
+  const currentTier = currentTierAndCycle?.tier ?? null;
+  const [cycle, setCycle] = useState<BillingCycle>(() => currentTierAndCycle?.cycle ?? "monthly");
   const [redirecting, setRedirecting] = useState(false);
   const [planPrices, setPlanPrices] = useState<PlanPricesResponse | null>(null);
   const [pricesLoading, setPricesLoading] = useState(true);
   const useRedirect = !!successUrl;
+
+  useEffect(() => {
+    if (currentTierAndCycle?.cycle === "annual") {
+      setCycle("annual");
+    }
+  }, [currentTierAndCycle?.cycle]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,126 +120,230 @@ export function BillingPlans({
 
   const isAnnual = cycle === "annual";
 
+  /** Feature rows for comparison: label + value per tier (string or React node for check/dash) */
+  const comparisonRows: { label: string; getValue: (t: PlanTier) => ReactNode }[] = [
+    {
+      label: "Tutors & students",
+      getValue: (t) => PLAN_LIMITS[planLine][t].label,
+    },
+    {
+      label: "AI credits / month",
+      getValue: (t) => {
+        const val = planPrices?.[t]?.[cycle]?.ai_credits;
+        return val != null && val >= 0 ? val.toLocaleString() : "—";
+      },
+    },
+    {
+      label: "Storage",
+      getValue: (t) => {
+        const val = planPrices?.[t]?.[cycle]?.doc_storage_gb;
+        return val != null && val >= 0 ? `${val} GB` : "—";
+      },
+    },
+    {
+      label: "Owner dashboard",
+      getValue: (t) =>
+        PLAN_FEATURES[planLine][t].some((f) => f.toLowerCase().includes("owner dashboard")) ? (
+          <Check className="h-4 w-4 text-primary inline-block" />
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "Advanced analytics",
+      getValue: (t) =>
+        PLAN_FEATURES[planLine][t].some((f) => f.toLowerCase().includes("analytics")) ? (
+          <Check className="h-4 w-4 text-primary inline-block" />
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "Priority support",
+      getValue: (t) =>
+        PLAN_FEATURES[planLine][t].some((f) => f.toLowerCase().includes("priority")) ? (
+          <Check className="h-4 w-4 text-primary inline-block" />
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "Dedicated account manager",
+      getValue: (t) =>
+        PLAN_FEATURES[planLine][t].some((f) => f.toLowerCase().includes("account manager")) ? (
+          <Check className="h-4 w-4 text-primary inline-block" />
+        ) : (
+          "—"
+        ),
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Billing cycle toggle: pill layout with Monthly | Switch | Annually + save badge */}
-      <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
-        <div className="flex items-center gap-0 rounded-none border-0 bg-white px-4 py-[3px]">
-          <Label
-            htmlFor="billing-cycle"
-            className={`cursor-pointer px-3 text-sm font-medium transition-colors ${!isAnnual ? "text-foreground" : "text-muted-foreground"}`}
-            onClick={() => setCycle("monthly")}
-          >
-            Monthly
-          </Label>
-          <Switch
-            id="billing-cycle"
-            checked={isAnnual}
-            onCheckedChange={(checked) => setCycle(checked ? "annual" : "monthly")}
-            className="data-[state=checked]:bg-primary"
-          />
-          <div className="flex items-center gap-2">
+    <div className="space-y-8">
+      {/* Section heading + toggle + comparison table */}
+      <div className="space-y-4">
+        <div className="text-center space-y-1">
+          <h2 className="text-xl font-semibold text-foreground">Choose the right plan for your team</h2>
+          <p className="text-sm text-muted-foreground">
+            Flexible pricing that grows with your educational needs.
+          </p>
+        </div>
+
+        {/* Billing cycle toggle */}
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
+          <div className="flex items-center gap-0 rounded-none border-0 bg-none px-4 py-[3px]">
             <Label
               htmlFor="billing-cycle"
-              className={`cursor-pointer px-3 text-sm font-medium transition-colors ${isAnnual ? "text-foreground" : "text-muted-foreground"}`}
-              onClick={() => setCycle("annual")}
+              className={`cursor-pointer px-3 text-sm font-medium transition-colors ${!isAnnual ? "text-foreground" : "text-muted-foreground"}`}
+              onClick={() => setCycle("monthly")}
             >
-              Annually
+              Monthly
             </Label>
-            <Badge variant="secondary" className="rounded-md border border-primary/30 bg-primary/10 text-primary text-xs font-medium">
-              Save
-            </Badge>
+            <Switch
+              id="billing-cycle"
+              checked={isAnnual}
+              onCheckedChange={(checked) => setCycle(checked ? "annual" : "monthly")}
+              className="data-[state=checked]:bg-primary"
+            />
+            <div className="flex items-center gap-2">
+              <Label
+                htmlFor="billing-cycle"
+                className={`cursor-pointer px-3 text-sm font-medium transition-colors ${isAnnual ? "text-foreground" : "text-muted-foreground"}`}
+                onClick={() => setCycle("annual")}
+              >
+                Annually
+              </Label>
+              <Badge variant="secondary" className="rounded-md border border-primary/30 bg-primary/10 text-primary text-xs font-medium">
+                Save
+              </Badge>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Plan cards: show loading first, then dynamic prices */}
-      {pricesLoading ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12">
-          <Spinner size="lg" className="h-10 w-10" />
-          <p className="text-sm text-muted-foreground">Loading plans and prices…</p>
-        </div>
-      ) : (
-      <div className="grid gap-x-2 gap-y-6 md:grid-cols-3">
-        {TIERS.map((tier) => {
-          const limits = PLAN_LIMITS[planLine][tier];
-          const prices = PLAN_DISPLAY_PRICES[planLine][tier];
-          const features = PLAN_FEATURES[planLine][tier];
-          const priceId = getCheckoutPriceId(planLine, tier, cycle);
-          const isCurrent = currentPriceId && priceId === currentPriceId;
-          const trial = hasTrial(tier);
-          const dynamic = planPrices?.[tier]?.[cycle];
-          const displayPrice = dynamic?.formatted ?? (cycle === "monthly" ? prices.monthly : prices.annual);
-          const monthlyFormatted = planPrices?.[tier]?.monthly?.formatted ?? prices.monthly;
-          const priceSuffix = cycle === "monthly" ? "/month" : "/year";
-          const billingNote =
-            cycle === "annual"
-              ? `billed annually or ${monthlyFormatted}/month billed monthly`
-              : "billed monthly";
-          const dynamicFeatures: string[] = [];
-          if (dynamic?.ai_credits != null && dynamic.ai_credits >= 0) {
-            dynamicFeatures.push(`${dynamic.ai_credits.toLocaleString()} AI credits per month`);
-          }
-          if (dynamic?.doc_storage_gb != null && dynamic.doc_storage_gb >= 0) {
-            dynamicFeatures.push(`${dynamic.doc_storage_gb} GB document storage`);
-          }
-          const allFeatures = [...features, ...dynamicFeatures];
-
-          return (
-            <Card
-              key={tier}
-              className={`relative border-2 ${isCurrent ? "border-primary" : "border-border"}`}
-            >
-              {trial && (
-                <Badge className="absolute right-3 top-3" variant="secondary">
-                  14-day free trial
-                </Badge>
-              )}
-              <CardHeader className="space-y-1.5">
-                <CardTitle className="text-xl">{TIER_LABELS[tier]}</CardTitle>
-                <CardDescription>{limits.label}</CardDescription>
-                <div className="pt-1">
-                  <span className="text-2xl font-bold text-foreground">{displayPrice}</span>
-                  <span className="text-sm text-muted-foreground">{priceSuffix}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">{billingNote}</p>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {allFeatures.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 shrink-0 text-primary mt-0.5" />
-                      <span>{feature}</span>
-                    </li>
+        {pricesLoading ? (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-border hover:bg-transparent">
+                  <TableHead className="w-[200px] font-medium text-foreground">Plan</TableHead>
+                  {TIERS.map((tier) => (
+                    <TableHead key={tier} className="text-center font-medium text-foreground">
+                      {TIER_LABELS[tier]}
+                    </TableHead>
                   ))}
-                </ul>
-                {!priceId ? (
-                  <p className="text-sm text-muted-foreground">
-                    Configure price ID in env for this plan.
-                  </p>
-                ) : null}
-                <Button
-                  className="mt-auto w-full"
-                  variant={isCurrent ? "secondary" : "default"}
-                  disabled={isCurrent || redirecting}
-                  onClick={() => handleSelect(tier, cycle)}
-                >
-                  {redirecting
-                    ? "Redirecting…"
-                    : isCurrent
-                      ? "Current plan"
-                      : trial
-                        ? "Try it for free"
-                        : status && (status === "active" || status === "trialing")
-                          ? "Upgrade"
-                          : "Continue to payment"}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow className="border-b border-border hover:bg-transparent">
+                  <TableCell className="align-top pt-4"></TableCell>
+                  {TIERS.map((tier) => (
+                    <TableCell key={tier} className="align-top pt-4 pb-2 text-center">
+                      <Skeleton className="h-10 w-full rounded-md" />
+                      <Skeleton className="mt-2 h-8 w-16 mx-auto rounded-md" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <TableRow key={i} className="border-b border-border last:border-0 hover:bg-transparent">
+                    <TableCell>
+                      <Skeleton className="h-4 w-32 rounded-md" />
+                    </TableCell>
+                    {TIERS.map((tier) => (
+                      <TableCell key={tier} className="text-center">
+                        <Skeleton className="h-4 w-8 mx-auto rounded-md" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-border hover:bg-transparent">
+                  <TableHead className="w-[200px] font-medium text-foreground">Plan</TableHead>
+                  {TIERS.map((tier) => {
+                    const priceId = getCheckoutPriceId(planLine, tier, cycle);
+                    const isCurrent = currentPriceId && priceId === currentPriceId;
+                    return (
+                      <TableHead
+                        key={tier}
+                        className={`text-center font-medium text-foreground ${isCurrent ? "bg-primary/5" : ""}`}
+                      >
+                        {TIER_LABELS[tier]}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Row: CTA buttons */}
+                <TableRow className="border-b border-border hover:bg-transparent">
+                  <TableCell className="text-muted-foreground align-top pt-4"></TableCell>
+                  {TIERS.map((tier) => {
+                    const priceId = getCheckoutPriceId(planLine, tier, cycle);
+                    const isCurrent = currentPriceId && priceId === currentPriceId;
+                    const trial = hasTrial(tier);
+                    const prices = PLAN_DISPLAY_PRICES[planLine][tier];
+                    const dynamic = planPrices?.[tier]?.[cycle];
+                    const displayPrice = dynamic?.formatted ?? (cycle === "monthly" ? prices.monthly : prices.annual);
+                    const priceSuffix = cycle === "monthly" ? "/mo" : "/yr";
+                    return (
+                      <TableCell
+                        key={tier}
+                        className={`align-top pt-4 pb-2 text-center ${isCurrent ? "bg-primary/5" : ""}`}
+                      >
+                        <Button
+                          className="w-full"
+                          variant={isCurrent ? "secondary" : "default"}
+                          disabled={isCurrent || redirecting}
+                          onClick={() => handleSelect(tier, cycle)}
+                        >
+                          {redirecting
+                            ? "Redirecting…"
+                            : isCurrent
+                              ? "Current plan"
+                              : trial
+                                ? "Try it for free"
+                                : status && (status === "active" || status === "trialing") && currentTier
+                                  ? isTierHigherThan(currentTier, tier)
+                                    ? "Downgrade"
+                                    : "Upgrade"
+                                  : "Continue to payment"}
+                        </Button>
+                        <div className="mt-2">
+                          <span className="text-2xl font-bold text-foreground">{displayPrice}</span>
+                          <span className="text-sm text-muted-foreground">{priceSuffix}</span>
+                        </div>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+                {/* Feature rows */}
+                {comparisonRows.map((row) => (
+                  <TableRow key={row.label} className="border-b border-border last:border-0 hover:bg-transparent">
+                    <TableCell className="font-medium text-foreground">{row.label}</TableCell>
+                    {TIERS.map((tier) => {
+                      const priceId = getCheckoutPriceId(planLine, tier, cycle);
+                      const isCurrent = currentPriceId && priceId === currentPriceId;
+                      return (
+                        <TableCell
+                          key={tier}
+                          className={`text-center text-muted-foreground ${isCurrent ? "bg-primary/5" : ""}`}
+                        >
+                          {row.getValue(tier)}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
-      )}
     </div>
   );
 }

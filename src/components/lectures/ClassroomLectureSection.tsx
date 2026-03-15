@@ -27,7 +27,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
+import { parseAmountFromDisplay } from "@/lib/formatAmount";
 import {
   Select,
   SelectContent,
@@ -220,7 +222,7 @@ export function ClassroomLectureSection({
   useEffect(() => {
     if (!financialDialogOpen) return;
 
-    const financial = activeFinancial as LectureSessionFinancialMock | null | undefined;
+    const financial = (activeFinancial as { financial?: LectureSessionFinancialMock | null })?.financial ?? null;
     setFinancialForm({
       tutorRateAmount:
         financial?.tutor_rate_amount != null ? String(financial.tutor_rate_amount) : "0",
@@ -388,10 +390,10 @@ export function ClassroomLectureSection({
 
     await saveLectureFinancial.mutateAsync({
       sessionId: financialSession.id,
-      tutorRateAmount: Number(financialForm.tutorRateAmount) || 0,
+      tutorRateAmount: parseAmountFromDisplay(financialForm.tutorRateAmount),
       tutorRateCurrency: financialForm.tutorRateCurrency.trim().toUpperCase() || "GBP",
       tutorRateType: financialForm.tutorRateType,
-      studentChargeAmount: Number(financialForm.studentChargeAmount) || 0,
+      studentChargeAmount: parseAmountFromDisplay(financialForm.studentChargeAmount),
       studentChargeCurrency:
         financialForm.studentChargeCurrency.trim().toUpperCase() || "GBP",
       studentChargeType: financialForm.studentChargeType,
@@ -716,15 +718,12 @@ export function ClassroomLectureSection({
                 </div>
                 <div className="space-y-2">
                   <Label>Amount</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
+                  <AmountInput
                     value={financialForm.tutorRateAmount}
-                    onChange={(event) =>
+                    onChange={(v) =>
                       setFinancialForm((current) => ({
                         ...current,
-                        tutorRateAmount: event.target.value,
+                        tutorRateAmount: v,
                       }))
                     }
                   />
@@ -771,15 +770,12 @@ export function ClassroomLectureSection({
                 </div>
                 <div className="space-y-2">
                   <Label>Amount</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
+                  <AmountInput
                     value={financialForm.studentChargeAmount}
-                    onChange={(event) =>
+                    onChange={(v) =>
                       setFinancialForm((current) => ({
                         ...current,
-                        studentChargeAmount: event.target.value,
+                        studentChargeAmount: v,
                       }))
                     }
                   />

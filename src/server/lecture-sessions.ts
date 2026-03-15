@@ -18,14 +18,6 @@ type StudentAssignmentRecord = {
   student_id: string;
 };
 
-type TutorContractRecord = {
-  workspace_id: string;
-  tutor_id: string;
-  pay_type: "hourly" | "per_session";
-  rate_amount: number;
-  rate_currency: string;
-};
-
 export type SessionRecord = {
   id: string;
   classroom_id: string | null;
@@ -42,6 +34,7 @@ export type SessionRecord = {
   external_event_id: string | null;
   google_calendar_id: string | null;
   completed_at: string | null;
+  completed_by_user_id?: string | null;
   scope_type: SessionScopeType;
   student_id: string | null;
   series_id: string | null;
@@ -60,54 +53,6 @@ export type SessionNoteRecord = {
   updated_by_user_id: string;
   created_at: string;
   updated_at: string;
-};
-
-export type SessionFinancialMockRecord = {
-  id: string;
-  session_id: string;
-  workspace_id: string;
-  tutor_id: string;
-  tutor_rate_amount: number;
-  tutor_rate_currency: string;
-  tutor_rate_type: "hourly" | "per_session";
-  student_charge_amount: number;
-  student_charge_currency: string;
-  student_charge_type: "hourly" | "per_session" | "per_student";
-  created_by_user_id: string;
-  updated_by_user_id: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type CurrencyTotal = {
-  currency: string;
-  amount: number;
-};
-
-export type MockFinancialLineItem = {
-  sessionId: string;
-  title: string;
-  status: string;
-  scopeType: SessionScopeType;
-  startsAt: string;
-  endsAt: string;
-  durationMinutes: number;
-  participantCount: number;
-  tutorPayrollAmount: number;
-  tutorPayrollCurrency: string;
-  studentChargeAmount: number;
-  studentChargeCurrency: string;
-  source: "contract_default" | "session_override";
-};
-
-export type MockFinancialSummary = {
-  completedSessions: number;
-  scheduledSessions: number;
-  completedDurationMinutes: number;
-  participantCountTotal: number;
-  tutorPayrollByCurrency: CurrencyTotal[];
-  studentChargesByCurrency: CurrencyTotal[];
-  lineItems: MockFinancialLineItem[];
 };
 
 export type SessionSeriesRecord = {
@@ -401,12 +346,16 @@ export async function canManageLectureSession(params: {
   return false;
 }
 
-export function canManageLectureOutcome(params: {
+export async function canManageLectureOutcome(params: {
   callerId: string;
   callerRole: AppRole;
   session: SessionRecord;
 }) {
-  return params.callerRole === "teacher" && params.session.tutor_id === params.callerId;
+  if (params.callerRole === "teacher" && params.session.tutor_id === params.callerId) return true;
+  if (params.callerRole === "admin") {
+    return isOwnerOfWorkspace(params.callerId, params.session.workspace_id);
+  }
+  return false;
 }
 
 export async function getActiveClassroomStudentEmails(classroomId: string) {
@@ -463,203 +412,6 @@ export async function getSessionNoteBySessionId(sessionId: string) {
 
   if (error) throw error;
   return (data as SessionNoteRecord | null) ?? null;
-}
-
-export async function getSessionFinancialMockBySessionId(sessionId: string) {
-  const admin = assertAdminClient();
-  const { data, error } = await admin
-    .from("session_financial_mock")
-    .select("*")
-    .eq("session_id", sessionId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return (data as SessionFinancialMockRecord | null) ?? null;
-}
-
-export async function getSessionFinancialMocksBySessionIds(sessionIds: string[]) {
-  if (sessionIds.length === 0) return {} as Record<string, SessionFinancialMockRecord>;
-
-  const admin = assertAdminClient();
-  const { data, error } = await admin
-    .from("session_financial_mock")
-    .select("*")
-    .in("session_id", sessionIds);
-
-  if (error) throw error;
-
-  return Object.fromEntries(
-    ((data ?? []) as SessionFinancialMockRecord[]).map((item) => [item.session_id, item])
-  );
-}
-
-async function getTutorContractForSession(workspaceId: string, tutorId: string) {
-  const admin = assertAdminClient();
-  const { data, error } = await admin
-    .from("tutor_contracts")
-    .select("workspace_id, tutor_id, pay_type, rate_amount, rate_currency")
-    .eq("workspace_id", workspaceId)
-    .eq("tutor_id", tutorId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  return (data as TutorContractRecord | null) ?? null;
-}
-
-export async function getActiveClassroomStudentCount(classroomId: string) {
-  const admin = assertAdminClient();
-  const { count, error } = await admin
-    .from("enrollments")
-    .select("id", { count: "exact", head: true })
-    .eq("classroom_id", classroomId)
-    .eq("status", "active");
-
-  if (error) throw error;
-  return count ?? 0;
-}
-
-export async function getSessionParticipantCount(
-  session: Pick<SessionRecord, "scope_type" | "classroom_id" | "student_id">
-) {
-  if (session.scope_type === "one_to_one") {
-    return session.student_id ? 1 : 0;
-  }
-
-  if (!session.classroom_id) return 0;
-  return getActiveClassroomStudentCount(session.classroom_id);
-}
-
-function roundCurrency(value: number) {
-  return Math.round(value * 100) / 100;
-}
-
-function amountFromRate(params: {
-  amount: number;
-  type: "hourly" | "per_session" | "per_student";
-  durationMinutes: number;
-  participantCount: number;
-}) {
-  if (params.type === "per_session") return roundCurrency(params.amount);
-  if (params.type === "per_student") {
-    return roundCurrency(params.amount * params.participantCount);
-  }
-
-  return roundCurrency(params.amount * (params.durationMinutes / 60));
-}
-
-function sumCurrencyTotals(items: Array<{ currency: string; amount: number }>) {
-  const totals = new Map<string, number>();
-
-  for (const item of items) {
-    const currency = item.currency.trim().toUpperCase();
-    totals.set(currency, roundCurrency((totals.get(currency) ?? 0) + item.amount));
-  }
-
-  return Array.from(totals.entries()).map(([currency, amount]) => ({
-    currency,
-    amount,
-  }));
-}
-
-export async function buildMockFinancialSummary(
-  sessions: SessionRecord[],
-  financialMocks: Record<string, SessionFinancialMockRecord>
-): Promise<MockFinancialSummary> {
-  const lineItems: MockFinancialLineItem[] = [];
-  const contractCache = new Map<string, TutorContractRecord | null>();
-
-  for (const session of sessions) {
-    const durationMinutes = Math.max(
-      0,
-      Math.round(
-        (new Date(session.ends_at).getTime() - new Date(session.starts_at).getTime()) / 60_000
-      )
-    );
-    const participantCount = await getSessionParticipantCount(session);
-    const financialMock = financialMocks[session.id] ?? null;
-    const contractKey = `${session.workspace_id}:${session.tutor_id}`;
-
-    if (!contractCache.has(contractKey)) {
-      contractCache.set(
-        contractKey,
-        await getTutorContractForSession(session.workspace_id, session.tutor_id)
-      );
-    }
-
-    const contract = contractCache.get(contractKey) ?? null;
-    const tutorRateAmount = Number(
-      financialMock?.tutor_rate_amount ?? contract?.rate_amount ?? 0
-    );
-    const tutorRateCurrency = (
-      financialMock?.tutor_rate_currency ??
-      contract?.rate_currency ??
-      "GBP"
-    ).trim().toUpperCase();
-    const tutorRateType =
-      financialMock?.tutor_rate_type ?? contract?.pay_type ?? "hourly";
-
-    const studentChargeAmount = Number(financialMock?.student_charge_amount ?? 0);
-    const studentChargeCurrency = (
-      financialMock?.student_charge_currency ?? tutorRateCurrency
-    ).trim().toUpperCase();
-    const studentChargeType = financialMock?.student_charge_type ?? "per_session";
-
-    lineItems.push({
-      sessionId: session.id,
-      title: session.title,
-      status: session.status,
-      scopeType: session.scope_type,
-      startsAt: session.starts_at,
-      endsAt: session.ends_at,
-      durationMinutes,
-      participantCount,
-      tutorPayrollAmount: amountFromRate({
-        amount: tutorRateAmount,
-        type: tutorRateType,
-        durationMinutes,
-        participantCount,
-      }),
-      tutorPayrollCurrency: tutorRateCurrency,
-      studentChargeAmount: amountFromRate({
-        amount: studentChargeAmount,
-        type: studentChargeType,
-        durationMinutes,
-        participantCount,
-      }),
-      studentChargeCurrency: studentChargeCurrency,
-      source: financialMock ? "session_override" : "contract_default",
-    });
-  }
-
-  const completedLineItems = lineItems.filter((item) => item.status === "completed");
-
-  return {
-    completedSessions: sessions.filter((session) => session.status === "completed").length,
-    scheduledSessions: sessions.filter((session) => session.status === "scheduled").length,
-    completedDurationMinutes: completedLineItems.reduce(
-      (total, item) => total + item.durationMinutes,
-      0
-    ),
-    participantCountTotal: completedLineItems.reduce(
-      (total, item) => total + item.participantCount,
-      0
-    ),
-    tutorPayrollByCurrency: sumCurrencyTotals(
-      completedLineItems.map((item) => ({
-        currency: item.tutorPayrollCurrency,
-        amount: item.tutorPayrollAmount,
-      }))
-    ),
-    studentChargesByCurrency: sumCurrencyTotals(
-      completedLineItems.map((item) => ({
-        currency: item.studentChargeCurrency,
-        amount: item.studentChargeAmount,
-      }))
-    ),
-    lineItems,
-  };
 }
 
 export function buildRecurringOccurrences(params: {

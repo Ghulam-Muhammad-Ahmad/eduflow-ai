@@ -22,8 +22,8 @@ export function generateContractPDF(
   signatureInfo?: ContractSignatureInfo
 ): Uint8Array {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageWidth = doc.getPageWidth();
-  const pageHeight = doc.getPageHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const maxWidth = pageWidth - MARGIN * 2;
 
   doc.setFontSize(FONT_SIZE_TITLE);
@@ -102,5 +102,5 @@ export function generateContractPDF(
   doc.setTextColor(100, 116, 139);
   doc.text(`Date: ${ownerDate}`, pageWidth / 2 + MARGIN / 2, y);
 
-  return doc.output("arraybuffer") as Uint8Array;
+  return new Uint8Array(doc.output("arraybuffer"));
 }

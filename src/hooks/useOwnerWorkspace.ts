@@ -2,6 +2,8 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import type { OneToOneRoomRow } from "@/hooks/useOneToOneRooms";
 
 /** Shape of public.workspaces.settings (jsonb). Persisted to DB on Workspace settings page. */
 export type WorkspaceSettings = {
@@ -28,6 +30,13 @@ export type WorkspaceMemberRow = {
   role: "owner" | "tutor";
   created_at: string;
   profile?: { display_name: string | null; email: string | null; avatar_url?: string | null; bio?: string | null };
+};
+
+export type AssignedStudentRow = {
+  workspace_id: string;
+  student_id: string;
+  created_at: string;
+  student?: { user_id: string; display_name: string | null; email: string | null; avatar_url?: string | null } | null;
 };
 
 export type TutorContractRow = {
@@ -137,7 +146,7 @@ export function useOwnerWorkspace() {
     isLoading: studentsLoading,
   } = useQuery({
     queryKey: ["owner-workspace-students", workspaceId],
-    queryFn: async () => {
+    queryFn: async (): Promise<AssignedStudentRow[]> => {
       if (!workspaceId) return [];
       const { data: rows, error } = await supabase
         .from("workspace_students")
@@ -154,7 +163,7 @@ export function useOwnerWorkspace() {
       return rows.map((r) => ({
         ...r,
         student: profileMap.get(r.student_id) ?? null,
-      }));
+      })) as AssignedStudentRow[];
     },
     enabled: !!workspaceId,
   });
@@ -208,7 +217,7 @@ export function useOwnerWorkspace() {
     isLoading: oneToOneRoomsLoading,
   } = useQuery({
     queryKey: ["owner-workspace-one-to-one-rooms", workspaceId],
-    queryFn: async () => {
+    queryFn: async (): Promise<OneToOneRoomRow[]> => {
       if (!workspaceId) return [];
       const { data: rows, error } = await supabase
         .from("one_to_one_rooms")
@@ -216,7 +225,7 @@ export function useOwnerWorkspace() {
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      if (!rows?.length) return rows ?? [];
+      if (!rows?.length) return (rows ?? []) as OneToOneRoomRow[];
       const tutorIds = [...new Set(rows.map((r) => r.tutor_id))];
       const studentIds = [...new Set(rows.map((r) => r.student_id))];
       const { data: profiles } = await supabase
@@ -228,7 +237,7 @@ export function useOwnerWorkspace() {
         ...r,
         tutorProfile: profileMap.get(r.tutor_id) ?? null,
         studentProfile: profileMap.get(r.student_id) ?? null,
-      }));
+      })) as OneToOneRoomRow[];
     },
     enabled: !!workspaceId,
   });
@@ -490,6 +499,61 @@ export function useOwnerWorkspace() {
     },
   });
 
+  const { toast } = useToast();
+
+  /** Update classroom settings (owner). Same shape as teacher useClassrooms. */
+  const updateClassroomSettings = useMutation({
+    mutationFn: async ({
+      id,
+      settings: settingsPayload,
+    }: {
+      id: string;
+      settings: {
+        allowLateSubmissions?: boolean;
+        latePenaltyPercent?: number;
+        defaultPointsPossible?: number;
+        gradingScale?: string;
+      };
+    }) => {
+      const { data: classroom, error } = await supabase
+        .from("classrooms")
+        .update({ settings: settingsPayload })
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return classroom;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+      toast({ title: "Settings updated", description: "Classroom settings have been saved." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error updating settings", description: error.message, variant: "destructive" });
+    },
+  });
+
+  /** Archive classroom (owner). */
+  const archiveClassroom = useMutation({
+    mutationFn: async (classroomId: string) => {
+      const { error } = await supabase
+        .from("classrooms")
+        .update({ is_archived: true })
+        .eq("id", classroomId);
+      if (error) throw error;
+      return classroomId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-classrooms"] });
+      queryClient.invalidateQueries({ queryKey: ["classrooms"] });
+      toast({ title: "Classroom archived", description: "Students will lose access until it is restored." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Archive failed", description: error.message, variant: "destructive" });
+    },
+  });
+
   return {
     workspace,
     workspaceId,
@@ -505,12 +569,16 @@ export function useOwnerWorkspace() {
     memberUserIds,
     tutorContracts,
     contractByTutorId,
+    assignmentsLoading,
+    quizzesLoading,
     createClassroom,
     updateClassroomTutors,
     addStudentToClassroom,
     createOneToOneRoom,
     updateOneToOneRoom,
     deleteOneToOneRoom,
+    updateClassroomSettings,
+    archiveClassroom,
     isLoading:
       workspaceLoading ||
       tutorsLoading ||

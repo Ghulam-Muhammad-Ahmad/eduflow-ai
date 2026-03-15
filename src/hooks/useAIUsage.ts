@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useAuth } from '@/hooks/useAuth';
 
 interface AIUsage {
@@ -14,7 +15,7 @@ interface AIUsage {
   remainingCredits: number;
 }
 
-type SupabaseAnyRpc = (fn: string, args?: Record<string, unknown>) => Promise<{ data: any; error: any }>;
+type CreditContextRow = Database["public"]["Functions"]["get_credit_context"]["Returns"][number];
 
 export const useAIUsage = () => {
   const { user } = useAuth();
@@ -25,17 +26,17 @@ export const useAIUsage = () => {
     if (!user?.id) return;
 
     try {
-      const { data, error } = await (supabase.rpc as SupabaseAnyRpc)('get_credit_context', {
+      const { data, error } = await supabase.rpc('get_credit_context', {
         _user_id: user.id,
       });
 
       if (error) throw error;
 
       // get_credit_context returns TABLE → array of rows; use first row
-      const row = Array.isArray(data) ? data[0] : data;
-      const limit = row && typeof row === 'object' ? Number(row.credits_limit) || 0 : 0;
-      const used = row && typeof row === 'object' ? Number(row.credits_used) || 0 : 0;
-      const rawRemaining = row && typeof row === 'object' ? (row as { remaining?: number }).remaining : undefined;
+      const row: CreditContextRow | null = Array.isArray(data) ? (data[0] ?? null) : null;
+      const limit = row ? Number(row.credits_limit) || 0 : 0;
+      const used = row ? Number(row.credits_used) || 0 : 0;
+      const rawRemaining = row?.remaining;
       const remaining =
         typeof rawRemaining === 'number' && Number.isFinite(rawRemaining)
           ? rawRemaining

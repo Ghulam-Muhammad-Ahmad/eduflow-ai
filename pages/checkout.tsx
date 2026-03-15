@@ -13,6 +13,8 @@ declare global {
       Checkout?: {
         open: (opts: {
           transactionId?: string;
+          items?: Array<{ priceId: string; quantity: number }>;
+          customData?: Record<string, string>;
           settings?: {
             displayMode?: string;
             frameTarget?: string;

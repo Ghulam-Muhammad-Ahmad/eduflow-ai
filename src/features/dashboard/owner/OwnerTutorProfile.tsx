@@ -137,8 +137,9 @@ export default function OwnerTutorProfile() {
     );
   }
 
+  const contractType = (contract as { contract_type?: string })?.contract_type ?? contract?.pay_type;
   const rateLabel = contract
-    ? `${contract.rate_amount} ${contract.rate_currency}/${contract.pay_type === "per_session" ? "session" : "hr"}`
+    ? `${contract.rate_amount} ${contract.rate_currency}/${contractType === "per_session" ? "session" : contractType === "fixed_monthly" ? "month" : "hr"}`
     : "—";
   const subjectsLabel =
     contract?.subjects && Array.isArray(contract.subjects) && (contract.subjects as string[]).length > 0
@@ -196,16 +197,16 @@ export default function OwnerTutorProfile() {
                     ? `Signed on ${new Date(contract.contract_signed_at).toLocaleDateString()} by ${contract.tutor_signature_name ?? "—"}.`
                     : "View and manage this tutor's contract from the Contracts tab."}
                 </p>
-                <Button
-                variant="default"
-                size="icon"
-                className="mt-4 w-full sm:w-auto px-4 py-2"
-                asChild
-              >
-                <Link href={`/dashboard/owner/contracts/${contract.id}`} title={contract.contract_body_text ? "View contract" : "Create contract"}>
-                  <Eye className="h-4 w-4" /> View Contract
-                </Link>
-              </Button>
+                <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                  <Button variant="default" size="sm" className="px-4 py-2" asChild>
+                    <Link href={`/dashboard/owner/contracts/${contract.id}`} title={contract.contract_body_text ? "View contract" : "Create contract"}>
+                      <Eye className="h-4 w-4" /> View Contract
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" className="px-4 py-2" asChild>
+                    <Link href={`/dashboard/owner/tutors/${tutorId}/payout`}>Payout</Link>
+                  </Button>
+                </div>
                 {!contract.contract_body_text && (
                   <Button variant="outline" size="sm" className="mt-4 w-full sm:w-auto" asChild>
                     <Link href={`/dashboard/owner/contracts/new?tutorId=${tutorId}`}>Build AI contract</Link>

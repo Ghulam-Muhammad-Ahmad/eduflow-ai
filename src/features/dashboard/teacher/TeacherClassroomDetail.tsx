@@ -15,41 +15,32 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   ArrowLeft,
   Users,
   Search,
-  UserMinus,
   BookOpen,
   ClipboardList,
   FileText,
   ScrollText,
   Video,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { ClassroomSettingsSection, type ClassroomSettingsForm } from "@/features/dashboard/shared/ClassroomSettingsSection";
 
 const TeacherClassroomDetail = () => {
   const router = useRouter();
   const { classroomId } = router.query as { classroomId: string };
-  const { classrooms, isLoading: classroomsLoading, removeStudent } = useClassrooms();
+  const {
+    classrooms,
+    isLoading: classroomsLoading,
+    updateClassroomSettings,
+  } = useClassrooms();
   const { data: roster, isLoading: rosterLoading } = useClassroomRoster(classroomId || null);
   const { assignments } = useAssignments(classroomId);
-  const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [removeStudentDialogOpen, setRemoveStudentDialogOpen] = useState(false);
-  const [studentToRemove, setStudentToRemove] = useState<{ enrollmentId: string; name: string } | null>(null);
 
   const classroom = classrooms?.find((c) => c.id === classroomId);
+  const classAssignments = assignments ?? [];
 
   if (!classroom && !rosterLoading && !classroomsLoading) {
     return (
@@ -69,31 +60,6 @@ const TeacherClassroomDetail = () => {
     );
   }
 
-  const handleRemoveStudent = (enrollmentId: string, studentName: string) => {
-    setStudentToRemove({ enrollmentId, name: studentName });
-    setRemoveStudentDialogOpen(true);
-  };
-
-  const confirmRemoveStudent = async () => {
-    if (!studentToRemove || !classroomId) return;
-
-    try {
-      await removeStudent.mutateAsync({
-        enrollmentId: studentToRemove.enrollmentId,
-        classroomId: classroomId,
-      });
-
-      setRemoveStudentDialogOpen(false);
-      setStudentToRemove(null);
-    } catch (error: unknown) {
-      toast({
-        title: "Remove failed",
-        description: error instanceof Error ? error.message : "Unable to remove student. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   type ProfileLike = { display_name?: string; email?: string; avatar_url?: string };
   // Filter students based on search query
   const filteredRoster = roster?.filter((enrollment) => {
@@ -104,85 +70,79 @@ const TeacherClassroomDetail = () => {
   });
 
   return (
-    <DashboardLayout>
+    <DashboardLayout role="teacher">
       <div className="space-y-6">
-        {/* Header */}
+        {/* Header — same layout as owner */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.push("/dashboard/teacher/classrooms")}
-            >
-              <ArrowLeft className="w-5 h-5" />
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/dashboard/teacher/classrooms">
+                <ArrowLeft className="w-4 h-4" />
+              </Link>
             </Button>
-            <div className="flex-1">
-              <h1 className="text-2xl lg:text-3xl font-bold">{classroom?.name}</h1>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold truncate">{classroom?.name}</h1>
               {classroom?.subject && (
-                <p className="text-muted-foreground mt-1">{classroom.subject}</p>
+                <p className="text-muted-foreground">{classroom.subject}</p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button asChild variant="outline" className="gap-2">
-              <Link href={classroomId ? `/dashboard/teacher/sessions?classroomId=${classroomId}` : "/dashboard/teacher/sessions"}>
+          {classroomId && (
+            <Button asChild variant="outline" className="gap-2 shrink-0" size="sm">
+              <Link href={`/dashboard/teacher/sessions?classroomId=${classroomId}`}>
                 <Video className="w-4 h-4" />
                 View sessions
               </Link>
             </Button>
-            <Button
-              onClick={() => router.push(`/dashboard/teacher/student-records?classroomId=${classroomId}`)}
-              className="gap-2"
-            >
-              <FileText className="w-4 h-4" />
-              View classroom reports
-            </Button>
-          </div>
+          )}
         </div>
 
-        {/* Classroom Info Cards */}
         <div className="grid md:grid-cols-2 gap-4">
-          {/* Students Count Card */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Total Students
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{roster?.length || 0}</div>
+              <div className="text-3xl font-bold">{roster?.length ?? 0}</div>
             </CardContent>
           </Card>
 
-          {/* Assignments Card */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <ClipboardList className="w-4 h-4" />
-                Assignments
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">Assignments</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{assignments?.length || 0}</div>
+              <div className="text-3xl font-bold">{classAssignments.length}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Students Roster */}
+        {/* Classroom Settings — same component as owner, inline on page */}
+        {classroom && (
+          <ClassroomSettingsSection
+            classroomName={classroom.name}
+            settings={classroom.settings as ClassroomSettingsForm | null | undefined}
+            onSave={async (settings) => {
+              await updateClassroomSettings.mutateAsync({ id: classroom.id, settings });
+            }}
+            isSaving={updateClassroomSettings.isPending}
+          />
+        )}
+
+        {/* Roster — same table style as owner */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
-                <CardTitle>Enrolled Students</CardTitle>
+                <CardTitle>Roster</CardTitle>
                 <CardDescription>
-                  {filteredRoster?.length || 0} student{filteredRoster?.length !== 1 ? 's' : ''} enrolled
+                  {filteredRoster?.length ?? 0} student{(filteredRoster?.length ?? 0) !== 1 ? "s" : ""} enrolled
                 </CardDescription>
               </div>
               <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search students..."
+                  placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -233,13 +193,10 @@ const TeacherClassroomDetail = () => {
                       <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         Student
                       </th>
-                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
                         Email
                       </th>
-                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
-                        Joined
-                      </th>
-                      <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground w-24">
                         Action
                       </th>
                     </tr>
@@ -247,47 +204,35 @@ const TeacherClassroomDetail = () => {
                   <tbody className="divide-y divide-border/60">
                     {filteredRoster.map((enrollment) => {
                       const studentName = (enrollment.profiles as ProfileLike | null)?.display_name || "Student";
-                      const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "—";
+                      const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "";
                       const avatarUrl = (enrollment.profiles as ProfileLike | null)?.avatar_url;
                       return (
-                        <tr key={enrollment.id} className="hover:bg-muted/30 transition-colors group">
+                        <tr key={enrollment.id} className="hover:bg-muted/30 transition-colors">
                           <td className="px-6 py-3.5">
-                            <div className="flex items-center gap-3">
+                            <Link
+                              href={`/dashboard/teacher/student-records/${enrollment.student_id}?classroomId=${classroomId}`}
+                              className="flex items-center gap-3 font-medium text-foreground hover:text-primary transition-colors"
+                            >
                               <Avatar className="h-9 w-9 shrink-0">
                                 <AvatarImage src={avatarUrl} />
-                                <AvatarFallback className="text-sm">
-                                  {(studentName[0] || "S").toUpperCase()}
-                                </AvatarFallback>
+                                <AvatarFallback className="text-sm">{(studentName[0] || "S").toUpperCase()}</AvatarFallback>
                               </Avatar>
-                              <span className="font-medium truncate">{studentName}</span>
-                            </div>
+                              <span className="truncate">{studentName}</span>
+                            </Link>
+                            {studentEmail && (
+                              <p className="text-muted-foreground text-xs sm:hidden mt-0.5 truncate pl-12">{studentEmail}</p>
+                            )}
                           </td>
-                          <td className="px-6 py-3.5 text-muted-foreground truncate max-w-[200px]">
-                            {studentEmail}
-                          </td>
-                          <td className="px-6 py-3.5 text-muted-foreground text-xs hidden sm:table-cell">
-                            {new Date(enrollment.joined_at).toLocaleDateString()}
+                          <td className="px-6 py-3.5 text-muted-foreground hidden sm:table-cell">
+                            {studentEmail || "—"}
                           </td>
                           <td className="px-6 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5 shrink-0"
-                                onClick={() => router.push(`/dashboard/teacher/student-records/${enrollment.student_id}?classroomId=${classroomId}`)}
-                              >
+                            <Button asChild variant="outline" size="sm" className="gap-1.5">
+                              <Link href={`/dashboard/teacher/student-records/${enrollment.student_id}?classroomId=${classroomId}`}>
                                 <ScrollText className="w-4 h-4" />
                                 View record
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => handleRemoveStudent(enrollment.id, studentName)}
-                              >
-                                <UserMinus className="w-4 h-4" />
-                              </Button>
-                            </div>
+                              </Link>
+                            </Button>
                           </td>
                         </tr>
                       );
@@ -299,31 +244,57 @@ const TeacherClassroomDetail = () => {
           </CardContent>
         </Card>
 
-        {/* Remove Student Confirmation Dialog */}
-        <AlertDialog open={removeStudentDialogOpen} onOpenChange={setRemoveStudentDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove Student</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to remove <span className="font-semibold">{studentToRemove?.name}</span> from this classroom? 
-                They will lose access to all classroom materials and assignments. 
-                Contact your workspace owner to be re-added to the class.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setStudentToRemove(null)}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmRemoveStudent}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={removeStudent.isPending}
-              >
-                {removeStudent.isPending ? "Removing..." : "Remove Student"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Class overview — same as owner */}
+        <section className="space-y-6" aria-labelledby="class-overview-heading">
+          <h2 id="class-overview-heading" className="text-lg font-semibold tracking-tight text-foreground border-b border-border/60 pb-2">
+            Class overview
+          </h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl font-semibold">Class report</CardTitle>
+                <CardDescription>
+                  Student records, grades, and progress for this class
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href={classroomId ? `/dashboard/teacher/student-records?classroomId=${classroomId}` : "#"}>
+                  <Button variant="default" className="w-fit">
+                    View full student records
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl font-semibold">Assignments</CardTitle>
+                <CardDescription>
+                  {classAssignments.length} assignment{classAssignments.length !== 1 ? "s" : ""} in this class
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {classAssignments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No assignments yet. Create one from Assignments.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-40 overflow-y-auto">
+                    {classAssignments.slice(0, 5).map((a) => (
+                      <li key={a.id} className="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-border/40 last:border-0">
+                        <span className="font-medium truncate">{a.title ?? "Assignment"}</span>
+                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {a.status ?? "draft"}
+                        </span>
+                      </li>
+                    ))}
+                    {classAssignments.length > 5 && (
+                      <li className="text-xs text-muted-foreground pt-1">{classAssignments.length - 5} more</li>
+                    )}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
       </div>
     </DashboardLayout>
   );

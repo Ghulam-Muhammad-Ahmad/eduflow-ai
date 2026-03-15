@@ -4,7 +4,9 @@ import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { Label } from "@/components/ui/label";
+import { parseAmountFromDisplay } from "@/lib/formatAmount";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -139,7 +141,7 @@ export default function OwnerSessions() {
 
   useEffect(() => {
     if (financialDialogOpen && financialSession && activeFinancial) {
-      const financial = activeFinancial as LectureSessionFinancialMock | null | undefined;
+      const financial = (activeFinancial as { financial?: LectureSessionFinancialMock | null })?.financial ?? null;
       setFinancialForm({
         tutorRateAmount: financial?.tutor_rate_amount != null ? String(financial.tutor_rate_amount) : "0",
         tutorRateCurrency: financial?.tutor_rate_currency ?? "GBP",
@@ -349,10 +351,10 @@ export default function OwnerSessions() {
     if (!financialSession) return;
     await saveLectureFinancial.mutateAsync({
       sessionId: financialSession.id,
-      tutorRateAmount: Number(financialForm.tutorRateAmount) || 0,
+      tutorRateAmount: parseAmountFromDisplay(financialForm.tutorRateAmount),
       tutorRateCurrency: financialForm.tutorRateCurrency.trim().toUpperCase() || "GBP",
       tutorRateType: financialForm.tutorRateType,
-      studentChargeAmount: Number(financialForm.studentChargeAmount) || 0,
+      studentChargeAmount: parseAmountFromDisplay(financialForm.studentChargeAmount),
       studentChargeCurrency:
         financialForm.studentChargeCurrency.trim().toUpperCase() || "GBP",
       studentChargeType: financialForm.studentChargeType,
@@ -539,13 +541,10 @@ export default function OwnerSessions() {
                 </div>
                 <div className="space-y-2">
                   <Label>Amount</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
+                  <AmountInput
                     value={financialForm.tutorRateAmount}
-                    onChange={(e) =>
-                      setFinancialForm((f) => ({ ...f, tutorRateAmount: e.target.value }))
+                    onChange={(v) =>
+                      setFinancialForm((f) => ({ ...f, tutorRateAmount: v }))
                     }
                   />
                 </div>
@@ -582,13 +581,10 @@ export default function OwnerSessions() {
                 </div>
                 <div className="space-y-2">
                   <Label>Amount</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
+                  <AmountInput
                     value={financialForm.studentChargeAmount}
-                    onChange={(e) =>
-                      setFinancialForm((f) => ({ ...f, studentChargeAmount: e.target.value }))
+                    onChange={(v) =>
+                      setFinancialForm((f) => ({ ...f, studentChargeAmount: v }))
                     }
                   />
                 </div>

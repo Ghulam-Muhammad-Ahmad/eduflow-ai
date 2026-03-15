@@ -92,3 +92,26 @@ export const CYCLES: BillingCycle[] = ["monthly", "annual"];
 export function hasTrial(tier: PlanTier): boolean {
   return tier === "basic";
 }
+
+/** Resolve current tier and billing cycle from a subscription price_id (e.g. to sync UI). */
+export function getTierAndCycleFromPriceId(
+  planLine: PlanLine,
+  priceId: string | null
+): { tier: PlanTier; cycle: BillingCycle } | null {
+  if (!priceId?.trim()) return null;
+  for (const tier of TIERS) {
+    for (const cycle of CYCLES) {
+      if (getCheckoutPriceId(planLine, tier, cycle) === priceId) {
+        return { tier, cycle };
+      }
+    }
+  }
+  return null;
+}
+
+/** Tier order for upgrade/downgrade: basic < pro < plus. */
+const TIER_ORDER: Record<PlanTier, number> = { basic: 0, pro: 1, plus: 2 };
+
+export function isTierHigherThan(a: PlanTier, b: PlanTier): boolean {
+  return TIER_ORDER[a] > TIER_ORDER[b];
+}

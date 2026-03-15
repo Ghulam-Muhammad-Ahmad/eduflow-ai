@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAuthUser } from "@/integrations/supabase/server";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
+import type { Database } from "@/integrations/supabase/types";
 import { getCallerRole } from "@/server/lecture-sessions";
 import {
   exchangeGoogleCodeForTokens,
@@ -77,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const refreshToken = tokenPayload.refreshToken ?? existingConnection?.refresh_token ?? null;
     const now = new Date().toISOString();
 
-    const row: Record<string, unknown> = {
+    const row: Database["public"]["Tables"]["google_calendar_connections"]["Insert"] = {
       user_id: user.id,
       google_email: googleEmail ?? null,
       google_calendar_id: "primary",

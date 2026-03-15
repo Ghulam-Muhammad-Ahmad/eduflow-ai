@@ -5,85 +5,26 @@ import {
   canManageLectureSession,
   getCallerRole,
   getSessionById,
-  getSessionFinancialMockBySessionId,
 } from "@/server/lecture-sessions";
 
-type FinancialBody = {
-  tutorRateAmount?: unknown;
-  tutorRateCurrency?: unknown;
-  tutorRateType?: unknown;
-  studentChargeAmount?: unknown;
-  studentChargeCurrency?: unknown;
-  studentChargeType?: unknown;
-};
-
-function parseNonNegativeNumber(value: unknown, fieldName: string) {
-  const numericValue =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && value.trim().length > 0
-        ? Number(value)
-        : NaN;
-
-  if (!Number.isFinite(numericValue) || numericValue < 0) {
-    throw new Error(`${fieldName} must be a non-negative number.`);
-  }
-
-  return numericValue;
-}
-
-function parseFinancialBody(body: FinancialBody) {
-  const tutorRateType =
-    body.tutorRateType === "hourly" || body.tutorRateType === "per_session"
-      ? body.tutorRateType
-      : null;
-  const studentChargeType =
-    body.studentChargeType === "hourly" ||
-    body.studentChargeType === "per_session" ||
-    body.studentChargeType === "per_student"
-      ? body.studentChargeType
-      : null;
-
-  if (!tutorRateType) {
-    throw new Error("tutorRateType is required.");
-  }
-
-  if (!studentChargeType) {
-    throw new Error("studentChargeType is required.");
-  }
-
-  if (typeof body.tutorRateCurrency !== "string" || body.tutorRateCurrency.trim().length === 0) {
-    throw new Error("tutorRateCurrency is required.");
-  }
-
-  if (
-    typeof body.studentChargeCurrency !== "string" ||
-    body.studentChargeCurrency.trim().length === 0
-  ) {
-    throw new Error("studentChargeCurrency is required.");
-  }
-
-  return {
-    tutorRateAmount: parseNonNegativeNumber(body.tutorRateAmount, "tutorRateAmount"),
-    tutorRateCurrency: body.tutorRateCurrency.trim().toUpperCase(),
-    tutorRateType,
-    studentChargeAmount: parseNonNegativeNumber(
-      body.studentChargeAmount,
-      "studentChargeAmount"
-    ),
-    studentChargeCurrency: body.studentChargeCurrency.trim().toUpperCase(),
-    studentChargeType,
-  };
-}
-
+/**
+ * GET /api/sessions/[id]/financials - read-only: returns real earning rows and invoice rows for this session.
+ * PUT is deprecated (mock financials removed); returns 410 Gone.
+ */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const sessionId = typeof req.query.id === "string" ? req.query.id : null;
   if (!sessionId) {
     return res.status(400).json({ error: "Session id is required." });
   }
 
-  if (req.method !== "GET" && req.method !== "PUT") {
-    res.setHeader("Allow", "GET, PUT");
+  if (req.method === "PUT") {
+    return res.status(410).json({
+      error: "Mock financials are no longer used. Earnings and fees are managed by contracts and fee configs.",
+    });
+  }
+
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
   }
 
@@ -99,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const callerRole = await getCallerRole(user.id);
     if (callerRole !== "admin" && callerRole !== "teacher") {
-      return res.status(403).json({ error: "Only owners and tutors can access mock financials." });
+      return res.status(403).json({ error: "Only owners and tutors can access session financials." });
     }
 
     const session = await getSessionById(sessionId);
@@ -113,44 +54,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: "You do not have access to this lecture financial data." });
     }
 
-    if (req.method === "GET") {
-      const financial = await getSessionFinancialMockBySessionId(session.id);
-      return res.status(200).json({ financial });
-    }
+    const [earningRes, invoiceRes] = await Promise.all([
+      supabaseAdmin
+        .from("tutor_earning_rows")
+        .select("*")
+        .eq("session_id", session.id),
+      supabaseAdmin
+        .from("student_invoice_rows")
+        .select("*")
+        .eq("session_id", session.id),
+    ]);
 
-    const input = parseFinancialBody((req.body ?? {}) as FinancialBody);
-    const now = new Date().toISOString();
-    const existing = await getSessionFinancialMockBySessionId(session.id);
+    if (earningRes.error) throw earningRes.error;
+    if (invoiceRes.error) throw invoiceRes.error;
 
-    const { data: financial, error: upsertError } = await supabaseAdmin
-      .from("session_financial_mock")
-      .upsert(
-        {
-          session_id: session.id,
-          workspace_id: session.workspace_id,
-          tutor_id: session.tutor_id,
-          tutor_rate_amount: input.tutorRateAmount,
-          tutor_rate_currency: input.tutorRateCurrency,
-          tutor_rate_type: input.tutorRateType,
-          student_charge_amount: input.studentChargeAmount,
-          student_charge_currency: input.studentChargeCurrency,
-          student_charge_type: input.studentChargeType,
-          created_by_user_id: existing?.created_by_user_id ?? user.id,
-          updated_by_user_id: user.id,
-          created_at: existing?.created_at ?? now,
-          updated_at: now,
-        },
-        { onConflict: "session_id" }
-      )
-      .select("*")
-      .single();
-
-    if (upsertError) throw upsertError;
-
-    return res.status(200).json({ financial });
+    return res.status(200).json({
+      financial: null,
+      earningRows: earningRes.data ?? [],
+      invoiceRows: invoiceRes.data ?? [],
+    });
   } catch (error) {
     return res.status(400).json({
-      error: error instanceof Error ? error.message : "Failed to save mock financial inputs.",
+      error: error instanceof Error ? error.message : "Failed to load session financials.",
     });
   }
 }

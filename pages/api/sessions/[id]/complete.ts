@@ -6,6 +6,8 @@ import {
   getCallerRole,
   getSessionById,
 } from "@/server/lecture-sessions";
+import { runContractEngineForSession } from "@/server/billing/contract-engine";
+import { runFeeEngineForSession } from "@/server/billing/fee-engine";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const sessionId = typeof req.query.id === "string" ? req.query.id : null;
@@ -29,12 +31,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const callerRole = await getCallerRole(user.id);
-    if (callerRole !== "teacher") {
-      return res.status(403).json({ error: "Only the assigned tutor can complete a lecture." });
+    if (callerRole !== "teacher" && callerRole !== "admin") {
+      return res.status(403).json({
+        error: "Only the assigned tutor or workspace owner can complete a lecture.",
+      });
     }
 
     const session = await getSessionById(sessionId);
-    const canManageOutcome = canManageLectureOutcome({
+    const canManageOutcome = await canManageLectureOutcome({
       callerId: user.id,
       callerRole,
       session,
@@ -54,6 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .update({
         status: "completed",
         completed_at: now,
+        completed_by_user_id: user.id,
         updated_at: now,
       })
       .eq("id", session.id)
@@ -61,6 +66,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .single();
 
     if (updateError) throw updateError;
+
+    // Run billing engines: contract (tutor earning row) and fee (student invoice rows)
+    try {
+      await runContractEngineForSession({
+        workspaceId: session.workspace_id,
+        tutorId: session.tutor_id,
+        sessionId: session.id,
+        sessionTitle: session.title,
+        startsAt: session.starts_at,
+        endsAt: session.ends_at,
+      });
+      await runFeeEngineForSession({
+        workspaceId: session.workspace_id,
+        sessionId: session.id,
+        scopeType: session.scope_type,
+        classroomId: session.classroom_id,
+        studentId: session.student_id,
+        startsAt: session.starts_at,
+        endsAt: session.ends_at,
+      });
+    } catch (engineError) {
+      // Log but do not fail the request; session is already marked completed
+      console.error("Billing engines error on session complete:", engineError);
+    }
 
     return res.status(200).json({ session: updatedSession });
   } catch (error) {

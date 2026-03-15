@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, UserPlus, Eye, EyeOff, Copy, CheckCircle2, KeyRound, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { passwordSchema } from "@/lib/validation";
+import { strongPasswordSchema } from "@/lib/validation";
 import { useWorkspaceStorageSummary } from "@/hooks/useStorage";
 import {
   bytesToWholeMb,
@@ -102,9 +102,9 @@ export default function OwnerInviteStudent() {
       setErrors({ firstName: "First and last name are required" });
       return;
     }
-    const passResult = passwordSchema.safeParse(password);
+    const passResult = strongPasswordSchema.safeParse(password);
     if (!passResult.success) {
-      setErrors({ password: passResult.error.errors[0]?.message ?? "Password must be at least 6 characters" });
+      setErrors({ password: passResult.error.errors[0]?.message ?? "Invalid password" });
       return;
     }
     setCreating(true);
@@ -288,15 +288,15 @@ export default function OwnerInviteStudent() {
               {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
             </div>
             <div>
-              <Label htmlFor="password">Password (min 6 characters)</Label>
+              <Label htmlFor="password">Password</Label>
               <div className="relative mt-2">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="Min 8 chars, uppercase, lowercase, number"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
+                  className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
                 />
                 <button
                   type="button"
