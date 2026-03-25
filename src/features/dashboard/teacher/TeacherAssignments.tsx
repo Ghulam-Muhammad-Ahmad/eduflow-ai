@@ -24,7 +24,6 @@ import {
   Send,
   Trash2,
   Edit,
-  Eye,
   FileText,
 } from "lucide-react";
 import {
@@ -244,14 +243,6 @@ const TeacherAssignments = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() =>
-                            router.push(`/dashboard/teacher/assignments/${assignment.id}`)
-                          }
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Details
-                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
                             router.push(`/dashboard/teacher/assignments/${assignment.id}/edit`)

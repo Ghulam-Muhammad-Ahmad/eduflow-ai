@@ -481,7 +481,9 @@ const Settings = () => {
                       <div className="min-w-0">
                         <p className="font-medium text-foreground">Google Calendar</p>
                         <p className="text-sm text-muted-foreground truncate">
-                          Connect your calendar for lectures and meetings.
+                          {calendarData.connected
+                            ? (calendarData.email ? `Connected as ${calendarData.email}` : "Your Google account is linked.")
+                            : "Connect your calendar for lectures and meetings."}
                         </p>
                       </div>
                     </div>

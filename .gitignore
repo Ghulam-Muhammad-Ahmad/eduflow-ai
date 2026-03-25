@@ -30,3 +30,6 @@ out
 
 .env.local
 .env
+
+# Database backups (may contain sensitive data)
+backup/

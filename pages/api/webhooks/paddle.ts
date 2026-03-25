@@ -50,17 +50,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     (req.headers["Paddle-Signature"] as string | undefined);
 
   if (!verifyPaddleSignature(rawBody, signature, secret)) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn(
-        "[paddle-webhook] Signature verification failed:",
-        "headerPresent:",
-        !!signature,
-        "bodyLength:",
-        rawBody.length,
-        "bodyStartsWith:",
-        rawBody.slice(0, 50).toString("utf8")
-      );
-    }
+    console.error(
+      "[paddle-webhook] Signature verification FAILED |",
+      "headerPresent:", !!signature,
+      "| signatureStart:", signature?.slice(0, 40) ?? "(none)",
+      "| secretPrefix:", secret?.slice(0, 10) + "...",
+      "| secretLength:", secret?.length,
+      "| bodyLength:", rawBody.length,
+    );
     return res.status(401).json({ error: "Invalid signature" });
   }
 
