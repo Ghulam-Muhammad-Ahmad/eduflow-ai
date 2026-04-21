@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(py --version)",
+      "Bash(py -m pip install graphifyy)",
+      "Bash(py -m graphify install)",
+      "PowerShell(py -c \"import graphify; import sys; open\\('D:/edulabloom/eduflow-ai/.graphify_python', 'w'\\).write\\(sys.executable\\); print\\('graphify OK, interpreter saved'\\)\" 2>&1)",
+      "PowerShell(\\(Get-Item \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_detect.json\"\\).Length; Get-Content \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_detect.json\" -Encoding UTF8 | Select-Object -First 3)",
+      "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_cache_check.py\" 2>&1)",
+      "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_ast_run.py\" 2>&1)",
+      "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_pipeline.py\" 2>&1)",
+      "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_read_analysis.py\" 2>&1)"
+    ]
+  }
+}
