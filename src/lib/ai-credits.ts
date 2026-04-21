@@ -59,46 +59,6 @@ export function getCreditWeightByFeatureName(featureKey: string): number {
   return typeof n === "number" && !Number.isNaN(n) && n >= 0 ? n : DEFAULT_WEIGHT;
 }
 
-// Build reverse map: price_id -> { planLine, tier } (business plans only)
-const PADDLE_PRICE_IDS: Record<string, string | undefined> = {
-  BUSINESS_BASIC_MONTHLY: process.env.NEXT_PUBLIC_PADDLE_PRICE_BUSINESS_BASIC_MONTHLY,
-  BUSINESS_BASIC_ANNUAL: process.env.NEXT_PUBLIC_PADDLE_PRICE_BUSINESS_BASIC_ANNUAL,
-  BUSINESS_PRO_MONTHLY: process.env.NEXT_PUBLIC_PADDLE_PRICE_BUSINESS_PRO_MONTHLY,
-  BUSINESS_PRO_ANNUAL: process.env.NEXT_PUBLIC_PADDLE_PRICE_BUSINESS_PRO_ANNUAL,
-  BUSINESS_PLUS_MONTHLY: process.env.NEXT_PUBLIC_PADDLE_PRICE_BUSINESS_PLUS_MONTHLY,
-  BUSINESS_PLUS_ANNUAL: process.env.NEXT_PUBLIC_PADDLE_PRICE_BUSINESS_PLUS_ANNUAL,
-};
-
-let priceIdToPlan: Map<string, { planLine: PlanLine; tier: PlanTier }> | null = null;
-
-function buildPriceIdToPlan(): Map<string, { planLine: PlanLine; tier: PlanTier }> {
-  const map = new Map<string, { planLine: PlanLine; tier: PlanTier }>();
-  // Key format: BUSINESS_BASIC_MONTHLY -> planLine=business, tier=basic
-  const lineTierFromKey = (key: string): { planLine: PlanLine; tier: PlanTier } | null => {
-    const parts = key.split("_");
-    if (parts.length < 3) return null;
-    const cycle = parts[parts.length - 1].toLowerCase();
-    const tierPart = parts[parts.length - 2].toLowerCase();
-    const linePart = parts.slice(0, -2).join("_").toLowerCase();
-    if ((cycle !== "monthly" && cycle !== "annual") || !["basic", "pro", "plus"].includes(tierPart))
-      return null;
-    if (linePart !== "business") return null;
-    return { planLine: "business", tier: tierPart as PlanTier };
-  };
-  for (const [key, priceId] of Object.entries(PADDLE_PRICE_IDS)) {
-    const trimmed = priceId?.trim();
-    if (!trimmed) continue;
-    const parsed = lineTierFromKey(key);
-    if (parsed) map.set(trimmed, parsed);
-  }
-  return map;
-}
-
-/** Resolve price_id from Paddle to plan_line and tier. Used by webhook to set credit pool. */
-export function getPlanFromPriceId(priceId: string): { planLine: PlanLine; tier: PlanTier } | null {
-  if (!priceIdToPlan) priceIdToPlan = buildPriceIdToPlan();
-  return priceIdToPlan.get(priceId.trim()) ?? null;
-}
 
 /** Default credits when user/workspace has no subscription (e.g. free tier). */
 export function getDefaultCredits(): number {

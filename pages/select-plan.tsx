@@ -58,7 +58,7 @@ export default function SelectPlanPage() {
           <div>
             <h1 className="text-xl font-bold text-foreground">Choose your plan</h1>
             <p className="text-sm text-muted-foreground">
-              A plan is required to access the platform. You will be redirected to our secure payment page.
+              Select a plan to get started and access the platform.
             </p>
           </div>
         </div>

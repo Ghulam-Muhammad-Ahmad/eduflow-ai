@@ -300,7 +300,7 @@ export default function OnboardingBusiness() {
         {step === 2 && workspaceId && (
           <>
             <p className="text-sm text-muted-foreground mb-6">
-              Choose a plan. You will be redirected to our secure payment page to complete checkout.
+              Choose a plan to get started with your tutoring business.
             </p>
             <div className="mb-6">
               <Button

@@ -17,7 +17,6 @@ import { useWorkspaceStorageSummary } from "@/hooks/useStorage";
 import { formatStorageSize } from "@/lib/storage-quota";
 
 export default function OwnerBilling() {
-  const [portalLoading, setPortalLoading] = useState(false);
   const workspaceId = useBillingWorkspaceId();
   const {
     subscription: workspaceSub,
@@ -55,29 +54,8 @@ export default function OwnerBilling() {
 
   useEffect(() => {
     invalidate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount to refetch after return from Paddle
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
-
-  const openManageSubscription = async () => {
-    if (!workspaceId && !userSub) return;
-    setPortalLoading(true);
-    try {
-      const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : "";
-      const res = await fetch(`/api/paddle/portal-session${qs}`, { credentials: "include" });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok) {
-        toast.error(data.error ?? "Failed to open subscription management");
-        return;
-      }
-      if (data.url) {
-        window.open(data.url, "_blank", "noopener,noreferrer");
-      }
-    } catch {
-      toast.error("Failed to open subscription management");
-    } finally {
-      setPortalLoading(false);
-    }
-  };
 
   return (
     <DashboardLayout>
@@ -120,21 +98,9 @@ export default function OwnerBilling() {
                     "No active subscription. Choose a plan below to get started."
                   )}
                 </CardDescription>
-                {subscription && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={openManageSubscription}
-                    disabled={portalLoading}
-                    className="mt-auto w-fit"
-                  >
-                    {portalLoading ? "Opening…" : "Manage subscription"}
-                    <ExternalLink className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
                 {!subscription && (
                   <p className="text-sm text-muted-foreground">
-                    Every Basic plan includes a 14-day free trial. Select a plan to open checkout.
+                    Select a plan below to get started with your workspace.
                   </p>
                 )}
               </CardContent>

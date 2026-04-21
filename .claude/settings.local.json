@@ -10,7 +10,9 @@
       "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_cache_check.py\" 2>&1)",
       "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_ast_run.py\" 2>&1)",
       "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_pipeline.py\" 2>&1)",
-      "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_read_analysis.py\" 2>&1)"
+      "PowerShell(py \"D:\\\\edulabloom\\\\eduflow-ai\\\\.graphify_read_analysis.py\" 2>&1)",
+      "Read(//d D:/edulabloom/**)",
+      "Bash(rm -f src/lib/paddle-webhook.ts src/lib/paddle-product.ts pages/api/webhooks/paddle.ts pages/api/paddle/checkout-url.ts pages/api/paddle/portal-session.ts pages/api/paddle/plan-prices.ts src/components/billing/PaddleProvider.tsx pages/checkout.tsx)"
     ]
   }
 }

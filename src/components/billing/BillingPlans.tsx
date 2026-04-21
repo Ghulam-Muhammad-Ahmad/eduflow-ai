@@ -19,19 +19,15 @@ import {
   PLAN_FEATURES,
   TIERS,
   hasTrial,
-  getCheckoutPriceId,
   getTierAndCycleFromPriceId,
   isTierHigherThan,
   type PlanLine,
   type PlanTier,
   type BillingCycle,
 } from "@/lib/billing";
-import { openPaddleCheckout } from "./PaddleProvider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check } from "lucide-react";
-
-/** Fetched from GET /api/paddle/plan-prices */
-type PlanPricesResponse = Record<PlanTier, Record<BillingCycle, { formatted: string; ai_credits: number | null; doc_storage_gb: number | null } | null>>;
+import { toast } from "sonner";
 
 interface BillingPlansProps {
   planLine: PlanLine;
@@ -40,7 +36,7 @@ interface BillingPlansProps {
   currentPriceId?: string | null;
   status?: string;
   onSelectPlan?: () => void;
-  /** Redirect URL after Paddle checkout (for full-page checkout). */
+  /** Redirect URL after plan selection. */
   successUrl?: string;
 }
 
@@ -65,10 +61,7 @@ export function BillingPlans({
   );
   const currentTier = currentTierAndCycle?.tier ?? null;
   const [cycle, setCycle] = useState<BillingCycle>(() => currentTierAndCycle?.cycle ?? "monthly");
-  const [redirecting, setRedirecting] = useState(false);
-  const [planPrices, setPlanPrices] = useState<PlanPricesResponse | null>(null);
-  const [pricesLoading, setPricesLoading] = useState(true);
-  const useRedirect = !!successUrl;
+  const [selecting, setSelecting] = useState(false);
 
   useEffect(() => {
     if (currentTierAndCycle?.cycle === "annual") {
@@ -76,46 +69,39 @@ export function BillingPlans({
     }
   }, [currentTierAndCycle?.cycle]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setPricesLoading(true);
-    (async () => {
-      try {
-        const res = await fetch(`/api/paddle/plan-prices?planLine=${encodeURIComponent(planLine)}`, { credentials: "include" });
-        if (cancelled) return;
-        if (!res.ok) {
-          setPricesLoading(false);
-          return;
-        }
-        const data = await res.json();
-        if (cancelled) return;
-        if (data?.plans) setPlanPrices(data.plans);
-      } catch {
-        // Fallback to PLAN_DISPLAY_PRICES
-      } finally {
-        if (!cancelled) setPricesLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [planLine]);
-
   const handleSelect = async (tier: PlanTier, billingCycle: BillingCycle) => {
-    const priceId = getCheckoutPriceId(planLine, tier, billingCycle);
-    if (!priceId) {
-      console.warn("Price ID not configured for", planLine, tier, billingCycle);
-      return;
+    setSelecting(true);
+    try {
+      const res = await fetch("/api/plans/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId || undefined,
+          workspaceId: workspaceId || undefined,
+          planTier: tier,
+          billingCycle,
+        }),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error || "Failed to select plan");
+        return;
+      }
+
+      toast.success("Plan selected successfully!");
+      onSelectPlan?.();
+
+      if (successUrl) {
+        window.location.href = successUrl;
+      }
+    } catch (e) {
+      console.error("[BillingPlans] Plan selection error:", e);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setSelecting(false);
     }
-    const customData: Record<string, string> = {};
-    if (workspaceId) customData.workspaceId = workspaceId;
-    if (userId) customData.userId = userId;
-    if (useRedirect) {
-      setRedirecting(true);
-      await openPaddleCheckout({ priceId, customData, successUrl });
-      setRedirecting(false);
-    } else {
-      openPaddleCheckout({ priceId, customData, successUrl });
-    }
-    onSelectPlan?.();
   };
 
   const isAnnual = cycle === "annual";
@@ -125,20 +111,6 @@ export function BillingPlans({
     {
       label: "Tutors & students",
       getValue: (t) => PLAN_LIMITS[planLine][t].label,
-    },
-    {
-      label: "AI credits / month",
-      getValue: (t) => {
-        const val = planPrices?.[t]?.[cycle]?.ai_credits;
-        return val != null && val >= 0 ? val.toLocaleString() : "—";
-      },
-    },
-    {
-      label: "Storage",
-      getValue: (t) => {
-        const val = planPrices?.[t]?.[cycle]?.doc_storage_gb;
-        return val != null && val >= 0 ? `${val} GB` : "—";
-      },
     },
     {
       label: "Owner dashboard",
@@ -220,129 +192,74 @@ export function BillingPlans({
           </div>
         </div>
 
-        {pricesLoading ? (
-          <div className="rounded-xl border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b border-border hover:bg-transparent">
-                  <TableHead className="w-[200px] font-medium text-foreground">Plan</TableHead>
-                  {TIERS.map((tier) => (
-                    <TableHead key={tier} className="text-center font-medium text-foreground">
-                      {TIER_LABELS[tier]}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow className="border-b border-border hover:bg-transparent">
-                  <TableCell className="align-top pt-4"></TableCell>
-                  {TIERS.map((tier) => (
-                    <TableCell key={tier} className="align-top pt-4 pb-2 text-center">
-                      <Skeleton className="h-10 w-full rounded-md" />
-                      <Skeleton className="mt-2 h-8 w-16 mx-auto rounded-md" />
+      <div className="rounded-xl border border-border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-b border-border hover:bg-transparent">
+              <TableHead className="w-[200px] font-medium text-foreground">Plan</TableHead>
+              {TIERS.map((tier) => {
+                const isCurrent = currentTier === tier;
+                return (
+                  <TableHead
+                    key={tier}
+                    className={`text-center font-medium text-foreground ${isCurrent ? "bg-primary/5" : ""}`}
+                  >
+                    {TIER_LABELS[tier]}
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {/* Row: CTA buttons */}
+            <TableRow className="border-b border-border hover:bg-transparent">
+              <TableCell className="text-muted-foreground align-top pt-4"></TableCell>
+              {TIERS.map((tier) => {
+                const isCurrent = currentTier === tier;
+                const prices = PLAN_DISPLAY_PRICES[planLine][tier];
+                const displayPrice = cycle === "monthly" ? prices.monthly : prices.annual;
+                const priceSuffix = cycle === "monthly" ? "/mo" : "/yr";
+                return (
+                  <TableCell
+                    key={tier}
+                    className={`align-top pt-4 pb-2 text-center ${isCurrent ? "bg-primary/5" : ""}`}
+                  >
+                    <Button
+                      className="w-full"
+                      variant={isCurrent ? "secondary" : "default"}
+                      disabled={isCurrent || selecting}
+                      onClick={() => handleSelect(tier, cycle)}
+                    >
+                      {selecting ? "Selecting…" : isCurrent ? "Current plan" : "Select plan"}
+                    </Button>
+                    <div className="mt-2">
+                      <span className="text-2xl font-bold text-foreground">{displayPrice}</span>
+                      <span className="text-sm text-muted-foreground">{priceSuffix}</span>
+                    </div>
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+            {/* Feature rows */}
+            {comparisonRows.map((row) => (
+              <TableRow key={row.label} className="border-b border-border last:border-0 hover:bg-transparent">
+                <TableCell className="font-medium text-foreground">{row.label}</TableCell>
+                {TIERS.map((tier) => {
+                  const isCurrent = currentTier === tier;
+                  return (
+                    <TableCell
+                      key={tier}
+                      className={`text-center text-muted-foreground ${isCurrent ? "bg-primary/5" : ""}`}
+                    >
+                      {row.getValue(tier)}
                     </TableCell>
-                  ))}
-                </TableRow>
-                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-                  <TableRow key={i} className="border-b border-border last:border-0 hover:bg-transparent">
-                    <TableCell>
-                      <Skeleton className="h-4 w-32 rounded-md" />
-                    </TableCell>
-                    {TIERS.map((tier) => (
-                      <TableCell key={tier} className="text-center">
-                        <Skeleton className="h-4 w-8 mx-auto rounded-md" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b border-border hover:bg-transparent">
-                  <TableHead className="w-[200px] font-medium text-foreground">Plan</TableHead>
-                  {TIERS.map((tier) => {
-                    const priceId = getCheckoutPriceId(planLine, tier, cycle);
-                    const isCurrent = currentPriceId && priceId === currentPriceId;
-                    return (
-                      <TableHead
-                        key={tier}
-                        className={`text-center font-medium text-foreground ${isCurrent ? "bg-primary/5" : ""}`}
-                      >
-                        {TIER_LABELS[tier]}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {/* Row: CTA buttons */}
-                <TableRow className="border-b border-border hover:bg-transparent">
-                  <TableCell className="text-muted-foreground align-top pt-4"></TableCell>
-                  {TIERS.map((tier) => {
-                    const priceId = getCheckoutPriceId(planLine, tier, cycle);
-                    const isCurrent = currentPriceId && priceId === currentPriceId;
-                    const trial = hasTrial(tier);
-                    const prices = PLAN_DISPLAY_PRICES[planLine][tier];
-                    const dynamic = planPrices?.[tier]?.[cycle];
-                    const displayPrice = dynamic?.formatted ?? (cycle === "monthly" ? prices.monthly : prices.annual);
-                    const priceSuffix = cycle === "monthly" ? "/mo" : "/yr";
-                    return (
-                      <TableCell
-                        key={tier}
-                        className={`align-top pt-4 pb-2 text-center ${isCurrent ? "bg-primary/5" : ""}`}
-                      >
-                        <Button
-                          className="w-full"
-                          variant={isCurrent ? "secondary" : "default"}
-                          disabled={isCurrent || redirecting}
-                          onClick={() => handleSelect(tier, cycle)}
-                        >
-                          {redirecting
-                            ? "Redirecting…"
-                            : isCurrent
-                              ? "Current plan"
-                              : trial
-                                ? "Try it for free"
-                                : status && (status === "active" || status === "trialing") && currentTier
-                                  ? isTierHigherThan(currentTier, tier)
-                                    ? "Downgrade"
-                                    : "Upgrade"
-                                  : "Continue to payment"}
-                        </Button>
-                        <div className="mt-2">
-                          <span className="text-2xl font-bold text-foreground">{displayPrice}</span>
-                          <span className="text-sm text-muted-foreground">{priceSuffix}</span>
-                        </div>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-                {/* Feature rows */}
-                {comparisonRows.map((row) => (
-                  <TableRow key={row.label} className="border-b border-border last:border-0 hover:bg-transparent">
-                    <TableCell className="font-medium text-foreground">{row.label}</TableCell>
-                    {TIERS.map((tier) => {
-                      const priceId = getCheckoutPriceId(planLine, tier, cycle);
-                      const isCurrent = currentPriceId && priceId === currentPriceId;
-                      return (
-                        <TableCell
-                          key={tier}
-                          className={`text-center text-muted-foreground ${isCurrent ? "bg-primary/5" : ""}`}
-                        >
-                          {row.getValue(tier)}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       </div>
     </div>
   );
