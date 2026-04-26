@@ -543,12 +543,12 @@ BEGIN
       LIMIT 1;
     END IF;
     IF ws_id IS NOT NULL THEN
-      SELECT (wcp.credits_allocated - wcp.credits_assigned_out - wcp.credits_used_direct) INTO pool_rem
+      SELECT coalesce(wcp.credits_allocated - wcp.credits_assigned_out, 0),
+             coalesce(wcp.credits_used_direct, 0)
+      INTO total_limit, total_used
       FROM public.workspace_credit_pools wcp
       WHERE wcp.workspace_id = ws_id AND wcp.period = _period;
-      IF pool_rem IS NOT NULL AND pool_rem > 0 THEN
-        total_limit := (SELECT wcp.credits_allocated - wcp.credits_assigned_out FROM public.workspace_credit_pools wcp WHERE wcp.workspace_id = ws_id AND wcp.period = _period);
-        total_used := (SELECT wcp.credits_used_direct FROM public.workspace_credit_pools wcp WHERE wcp.workspace_id = ws_id AND wcp.period = _period);
+      IF total_limit > 0 THEN
         source_type := 'workspace';
         source_id := ws_id;
       END IF;

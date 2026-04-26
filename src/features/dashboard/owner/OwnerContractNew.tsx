@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
+import { useWorkspaceCurrency } from "@/hooks/useWorkspaceCurrency";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -46,10 +47,15 @@ FORMATTING REQUIREMENTS:
 - Use bullet lists for enumerating items.
 - Maintain clear, professional Markdown formatting.
 
+PLACEHOLDER RULES (CRITICAL):
+- For ANY value not explicitly provided in the Context (addresses, phone numbers, registration numbers, dates, email addresses, bank details, jurisdiction, notice periods if not specified, etc.), you MUST insert a bracketed placeholder in Title Case, e.g. [Client Address], [Business Registration Number], [Governing Law Jurisdiction].
+- Do NOT guess, invent, or assume any value. If unsure whether information was provided, use a placeholder.
+- Placeholders MUST start with an uppercase letter and contain only letters, spaces, and common punctuation — no URLs, no markdown syntax inside brackets.
+- The app highlights these placeholders and lets the owner fill them in interactively before sending the contract to the tutor. This is a core feature — leaving correct placeholders is better than guessing wrong values.
+
 CONTEXT USAGE RULES:
 - Use the values provided in the Context exactly as written.
 - Do NOT invent new business names, tutors, rates, or subjects.
-- If a value is missing (such as start date), insert a placeholder in brackets like [Start Date].
 - The rate and payment structure must match the provided rate context.
 
 MANDATORY CONTRACT CONTENT:
@@ -96,7 +102,7 @@ export default function OwnerContractNew() {
   const router = useRouter();
   const preselectedTutorId = typeof router.query.tutorId === "string" ? router.query.tutorId : null;
   const { workspace, tutors, contractByTutorId, invalidate, isLoading } = useOwnerWorkspace();
-  const workspaceCurrency = (workspace?.settings?.default_currency?.trim()) || "PKR";
+  const workspaceCurrency = useWorkspaceCurrency();
   const [selectedTutorId, setSelectedTutorId] = useState<string | null>(preselectedTutorId);
   const [durationPreset, setDurationPreset] = useState<string>("12 months");
   const [durationCustom, setDurationCustom] = useState("");
@@ -142,7 +148,7 @@ export default function OwnerContractNew() {
           ? contract.subjects
           : "";
       const rateVal = parseAmountFromDisplay(rateAmount);
-      const currencyVal = workspaceCurrency || "PKR";
+      const currencyVal = workspaceCurrency;
       const contextBlock = `Context:
 - Business/Workspace: ${workspace?.name ?? "The Business"}
 - Tutor: ${tutorName}
@@ -309,7 +315,7 @@ export default function OwnerContractNew() {
                       <div className="flex flex-col gap-2">
                         <Label>Currency</Label>
                         <p className="text-sm font-medium text-foreground rounded-md border border-border bg-muted/40 px-3 py-2 inline-block">
-                          {workspaceCurrency || "PKR"}
+                          {workspaceCurrency}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Workspace default currency. Set in Workspace settings.

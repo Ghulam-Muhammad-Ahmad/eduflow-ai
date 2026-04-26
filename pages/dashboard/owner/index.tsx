@@ -1,4 +1,4 @@
 import { withAuth } from "@/lib/withAuth";
-import AdminDashboard from "@/features/dashboard/AdminDashboard";
+import OwnerDashboardEnhanced from "@/features/dashboard/owner/OwnerDashboardEnhanced";
 
-export default withAuth(AdminDashboard, { allowedRoles: ["admin"] });
+export default withAuth(OwnerDashboardEnhanced, { allowedRoles: ["admin"] });

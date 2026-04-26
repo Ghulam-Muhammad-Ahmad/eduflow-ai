@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Lock, Eye, EyeOff, ShieldCheck, LogOut } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { resetPasswordSchema } from "@/lib/validation";
@@ -13,11 +13,24 @@ const CHANGE_PASSWORD_PATH = "/onboarding/change-password";
 
 export default function OnboardingChangePassword() {
   const router = useRouter();
-  const { user, role, profile, loading: authLoading, updatePassword, setPasswordChanged } = useAuth();
+  const { user, role, profile, loading: authLoading, updatePassword, setPasswordChanged, signOut } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut();
+      toast.success("Logged out successfully");
+      router.replace("/auth");
+    } catch (err) {
+      toast.error((err as Error)?.message || "Failed to logout");
+      setLoggingOut(false);
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -80,64 +93,81 @@ export default function OnboardingChangePassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-      <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-8 shadow-lg">
-        <div className="flex flex-col items-center space-y-2">
-          <div className="rounded-full bg-primary/10 p-3">
-            <ShieldCheck className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Set your password</h1>
-          <p className="text-center text-sm text-muted-foreground">
-            For your security, please choose a new password. You’ll use this to sign in from now on.
-          </p>
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+        <div className="text-sm text-muted-foreground">
+          Logged in as: <span className="font-medium text-foreground">{user?.email}</span>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="password">New password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-10 pr-10"
-                required
-                minLength={6}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="rounded-lg"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          {loggingOut ? "Logging out..." : "Logout"}
+        </Button>
+      </div>
+      <div className="flex flex-1 items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-8 shadow-lg">
+          <div className="flex flex-col items-center space-y-2">
+            <div className="rounded-full bg-primary/10 p-3">
+              <ShieldCheck className="h-8 w-8 text-primary" />
             </div>
+            <h1 className="text-2xl font-bold text-foreground">Set your password</h1>
+            <p className="text-center text-sm text-muted-foreground">
+              For your security, please choose a new password. You’ll use this to sign in from now on.
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-              <Input
-                id="confirmPassword"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="pl-10 pr-10"
-                required
-              />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password">New password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10 pr-10"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? "Updating…" : "Continue"}
-          </Button>
-        </form>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Input
+                  id="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pl-10 pr-10"
+                  required
+                />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "Updating…" : "Continue"}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

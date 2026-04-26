@@ -30,7 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Users, Search, Eye } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Plus, Users, Search, Eye, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -186,15 +187,17 @@ export default function OwnerOneToOneRoomsList() {
           </Dialog>
         </div>
 
-        {tutors.length === 0 && (
-          <p className="text-sm text-amber-600 dark:text-amber-500">
-            Add at least one tutor before creating 1v1 rooms.
-          </p>
-        )}
-        {studentOptions.length === 0 && (
-          <p className="text-sm text-amber-600 dark:text-amber-500">
-            Add at least one student to your workspace before creating 1v1 rooms.
-          </p>
+        {(tutors.length === 0 || studentOptions.length === 0) && (
+          <Alert variant="warning">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {tutors.length === 0 && studentOptions.length === 0
+                ? "Add at least one tutor and one student to your workspace before creating 1v1 rooms."
+                : tutors.length === 0
+                ? "Add at least one tutor to your workspace before creating 1v1 rooms."
+                : "Add at least one student to your workspace before creating 1v1 rooms."}
+            </AlertDescription>
+          </Alert>
         )}
 
         {filteredRooms.length === 0 && oneToOneRooms.length === 0 ? (

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft, Building2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, Building2, LogOut } from "lucide-react";
 import { BillingPlans } from "@/components/billing/BillingPlans";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -14,9 +14,10 @@ const TOTAL_STEPS = 2;
 
 export default function OnboardingBusiness() {
   const router = useRouter();
-  const { user, role, profile, loading: authLoading, completeOnboarding } = useAuth();
+  const { user, role, profile, loading: authLoading, completeOnboarding, signOut } = useAuth();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ businessName: "", primarySubjects: "", numTutors: "", numStudents: "" });
 
@@ -141,6 +142,18 @@ export default function OnboardingBusiness() {
     }
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut();
+      toast.success("Logged out successfully");
+      router.replace("/auth");
+    } catch (err) {
+      toast.error((err as Error)?.message || "Failed to logout");
+      setLoggingOut(false);
+    }
+  };
+
   if (authLoading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -161,9 +174,25 @@ export default function OnboardingBusiness() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-4xl rounded-3xl border border-border bg-card p-8 shadow-large">
-        <div className="mb-8 flex items-center gap-3">
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+        <div className="text-sm text-muted-foreground">
+          Logged in as: <span className="font-medium text-foreground">{user?.email}</span>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="rounded-lg"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          {loggingOut ? "Logging out..." : "Logout"}
+        </Button>
+      </div>
+      <div className="flex flex-1 items-center justify-center p-4">
+        <div className="w-full max-w-4xl rounded-3xl border border-border bg-card p-8 shadow-large">
+          <div className="mb-8 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <Building2 className="h-6 w-6 text-primary" />
           </div>
@@ -321,6 +350,7 @@ export default function OnboardingBusiness() {
             />
           </>
         )}
+        </div>
       </div>
     </div>
   );

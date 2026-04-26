@@ -68,6 +68,7 @@ interface DocumentType {
   created_at: string;
   updated_at: string;
   tags?: { id: string; name: string; color: string }[];
+  isShared?: boolean;
 }
 
 interface FolderType {
@@ -131,7 +132,19 @@ function getUniqueDocumentName(originalName: string, existingNames: string[]): s
   return candidate;
 }
 
-const TeacherDocuments = () => {
+interface TeacherDocumentsProps {
+  dashboardHref?: string;
+  documentsHref?: string;
+  shareMode?: "classes" | "users";
+  workspaceUsers?: { id: string; name: string; role: "tutor" | "student" }[];
+}
+
+const TeacherDocuments = ({
+  dashboardHref = "/dashboard/teacher",
+  documentsHref = "/dashboard/teacher/documents",
+  shareMode = "classes",
+  workspaceUsers = [],
+}: TeacherDocumentsProps = {}) => {
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
   const { oneToOneRooms } = useOneToOneRooms();
@@ -155,6 +168,7 @@ const TeacherDocuments = () => {
   const [documentToShare, setDocumentToShare] = useState<DocumentType | null>(null);
   const [selectedClassrooms, setSelectedClassrooms] = useState<string[]>([]);
   const [selectedOneToOneRooms, setSelectedOneToOneRooms] = useState<string[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [documentToRename, setDocumentToRename] = useState<DocumentType | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -221,13 +235,31 @@ const TeacherDocuments = () => {
 
       if (foldersData) setFolders(foldersData);
       if (tagsData) setTags(tagsData);
-      if (docsData) {
-        const docsWithTags = docsData.map((doc) => ({
-          ...doc,
-          tags: doc.document_tags?.map((dt: { tag: TagType }) => dt.tag).filter(Boolean) || [],
-        }));
-        setDocuments(docsWithTags);
+
+      const ownDocs: DocumentType[] = (docsData || []).map((doc) => ({
+        ...doc,
+        tags: doc.document_tags?.map((dt: { tag: TagType }) => dt.tag).filter(Boolean) || [],
+      }));
+
+      // Fetch docs shared directly with this user
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: userSharesData } = await (supabase as any)
+        .from("document_user_shares")
+        .select("document_id")
+        .eq("shared_with_user_id", user.id);
+      const sharedDocIds = (userSharesData as { document_id: string }[] | null)?.map((s) => s.document_id) || [];
+
+      let sharedDocs: DocumentType[] = [];
+      if (sharedDocIds.length > 0) {
+        const { data: sharedDocsData } = await supabase
+          .from("documents")
+          .select("*")
+          .in("id", sharedDocIds)
+          .order("updated_at", { ascending: false });
+        sharedDocs = (sharedDocsData || []).map((doc) => ({ ...doc, tags: [], isShared: true }));
       }
+
+      setDocuments([...ownDocs, ...sharedDocs]);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load documents");
@@ -408,17 +440,26 @@ const TeacherDocuments = () => {
   const openShareDialog = async (doc: DocumentType) => {
     setDocumentToShare(doc);
 
-    const { data: existingClassroomShares } = await supabase
-      .from("document_classroom_shares")
-      .select("classroom_id")
-      .eq("document_id", doc.id);
-    setSelectedClassrooms(existingClassroomShares?.map((s) => s.classroom_id) || []);
+    if (shareMode === "users") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingUserShares } = await (supabase as any)
+        .from("document_user_shares")
+        .select("shared_with_user_id")
+        .eq("document_id", doc.id);
+      setSelectedUsers((existingUserShares as { shared_with_user_id: string }[] | null)?.map((s) => s.shared_with_user_id) || []);
+    } else {
+      const { data: existingClassroomShares } = await supabase
+        .from("document_classroom_shares")
+        .select("classroom_id")
+        .eq("document_id", doc.id);
+      setSelectedClassrooms(existingClassroomShares?.map((s) => s.classroom_id) || []);
 
-    const { data: existingRoomShares } = await supabase
-      .from("document_one_to_one_room_shares")
-      .select("one_to_one_room_id")
-      .eq("document_id", doc.id);
-    setSelectedOneToOneRooms(existingRoomShares?.map((s) => s.one_to_one_room_id) || []);
+      const { data: existingRoomShares } = await supabase
+        .from("document_one_to_one_room_shares")
+        .select("one_to_one_room_id")
+        .eq("document_id", doc.id);
+      setSelectedOneToOneRooms(existingRoomShares?.map((s) => s.one_to_one_room_id) || []);
+    }
 
     setShareDialogOpen(true);
   };
@@ -427,6 +468,43 @@ const TeacherDocuments = () => {
     if (!documentToShare) return;
 
     try {
+      if (shareMode === "users") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: existingShares, error: fetchErr } = await (supabase as any)
+          .from("document_user_shares")
+          .select("shared_with_user_id")
+          .eq("document_id", documentToShare.id);
+        if (fetchErr) throw fetchErr;
+        const existingIds = (existingShares as { shared_with_user_id: string }[] | null)?.map((s) => s.shared_with_user_id) || [];
+        const toRemove = existingIds.filter((id) => !selectedUsers.includes(id));
+        const toAdd = selectedUsers.filter((id) => !existingIds.includes(id));
+        if (toRemove.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await (supabase as any)
+            .from("document_user_shares")
+            .delete()
+            .in("shared_with_user_id", toRemove)
+            .eq("document_id", documentToShare.id);
+          if (error) throw error;
+        }
+        if (toAdd.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await (supabase as any)
+            .from("document_user_shares")
+            .insert(toAdd.map((shared_with_user_id) => ({ document_id: documentToShare.id, shared_with_user_id })));
+          if (error) throw error;
+        }
+        toast.success(
+          selectedUsers.length > 0
+            ? `Shared with ${selectedUsers.length} user(s)`
+            : "Document unshared from all"
+        );
+        setShareDialogOpen(false);
+        setDocumentToShare(null);
+        setSelectedUsers([]);
+        return;
+      }
+
       // Classrooms
       const { data: existingClassroomShares, error: existingClassError } = await supabase
         .from("document_classroom_shares")
@@ -506,6 +584,12 @@ const TeacherDocuments = () => {
       prev.includes(roomId)
         ? prev.filter((id) => id !== roomId)
         : [...prev, roomId]
+    );
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
 
@@ -805,8 +889,8 @@ const TeacherDocuments = () => {
   const currentFolder = selectedFolder ? folders.find((f) => f.id === selectedFolder) : null;
   const currentTag = selectedTag ? tags.find((t) => t.id === selectedTag) : null;
   const breadcrumbSegments = [
-    { label: "Dashboard", href: "/dashboard/teacher" },
-    { label: "Documents", href: "/dashboard/teacher/documents" },
+    { label: "Dashboard", href: dashboardHref },
+    { label: "Documents", href: documentsHref },
     ...(currentFolder ? [{ label: currentFolder.name, href: null }] : []),
     ...(currentTag ? [{ label: `Tag: ${currentTag.name}`, href: null }] : []),
   ];
@@ -1059,39 +1143,49 @@ const TeacherDocuments = () => {
                                 Preview
                               </DropdownMenuItem>
                             )}
-                            {isPdfDocument(doc) && (
+                            {!doc.isShared && isPdfDocument(doc) && (
                               <DropdownMenuItem onClick={() => openSplitDialog(doc)}>
                                 <Scissors className="w-4 h-4 mr-2" />
                                 Split pages
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
-                              <Tag className="w-4 h-4 mr-2" />
-                              Edit tags
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openRenameDialog(doc)}>
-                              <Pencil className="w-4 h-4 mr-2" />
-                              Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openMoveDialog(doc)}>
-                              <FolderInput className="w-4 h-4 mr-2" />
-                              Move to folder
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openShareDialog(doc)}>
-                              <Share2 className="w-4 h-4 mr-2" />
-                              Share with Classes
-                            </DropdownMenuItem>
+                            {!doc.isShared && (
+                              <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
+                                <Tag className="w-4 h-4 mr-2" />
+                                Edit tags
+                              </DropdownMenuItem>
+                            )}
+                            {!doc.isShared && (
+                              <DropdownMenuItem onClick={() => openRenameDialog(doc)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Rename
+                              </DropdownMenuItem>
+                            )}
+                            {!doc.isShared && (
+                              <DropdownMenuItem onClick={() => openMoveDialog(doc)}>
+                                <FolderInput className="w-4 h-4 mr-2" />
+                                Move to folder
+                              </DropdownMenuItem>
+                            )}
+                            {!doc.isShared && (
+                              <DropdownMenuItem onClick={() => openShareDialog(doc)}>
+                                <Share2 className="w-4 h-4 mr-2" />
+                                {shareMode === "users" ? "Share with Users" : "Share with Classes"}
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => downloadDocument(doc)}>
                               <Download className="w-4 h-4 mr-2" />
                               Download
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => deleteDocument(doc)}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
+                            {!doc.isShared && (
+                              <DropdownMenuItem
+                                onClick={() => deleteDocument(doc)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1116,18 +1210,21 @@ const TeacherDocuments = () => {
                         <span className="text-xs text-muted-foreground shrink-0">
                           {formatDate(doc.updated_at)}
                         </span>
-                        {doc.tags && doc.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 justify-end min-w-0">
-                            {doc.tags.slice(0, 3).map((t) => (
-                              <Badge key={t.id} variant="secondary" className="text-xs shrink-0" style={{ borderColor: t.color, color: t.color }}>
-                                {t.name}
-                              </Badge>
-                            ))}
-                            {doc.tags.length > 3 && (
-                              <span className="text-xs text-muted-foreground">+{doc.tags.length - 3}</span>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex flex-wrap gap-1 justify-end min-w-0">
+                          {doc.isShared && (
+                            <Badge variant="secondary" className="text-xs shrink-0 border-blue-400 text-blue-500">
+                              Shared
+                            </Badge>
+                          )}
+                          {doc.tags && doc.tags.length > 0 && doc.tags.slice(0, 3).map((t) => (
+                            <Badge key={t.id} variant="secondary" className="text-xs shrink-0" style={{ borderColor: t.color, color: t.color }}>
+                              {t.name}
+                            </Badge>
+                          ))}
+                          {doc.tags && doc.tags.length > 3 && (
+                            <span className="text-xs text-muted-foreground">+{doc.tags.length - 3}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1163,16 +1260,19 @@ const TeacherDocuments = () => {
                           {formatFileSize(doc.file_size)} • {formatDate(doc.updated_at)}
                         </p>
                       </div>
-                      {doc.tags && doc.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 shrink-0 max-w-[40%] justify-end">
-                          {doc.tags.slice(0, 2).map((t) => (
-                            <Badge key={t.id} variant="secondary" className="text-xs" style={{ borderColor: t.color, color: t.color }}>
-                              {t.name}
-                            </Badge>
-                          ))}
-                          {doc.tags.length > 2 && <span className="text-xs text-muted-foreground">+{doc.tags.length - 2}</span>}
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-1 shrink-0 max-w-[40%] justify-end">
+                        {doc.isShared && (
+                          <Badge variant="secondary" className="text-xs border-blue-400 text-blue-500">
+                            Shared
+                          </Badge>
+                        )}
+                        {doc.tags && doc.tags.slice(0, 2).map((t) => (
+                          <Badge key={t.id} variant="secondary" className="text-xs" style={{ borderColor: t.color, color: t.color }}>
+                            {t.name}
+                          </Badge>
+                        ))}
+                        {doc.tags && doc.tags.length > 2 && <span className="text-xs text-muted-foreground">+{doc.tags.length - 2}</span>}
+                      </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -1186,39 +1286,49 @@ const TeacherDocuments = () => {
                               Preview
                             </DropdownMenuItem>
                           )}
-                          {isPdfDocument(doc) && (
+                          {!doc.isShared && isPdfDocument(doc) && (
                             <DropdownMenuItem onClick={() => openSplitDialog(doc)}>
                               <Scissors className="w-4 h-4 mr-2" />
                               Split pages
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
-                            <Tag className="w-4 h-4 mr-2" />
-                            Edit tags
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openRenameDialog(doc)}>
-                            <Pencil className="w-4 h-4 mr-2" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openMoveDialog(doc)}>
-                            <FolderInput className="w-4 h-4 mr-2" />
-                            Move to folder
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openShareDialog(doc)}>
-                            <Share2 className="w-4 h-4 mr-2" />
-                            Share with Classes
-                          </DropdownMenuItem>
+                          {!doc.isShared && (
+                            <DropdownMenuItem onClick={() => openTagsDialog(doc)}>
+                              <Tag className="w-4 h-4 mr-2" />
+                              Edit tags
+                            </DropdownMenuItem>
+                          )}
+                          {!doc.isShared && (
+                            <DropdownMenuItem onClick={() => openRenameDialog(doc)}>
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Rename
+                            </DropdownMenuItem>
+                          )}
+                          {!doc.isShared && (
+                            <DropdownMenuItem onClick={() => openMoveDialog(doc)}>
+                              <FolderInput className="w-4 h-4 mr-2" />
+                              Move to folder
+                            </DropdownMenuItem>
+                          )}
+                          {!doc.isShared && (
+                            <DropdownMenuItem onClick={() => openShareDialog(doc)}>
+                              <Share2 className="w-4 h-4 mr-2" />
+                              {shareMode === "users" ? "Share with Users" : "Share with Classes"}
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => downloadDocument(doc)}>
                             <Download className="w-4 h-4 mr-2" />
                             Download
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => deleteDocument(doc)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
+                          {!doc.isShared && (
+                            <DropdownMenuItem
+                              onClick={() => deleteDocument(doc)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -1562,66 +1672,120 @@ const TeacherDocuments = () => {
           <DialogHeader>
             <DialogTitle>
               <Share2 className="w-5 h-5 inline-block mr-2" />
-              Share with Classrooms & 1v1 Rooms
+              {shareMode === "users" ? "Share with Users" : "Share with Classrooms & 1v1 Rooms"}
             </DialogTitle>
             <DialogDescription>
-              Select classrooms and/or 1v1 rooms to share &quot;{documentToShare?.name}&quot; with
+              {shareMode === "users"
+                ? `Select students and/or tutors to share "${documentToShare?.name}" with`
+                : `Select classrooms and/or 1v1 rooms to share "${documentToShare?.name}" with`}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4 max-h-80 overflow-y-auto">
-            {classrooms && classrooms.length > 0 && (
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">Classrooms</p>
-                <div className="space-y-2">
-                  {classrooms.map((classroom) => (
-                    <div
-                      key={classroom.id}
-                      className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
-                      onClick={() => toggleClassroomSelection(classroom.id)}
-                    >
-                      <Checkbox
-                        checked={selectedClassrooms.includes(classroom.id)}
-                        onCheckedChange={() => toggleClassroomSelection(classroom.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <Label className="font-medium cursor-pointer">{classroom.name}</Label>
-                        {classroom.subject && (
-                          <p className="text-sm text-muted-foreground">{classroom.subject}</p>
-                        )}
-                      </div>
+            {shareMode === "users" ? (
+              <>
+                {workspaceUsers.filter((u) => u.role === "tutor").length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Tutors</p>
+                    <div className="space-y-2">
+                      {workspaceUsers.filter((u) => u.role === "tutor").map((u) => (
+                        <div
+                          key={u.id}
+                          className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
+                          onClick={() => toggleUserSelection(u.id)}
+                        >
+                          <Checkbox
+                            checked={selectedUsers.includes(u.id)}
+                            onCheckedChange={() => toggleUserSelection(u.id)}
+                          />
+                          <Label className="font-medium cursor-pointer">{u.name}</Label>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {oneToOneRooms && oneToOneRooms.length > 0 && (
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">1v1 Rooms</p>
-                <div className="space-y-2">
-                  {oneToOneRooms.map((room) => (
-                    <div
-                      key={room.id}
-                      className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
-                      onClick={() => toggleOneToOneRoomSelection(room.id)}
-                    >
-                      <Checkbox
-                        checked={selectedOneToOneRooms.includes(room.id)}
-                        onCheckedChange={() => toggleOneToOneRoomSelection(room.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <Label className="font-medium cursor-pointer">
-                          {room.name || `${room.studentProfile?.display_name ?? "Student"} (1v1)`}
-                        </Label>
-                      </div>
+                  </div>
+                )}
+                {workspaceUsers.filter((u) => u.role === "student").length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Students</p>
+                    <div className="space-y-2">
+                      {workspaceUsers.filter((u) => u.role === "student").map((u) => (
+                        <div
+                          key={u.id}
+                          className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
+                          onClick={() => toggleUserSelection(u.id)}
+                        >
+                          <Checkbox
+                            checked={selectedUsers.includes(u.id)}
+                            onCheckedChange={() => toggleUserSelection(u.id)}
+                          />
+                          <Label className="font-medium cursor-pointer">{u.name}</Label>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {(!classrooms || classrooms.length === 0) && (!oneToOneRooms || oneToOneRooms.length === 0) && (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No classrooms or 1v1 rooms available</p>
-              </div>
+                  </div>
+                )}
+                {workspaceUsers.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No tutors or students in workspace</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {classrooms && classrooms.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Classrooms</p>
+                    <div className="space-y-2">
+                      {classrooms.map((classroom) => (
+                        <div
+                          key={classroom.id}
+                          className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
+                          onClick={() => toggleClassroomSelection(classroom.id)}
+                        >
+                          <Checkbox
+                            checked={selectedClassrooms.includes(classroom.id)}
+                            onCheckedChange={() => toggleClassroomSelection(classroom.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <Label className="font-medium cursor-pointer">{classroom.name}</Label>
+                            {classroom.subject && (
+                              <p className="text-sm text-muted-foreground">{classroom.subject}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {oneToOneRooms && oneToOneRooms.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">1v1 Rooms</p>
+                    <div className="space-y-2">
+                      {oneToOneRooms.map((room) => (
+                        <div
+                          key={room.id}
+                          className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-secondary/50 transition-colors cursor-pointer"
+                          onClick={() => toggleOneToOneRoomSelection(room.id)}
+                        >
+                          <Checkbox
+                            checked={selectedOneToOneRooms.includes(room.id)}
+                            onCheckedChange={() => toggleOneToOneRoomSelection(room.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <Label className="font-medium cursor-pointer">
+                              {room.name || `${room.studentProfile?.display_name ?? "Student"} (1v1)`}
+                            </Label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(!classrooms || classrooms.length === 0) && (!oneToOneRooms || oneToOneRooms.length === 0) && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No classrooms or 1v1 rooms available</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <DialogFooter>
@@ -1632,14 +1796,19 @@ const TeacherDocuments = () => {
                 setDocumentToShare(null);
                 setSelectedClassrooms([]);
                 setSelectedOneToOneRooms([]);
+                setSelectedUsers([]);
               }}
             >
               Cancel
             </Button>
             <Button onClick={handleShareDocument}>
-              {selectedClassrooms.length + selectedOneToOneRooms.length > 0
-                ? `Share with ${selectedClassrooms.length + selectedOneToOneRooms.length} target(s)`
-                : "Remove all shares"}
+              {shareMode === "users"
+                ? selectedUsers.length > 0
+                  ? `Share with ${selectedUsers.length} user(s)`
+                  : "Remove all shares"
+                : selectedClassrooms.length + selectedOneToOneRooms.length > 0
+                  ? `Share with ${selectedClassrooms.length + selectedOneToOneRooms.length} target(s)`
+                  : "Remove all shares"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -7,7 +7,7 @@ import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { FileText, PenLine, Search, Eye } from "lucide-react";
+import { FileText, PenLine, Search, Eye, Sparkles } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 const contractStatusLabel: Record<string, string> = {
@@ -105,6 +105,7 @@ export default function OwnerContractsList() {
                     </tr>
                   ) : filteredContracts.map((c) => {
                     const name = getTutorName(c.tutor_id);
+                    const hasBody = !!c.contract_body_text;
                     const statusLabel = contractStatusLabel[c.contract_status] ?? c.contract_status;
                     const payType = (c as { contract_type?: string }).contract_type ?? c.pay_type;
                     const rateUnit = payType === "per_session" ? "session" : payType === "fixed_monthly" ? "month" : "hour";
@@ -119,33 +120,46 @@ export default function OwnerContractsList() {
                           </Link>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge
-                            variant={
-                              c.contract_status === "signed"
-                                ? "default"
-                                : c.contract_status === "change_requested"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {statusLabel}
-                          </Badge>
+                          {hasBody ? (
+                            <Badge
+                              variant={
+                                c.contract_status === "signed"
+                                  ? "default"
+                                  : c.contract_status === "change_requested"
+                                    ? "secondary"
+                                    : "outline"
+                              }
+                            >
+                              {statusLabel}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">
-                          {c.rate_amount} {c.rate_currency} / {rateUnit}
+                          {hasBody ? `${c.rate_amount} ${c.rate_currency} / ${rateUnit}` : "—"}
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">
-                          {c.contract_signed_at
+                          {hasBody && c.contract_signed_at
                             ? new Date(c.contract_signed_at).toLocaleDateString()
                             : "—"}
                         </td>
                         <td className="px-4 py-3">
-                          <Button variant="default" size="sm" asChild>
-                            <Link href={`/dashboard/owner/contracts/${c.id}`} className="inline-flex items-center gap-2">
-                              <Eye className="h-4 w-4" />
-                              View
-                            </Link>
-                          </Button>
+                          {hasBody ? (
+                            <Button variant="default" size="sm" asChild>
+                              <Link href={`/dashboard/owner/contracts/${c.id}`} className="inline-flex items-center gap-2">
+                                <Eye className="h-4 w-4" />
+                                View
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/owner/contracts/new?tutorId=${c.tutor_id}`} className="inline-flex items-center gap-2">
+                                <Sparkles className="h-4 w-4" />
+                                Build via AI
+                              </Link>
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );

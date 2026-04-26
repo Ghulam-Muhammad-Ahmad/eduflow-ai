@@ -65,6 +65,7 @@ interface DocumentType {
   folder_id: string | null;
   created_at: string;
   user_id?: string;
+  isShared?: boolean;
 }
 
 interface FolderType {
@@ -196,10 +197,30 @@ const StudentDocuments = () => {
       fetchDocuments(),
       fetchFolders(),
     ]);
-    setDocuments(docsData);
+
+    // Fetch docs shared directly with this user
+    let sharedDocs: DocumentType[] = [];
+    if (user) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: userSharesData } = await (supabase as any)
+        .from("document_user_shares")
+        .select("document_id")
+        .eq("shared_with_user_id", user.id);
+      const sharedDocIds = (userSharesData as { document_id: string }[] | null)?.map((s) => s.document_id) || [];
+      if (sharedDocIds.length > 0) {
+        const { data: sharedDocsData } = await supabase
+          .from("documents")
+          .select("*")
+          .in("id", sharedDocIds)
+          .order("created_at", { ascending: false });
+        sharedDocs = (sharedDocsData || []).map((doc) => ({ ...doc, isShared: true }));
+      }
+    }
+
+    setDocuments([...docsData, ...sharedDocs]);
     setFolders(foldersData);
     setLoading(false);
-  }, [fetchDocuments, fetchFolders]);
+  }, [fetchDocuments, fetchFolders, user]);
 
   useEffect(() => {
     fetchAllData();
@@ -587,7 +608,7 @@ const StudentDocuments = () => {
                           <Eye className="w-4 h-4" />
                         </Button>
                       )}
-                      {isPdfDocument(doc) && (
+                      {!doc.isShared && isPdfDocument(doc) && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -602,32 +623,36 @@ const StudentDocuments = () => {
                           <Scissors className="w-4 h-4" />
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openMoveDialog(doc);
-                        }}
-                        aria-label="Move to folder"
-                        title="Move to folder"
-                      >
-                        <FolderInput className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRenameDialog(doc);
-                        }}
-                        aria-label="Rename document"
-                        title="Rename"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
+                      {!doc.isShared && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openMoveDialog(doc);
+                          }}
+                          aria-label="Move to folder"
+                          title="Move to folder"
+                        >
+                          <FolderInput className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {!doc.isShared && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRenameDialog(doc);
+                          }}
+                          aria-label="Rename document"
+                          title="Rename"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -640,19 +665,21 @@ const StudentDocuments = () => {
                       >
                         <Download className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDocumentToDelete(doc);
-                          setDeleteDialogOpen(true);
-                        }}
-                        aria-label="Delete document"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {!doc.isShared && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDocumentToDelete(doc);
+                            setDeleteDialogOpen(true);
+                          }}
+                          aria-label="Delete document"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <CardTitle
@@ -668,6 +695,11 @@ const StudentDocuments = () => {
                     <p className="text-xs text-muted-foreground">
                       {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
                     </p>
+                    {doc.isShared && (
+                      <span className="inline-flex items-center text-xs font-medium text-blue-500 border border-blue-400 rounded px-1.5 py-0.5">
+                        Shared
+                      </span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -700,6 +732,7 @@ const StudentDocuments = () => {
                     </h4>
                     <p className="text-xs text-muted-foreground">
                       {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                      {doc.isShared && <span className="ml-2 text-blue-500 font-medium">Shared</span>}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -718,7 +751,7 @@ const StudentDocuments = () => {
                         <Eye className="w-4 h-4" />
                       </Button>
                     )}
-                    {isPdfDocument(doc) && (
+                    {!doc.isShared && isPdfDocument(doc) && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -733,32 +766,36 @@ const StudentDocuments = () => {
                         <Scissors className="w-4 h-4" />
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openMoveDialog(doc);
-                      }}
-                      aria-label="Move to folder"
-                      title="Move to folder"
-                    >
-                      <FolderInput className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openRenameDialog(doc);
-                      }}
-                      aria-label="Rename document"
-                      title="Rename"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
+                    {!doc.isShared && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openMoveDialog(doc);
+                        }}
+                        aria-label="Move to folder"
+                        title="Move to folder"
+                      >
+                        <FolderInput className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {!doc.isShared && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRenameDialog(doc);
+                        }}
+                        aria-label="Rename document"
+                        title="Rename"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -771,19 +808,21 @@ const StudentDocuments = () => {
                     >
                       <Download className="w-4 h-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDocumentToDelete(doc);
-                        setDeleteDialogOpen(true);
-                      }}
-                      aria-label="Delete document"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {!doc.isShared && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDocumentToDelete(doc);
+                          setDeleteDialogOpen(true);
+                        }}
+                        aria-label="Delete document"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>

@@ -5,6 +5,7 @@
 
 import type { PlanLine, PlanTier } from "./billing";
 import type { AITaskType } from "@/types/ai";
+import { getTierAndCycleFromPriceId } from "./billing";
 
 // Credits per plan (monthly pool) – business (owner) plans only
 const CREDITS_PER_PLAN: Record<string, number> = {
@@ -63,4 +64,15 @@ export function getCreditWeightByFeatureName(featureKey: string): number {
 /** Default credits when user/workspace has no subscription (e.g. free tier). */
 export function getDefaultCredits(): number {
   return AI_CREDITS_DEFAULT;
+}
+
+/** Map price_id to plan (planLine + tier). Used by Paddle webhook and credit pool setup. */
+export function getPlanFromPriceId(priceId: string): { planLine: PlanLine; tier: PlanTier } | null {
+  // All business plans are "business" planLine; find the tier from price_id
+  const planLine: PlanLine = "business";
+  const tierAndCycle = getTierAndCycleFromPriceId(planLine, priceId);
+  if (tierAndCycle) {
+    return { planLine, tier: tierAndCycle.tier };
+  }
+  return null;
 }

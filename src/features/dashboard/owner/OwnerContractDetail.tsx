@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { parseAmountFromDisplay } from "@/lib/formatAmount";
 import { ArrowLeft, PenLine, Pencil, DollarSign, Download, Send } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { visit, SKIP } from "unist-util-visit";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -26,6 +27,71 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useWorkspaceCurrency } from "@/hooks/useWorkspaceCurrency";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const PLACEHOLDER_SPLIT_RE = /(\[[A-Z][^\]\n]*\])/g;
+const PLACEHOLDER_TEST_RE = /^\[[A-Z][^\]\n]*\]$/;
+
+function rehypePlaceholders() {
+  return (tree: any) => {
+    visit(tree, "text", (node: any, index: number | undefined, parent: any) => {
+      if (!parent || index === undefined) return;
+      const parts = (node.value as string).split(PLACEHOLDER_SPLIT_RE);
+      if (parts.length === 1) return;
+      const newNodes = parts
+        .filter((p: string) => p !== "")
+        .map((part: string) =>
+          PLACEHOLDER_TEST_RE.test(part)
+            ? { type: "element", tagName: "pfill", properties: {}, children: [{ type: "text", value: part }] }
+            : { type: "text", value: part }
+        );
+      parent.children.splice(index, 1, ...newNodes);
+      return [SKIP, index + newNodes.length] as const;
+    });
+  };
+}
+
+function PlaceholderChip({ label, onFill }: { label: string; onFill: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const confirm = () => {
+    if (value.trim()) onFill(value.trim());
+    setEditing(false);
+    setValue("");
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={confirm}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); confirm(); }
+          if (e.key === "Escape") { setEditing(false); setValue(""); }
+        }}
+        className="inline-block border-b-2 border-amber-500 bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-100 px-1 text-sm focus:outline-none min-w-[140px]"
+        placeholder={label}
+      />
+    );
+  }
+
+  return (
+    <mark
+      onClick={() => setEditing(true)}
+      className="bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded px-1 py-0.5 cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors font-normal not-italic border border-amber-300 dark:border-amber-700"
+      title="Click to fill this placeholder"
+    >
+      {`[${label}]`}
+    </mark>
+  );
+}
 
 const contractStatusLabel: Record<string, string> = {
   draft: "Draft",
@@ -59,6 +125,39 @@ export default function OwnerContractDetail() {
 
   const [ownerSignatureName, setOwnerSignatureName] = useState("");
   const [ownerSigning, setOwnerSigning] = useState(false);
+
+  const [localBody, setLocalBody] = useState(contract?.contract_body_text ?? "");
+  const [savingPlaceholders, setSavingPlaceholders] = useState(false);
+  const localBodyDirty = localBody !== (contract?.contract_body_text ?? "");
+
+  useEffect(() => {
+    setLocalBody(contract?.contract_body_text ?? "");
+  }, [contract?.contract_body_text]);
+
+  const handleSavePlaceholders = async () => {
+    if (!contract?.id) return;
+    setSavingPlaceholders(true);
+    try {
+      const res = await fetch("/api/contracts/update-body", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tutor_contract_id: contract.id, contract_body_text: localBody }),
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error((data as { error?: string }).error ?? "Failed to save"); return; }
+      toast.success("Contract saved");
+      invalidate();
+    } finally {
+      setSavingPlaceholders(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLoading && contract && !contract.contract_body_text) {
+      router.replace(`/dashboard/owner/contracts/new?tutorId=${contract.tutor_id}`);
+    }
+  }, [isLoading, contract, router]);
 
   const openDetailsDialog = () => {
     if (!contract) return;
@@ -399,11 +498,43 @@ Output only the full contract Markdown, no preamble or explanation.`;
           {/* Main agreement content */}
           <div className="px-6 py-6">
             {contract.contract_body_text ? (
-              <div className="prose prose-sm dark:prose-invert max-w-none text-foreground [&_h2]:font-semibold [&_h2]:text-foreground [&_p]:text-muted-foreground [&_p]:leading-relaxed">
-                <ReactMarkdown>{contract.contract_body_text}</ReactMarkdown>
-              </div>
+              <>
+                {localBodyDirty && (
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-2.5">
+                    <p className="text-sm text-amber-800 dark:text-amber-200">Unsaved placeholder changes</p>
+                    <Button size="sm" onClick={handleSavePlaceholders} disabled={savingPlaceholders}>
+                      {savingPlaceholders ? <Spinner size="sm" /> : "Save changes"}
+                    </Button>
+                  </div>
+                )}
+                <div className="prose prose-sm dark:prose-invert max-w-none text-foreground [&_h2]:font-semibold [&_h2]:text-foreground [&_p]:text-muted-foreground [&_p]:leading-relaxed">
+                  <ReactMarkdown
+                    rehypePlugins={[rehypePlaceholders]}
+                    components={{
+                      pfill: ({ children }: any) => {
+                        const text = String(children);
+                        const label = text.slice(1, -1);
+                        return (
+                          <PlaceholderChip
+                            label={label}
+                            onFill={(v) =>
+                              setLocalBody((prev) =>
+                                prev.replace(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), v)
+                              )
+                            }
+                          />
+                        );
+                      },
+                    } as any}
+                  >
+                    {localBody}
+                  </ReactMarkdown>
+                </div>
+              </>
             ) : (
-              <p className="text-muted-foreground">No contract content yet. Build one from the Contracts list.</p>
+              <div className="flex justify-center min-h-[120px] items-center">
+                <Spinner size="lg" className="text-muted-foreground" />
+              </div>
             )}
 
             {/* Signature block */}

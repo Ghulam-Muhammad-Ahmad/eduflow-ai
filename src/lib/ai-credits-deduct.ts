@@ -67,7 +67,10 @@ export async function ensureOwnerWorkspaceCreditPool(userId: string): Promise<vo
     .eq("period", periodStr)
     .maybeSingle();
 
-  if ((pool?.credits_allocated ?? 0) === 0) {
+  // Create/update pool if it doesn't exist OR if allocated credits are 0 (renewal needed)
+  // DO NOT check pool?.credits_allocated === 0, use safer logic to detect if update is needed
+  const poolExists = pool && typeof pool.credits_allocated === 'number' && pool.credits_allocated > 0;
+  if (!poolExists) {
     await (supabaseAdmin.rpc as CallableFunction)("upsert_workspace_credit_pool", {
       _workspace_id: workspaceId,
       _period: periodStr,
