@@ -40,6 +40,7 @@ import {
   Video,
   ChevronsUpDownIcon,
   Wallet,
+  Brain,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -68,6 +69,7 @@ const roleConfig = {
       { icon: PenLine, label: "Contract", path: "/dashboard/teacher/contract" },
       { icon: Wallet, label: "Earnings", path: "/dashboard/teacher/earnings" },
       { icon: User, label: "My profile", path: "/dashboard/teacher/profile" },
+      { icon: ClipboardCheck, label: "My Evaluation", path: "/dashboard/teacher/evaluation" },
       { icon: Sparkles, label: "AI Content Generator", path: "/dashboard/teacher/ai-studio" },
       { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/teacher/assignments" },
       { icon: ListChecks, label: "Quizzes", path: "/dashboard/teacher/quizzes" },
@@ -98,8 +100,10 @@ const roleConfig = {
     navItems: [
       { icon: LayoutDashboard, label: "Overview", path: "/dashboard/owner" },
       { icon: Users, label: "Tutors", path: "/dashboard/owner/tutors" },
+      { icon: Brain, label: "Evaluations", path: "/dashboard/owner/evaluations" },
       { icon: PenLine, label: "Contracts", path: "/dashboard/owner/contracts" },
       { icon: GraduationCap, label: "Students", path: "/dashboard/owner/students" },
+      { icon: Sparkles, label: "Tutor Matching", path: "/dashboard/owner/tutor-matching" },
       { icon: School, label: "Classes", path: "/dashboard/owner/classrooms" },
       { icon: UserRound, label: "1v1 Rooms", path: "/dashboard/owner/rooms" },
       { icon: ScrollText, label: "Student Records", path: "/dashboard/owner/student-records" },

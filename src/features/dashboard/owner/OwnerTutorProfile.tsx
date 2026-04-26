@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -6,7 +6,20 @@ import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/hooks/use-toast";
+import {
+  useAssignEvaluation,
+  useGenerateTeacherTest,
+  useTeacherAiProfile,
+  useReviewAiProfile,
+} from "@/hooks/useTutorMatching";
 import {
   ArrowLeft,
   Users,
@@ -18,6 +31,9 @@ import {
   Pencil,
   Eye,
   BarChart3,
+  Brain,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
 import {
@@ -34,11 +50,89 @@ import { MemberStorageCard } from "@/components/storage/MemberStorageCard";
 import { useLectureFinancialSummary } from "@/hooks/useLectureSessions";
 import { LectureFinancialSummaryPanel } from "@/components/lectures/LectureFinancialSummaryPanel";
 
+const RECOMMENDATION_COLORS = {
+  approved: "default" as const,
+  needs_review: "secondary" as const,
+  rejected: "destructive" as const,
+};
+
+function formatScoreKey(key: string): string {
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const color = value >= 70 ? "bg-green-500" : value >= 50 ? "bg-yellow-500" : "bg-red-400";
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium">{value}</span>
+      </div>
+      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function OwnerTutorProfile() {
   const router = useRouter();
   const { id } = router.query;
   const tutorId = typeof id === "string" ? id : null;
   const { tutors, oneToOneRooms, classrooms, assignments, quizzes, contractByTutorId, tutorsByClassroomId, isLoading } = useOwnerWorkspace();
+  const { toast } = useToast();
+
+  // Evaluation state
+  const [evalForm, setEvalForm] = useState({
+    subject: "",
+    grades: "",
+    curriculum: "",
+    experience_years: "",
+    language: "English",
+  });
+  const [reviewNotes, setReviewNotes] = useState("");
+  const assignEval = useAssignEvaluation();
+  const generateTest = useGenerateTeacherTest();
+  const reviewProfile = useReviewAiProfile();
+  const { data: aiProfile, refetch: refetchProfile } = useTeacherAiProfile(tutorId);
+
+  const handleAssignEval = async () => {
+    if (!tutorId || !evalForm.subject || !evalForm.grades || !evalForm.curriculum) {
+      toast({ title: "Fill subject, grades, and curriculum", variant: "destructive" });
+      return;
+    }
+    try {
+      const { test } = await assignEval.mutateAsync({
+        teacher_id: tutorId,
+        subject: evalForm.subject,
+        grades: evalForm.grades.split(",").map((s) => s.trim()).filter(Boolean),
+        curriculum: evalForm.curriculum.split(",").map((s) => s.trim()).filter(Boolean),
+        experience_years: evalForm.experience_years ? Number(evalForm.experience_years) : 0,
+        language: evalForm.language || "English",
+      });
+      toast({ title: "Evaluation assigned. Generating questions…" });
+      await generateTest.mutateAsync(test.id);
+      toast({ title: "Questions generated. Tutor can now start the test." });
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    }
+  };
+
+  const handleReview = async (recommendation: string) => {
+    if (!aiProfile || !tutorId) return;
+    try {
+      await reviewProfile.mutateAsync({
+        profile_id: (aiProfile as { id: string }).id,
+        teacher_id: tutorId,
+        recommendation,
+        owner_notes: reviewNotes,
+      });
+      toast({ title: `Marked as ${recommendation}` });
+      await refetchProfile();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    }
+  };
 
   const tutor = tutors.find((t) => t.user_id === tutorId);
   const contract = tutorId ? contractByTutorId.get(tutorId) : null;
@@ -303,6 +397,188 @@ export default function OwnerTutorProfile() {
             isLoading={lectureFinancialLoading}
           />
         )}
+
+        {/* AI Evaluation Section */}
+        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-muted/20 border-b border-border flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-foreground flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                AI Tutor Evaluation
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Evaluate this tutor&apos;s skills, personality, and student fit
+              </p>
+            </div>
+            {aiProfile && (
+              <Badge variant={RECOMMENDATION_COLORS[(aiProfile as { recommendation?: keyof typeof RECOMMENDATION_COLORS }).recommendation ?? "needs_review"] ?? "secondary"}>
+                {(aiProfile as { recommendation?: string }).recommendation?.replace("_", " ") ?? "needs review"}
+              </Badge>
+            )}
+          </div>
+          <div className="p-6">
+            {!aiProfile ? (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Assign an evaluation test to this tutor. They will answer AI-generated questions, and the system will build a detailed score profile.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Subject *</Label>
+                    <Input
+                      value={evalForm.subject}
+                      onChange={(e) => setEvalForm((f) => ({ ...f, subject: e.target.value }))}
+                      placeholder="e.g. Math"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Grades (comma-separated) *</Label>
+                    <Input
+                      value={evalForm.grades}
+                      onChange={(e) => setEvalForm((f) => ({ ...f, grades: e.target.value }))}
+                      placeholder="e.g. Grade 6, Grade 7"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Curriculum (comma-separated) *</Label>
+                    <Input
+                      value={evalForm.curriculum}
+                      onChange={(e) => setEvalForm((f) => ({ ...f, curriculum: e.target.value }))}
+                      placeholder="e.g. Cambridge, IGCSE"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Experience (years)</Label>
+                    <Input
+                      type="number"
+                      value={evalForm.experience_years}
+                      onChange={(e) => setEvalForm((f) => ({ ...f, experience_years: e.target.value }))}
+                      placeholder="e.g. 3"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Language</Label>
+                    <Input
+                      value={evalForm.language}
+                      onChange={(e) => setEvalForm((f) => ({ ...f, language: e.target.value }))}
+                      placeholder="English"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleAssignEval}
+                  disabled={assignEval.isPending || generateTest.isPending}
+                >
+                  {(assignEval.isPending || generateTest.isPending) && (
+                    <Spinner className="mr-2 h-4 w-4" />
+                  )}
+                  Assign & Generate Test
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Score summary */}
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-3xl font-bold tabular-nums">{(aiProfile as { overall_score?: number }).overall_score ?? 0}</p>
+                    <p className="text-xs text-muted-foreground">Overall Score / 100</p>
+                  </div>
+                  <Progress value={(aiProfile as { overall_score?: number }).overall_score ?? 0} className="flex-1 h-3" />
+                </div>
+
+                {/* Score categories */}
+                {(["subject_scores", "teaching_style_scores", "personality_scores", "student_fit_scores"] as const).map((cat) => {
+                  const scores = (aiProfile as Record<string, unknown>)[cat] as Record<string, number> | null;
+                  if (!scores || Object.keys(scores).length === 0) return null;
+                  const labels: Record<string, string> = {
+                    subject_scores: "Subject Knowledge",
+                    teaching_style_scores: "Teaching Style",
+                    personality_scores: "Personality",
+                    student_fit_scores: "Student Fit",
+                  };
+                  return (
+                    <div key={cat} className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{labels[cat]}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {Object.entries(scores).map(([k, v]) => (
+                          <ScoreBar key={k} label={formatScoreKey(k)} value={v} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Best for */}
+                {((aiProfile as { best_for?: string[] }).best_for ?? []).length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Best For</p>
+                    <div className="flex flex-wrap gap-2">
+                      {((aiProfile as { best_for?: string[] }).best_for ?? []).map((b, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{b}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Summary */}
+                {(aiProfile as { summary?: string }).summary && (
+                  <p className="text-sm text-muted-foreground italic">
+                    &ldquo;{(aiProfile as { summary?: string }).summary}&rdquo;
+                  </p>
+                )}
+
+                {/* Owner review */}
+                {!(aiProfile as { owner_reviewed?: boolean }).owner_reviewed && (
+                  <div className="space-y-3 border-t pt-4">
+                    <p className="text-sm font-medium">Review this evaluation</p>
+                    <Textarea
+                      placeholder="Optional notes for your records…"
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                      rows={2}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleReview("approved")}
+                        disabled={reviewProfile.isPending}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReview("needs_review")}
+                        disabled={reviewProfile.isPending}
+                      >
+                        Needs Review
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleReview("rejected")}
+                        disabled={reviewProfile.isPending}
+                      >
+                        <AlertCircle className="w-4 h-4 mr-1" /> Reject
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {(aiProfile as { owner_reviewed?: boolean }).owner_reviewed && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground border-t pt-4">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    Reviewed by owner
+                    {(aiProfile as { owner_notes?: string }).owner_notes && (
+                      <span>&mdash; {(aiProfile as { owner_notes?: string }).owner_notes}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Summary stat cards — three columns */}
         <div className="grid gap-4 sm:grid-cols-3">

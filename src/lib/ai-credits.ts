@@ -33,6 +33,9 @@ const WEIGHT_ENV_KEYS: Record<AITaskType, string> = {
   study_plan: "AI_CREDIT_WEIGHT_STUDY_PLAN",
   contract_generation: "AI_CREDIT_WEIGHT_CONTRACT_GENERATION",
   contract_revision: "AI_CREDIT_WEIGHT_CONTRACT_REVISION",
+  teacher_test_generation: "AI_CREDIT_WEIGHT_TEACHER_TEST_GENERATION",
+  teacher_evaluation: "AI_CREDIT_WEIGHT_TEACHER_EVALUATION",
+  tutor_matching: "AI_CREDIT_WEIGHT_TUTOR_MATCHING",
 };
 
 const DEFAULT_WEIGHT = 1;

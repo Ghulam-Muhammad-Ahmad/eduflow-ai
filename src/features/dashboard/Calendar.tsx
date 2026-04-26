@@ -41,7 +41,6 @@ import {
 } from "@/hooks/useLectureSessions";
 import { useAIUsage } from "@/hooks/useAIUsage";
 import { useToast } from "@/hooks/use-toast";
-import { LectureFinancialSummaryPanel } from "@/components/lectures/LectureFinancialSummaryPanel";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import type { ToolbarProps } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths } from "date-fns";
@@ -372,13 +371,6 @@ export default function Calendar() {
             </Badge>
           )}
         </div>
-
-        <LectureFinancialSummaryPanel
-          title="Lecture payroll and billing preview"
-          description="Preview-only totals derived from your completed lecture sessions and any per-session pricing overrides."
-          summary={lectureFinancialSummary}
-          isLoading={lectureFinancialLoading}
-        />
 
         <Card className="border-border/70 bg-card/90 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

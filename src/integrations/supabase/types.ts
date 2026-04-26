@@ -10,10 +10,158 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
+      ai_feedback: {
+        Row: {
+          accepted: boolean | null
+          consistency_hash: string | null
+          created_at: string
+          feedback_data: Json
+          id: string
+          modified_feedback: string | null
+          rubric_suggestions: Json | null
+          submission_id: string
+          suggestions: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accepted?: boolean | null
+          consistency_hash?: string | null
+          created_at?: string
+          feedback_data: Json
+          id?: string
+          modified_feedback?: string | null
+          rubric_suggestions?: Json | null
+          submission_id: string
+          suggestions?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accepted?: boolean | null
+          consistency_hash?: string | null
+          created_at?: string
+          feedback_data?: Json
+          id?: string
+          modified_feedback?: string | null
+          rubric_suggestions?: Json | null
+          submission_id?: string
+          suggestions?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_feedback_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_generated_content: {
+        Row: {
+          content: Json
+          content_type: string
+          created_at: string
+          document_id: string | null
+          id: string
+          metadata: Json | null
+          saved_to_documents: boolean | null
+          source_materials: Json | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: Json
+          content_type: string
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          metadata?: Json | null
+          saved_to_documents?: boolean | null
+          source_materials?: Json | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          content_type?: string
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          metadata?: Json | null
+          saved_to_documents?: boolean | null
+          source_materials?: Json | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_generated_content_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_interactions: {
+        Row: {
+          cost: number | null
+          created_at: string
+          credits_deducted: number | null
+          error_message: string | null
+          id: string
+          interaction_type: string
+          model: string
+          provider: string
+          request_data: Json | null
+          response_data: Json | null
+          success: boolean | null
+          tokens_used: number | null
+          user_id: string
+        }
+        Insert: {
+          cost?: number | null
+          created_at?: string
+          credits_deducted?: number | null
+          error_message?: string | null
+          id?: string
+          interaction_type: string
+          model: string
+          provider: string
+          request_data?: Json | null
+          response_data?: Json | null
+          success?: boolean | null
+          tokens_used?: number | null
+          user_id: string
+        }
+        Update: {
+          cost?: number | null
+          created_at?: string
+          credits_deducted?: number | null
+          error_message?: string | null
+          id?: string
+          interaction_type?: string
+          model?: string
+          provider?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          success?: boolean | null
+          tokens_used?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       assignment_attachments: {
         Row: {
           assignment_id: string
@@ -49,154 +197,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      ai_feedback: {
-        Row: {
-          id: string
-          submission_id: string
-          user_id: string
-          feedback_data: Json
-          suggestions: Json | null
-          consistency_hash: string | null
-          rubric_suggestions: Json | null
-          accepted: boolean
-          modified_feedback: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          submission_id: string
-          user_id: string
-          feedback_data: Json
-          suggestions?: Json | null
-          consistency_hash?: string | null
-          rubric_suggestions?: Json | null
-          accepted?: boolean
-          modified_feedback?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          submission_id?: string
-          user_id?: string
-          feedback_data?: Json
-          suggestions?: Json | null
-          consistency_hash?: string | null
-          rubric_suggestions?: Json | null
-          accepted?: boolean
-          modified_feedback?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_feedback_submission_id_fkey"
-            columns: ["submission_id"]
-            isOneToOne: false
-            referencedRelation: "submissions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ai_generated_content: {
-        Row: {
-          id: string
-          user_id: string
-          content_type: string
-          title: string
-          content: Json
-          source_materials: Json | null
-          metadata: Json | null
-          saved_to_documents: boolean | null
-          document_id: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          content_type: string
-          title: string
-          content: Json
-          source_materials?: Json | null
-          metadata?: Json | null
-          saved_to_documents?: boolean | null
-          document_id?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          content_type?: string
-          title?: string
-          content?: Json
-          source_materials?: Json | null
-          metadata?: Json | null
-          saved_to_documents?: boolean | null
-          document_id?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_generated_content_document_id_fkey"
-            columns: ["document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ai_interactions: {
-        Row: {
-          id: string
-          user_id: string
-          interaction_type: string
-          provider: string
-          model: string
-          tokens_used: number | null
-          cost: number | null
-          request_data: Json | null
-          response_data: Json | null
-          success: boolean | null
-          error_message: string | null
-          created_at: string
-          credits_deducted: number | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          interaction_type: string
-          provider: string
-          model: string
-          tokens_used?: number | null
-          cost?: number | null
-          request_data?: Json | null
-          response_data?: Json | null
-          success?: boolean | null
-          error_message?: string | null
-          created_at?: string
-          credits_deducted?: number | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          interaction_type?: string
-          provider?: string
-          model?: string
-          tokens_used?: number | null
-          cost?: number | null
-          request_data?: Json | null
-          response_data?: Json | null
-          success?: boolean | null
-          error_message?: string | null
-          created_at?: string
-          credits_deducted?: number | null
-        }
-        Relationships: []
       }
       assignments: {
         Row: {
@@ -264,6 +264,136 @@ export type Database = {
           },
         ]
       }
+      checked_papers: {
+        Row: {
+          classroom_id: string
+          created_at: string
+          feedback_text: string | null
+          file_path: string
+          grade: number | null
+          id: string
+          instructions_used: string | null
+          student_id: string | null
+          teacher_id: string
+          title: string
+        }
+        Insert: {
+          classroom_id: string
+          created_at?: string
+          feedback_text?: string | null
+          file_path: string
+          grade?: number | null
+          id?: string
+          instructions_used?: string | null
+          student_id?: string | null
+          teacher_id: string
+          title: string
+        }
+        Update: {
+          classroom_id?: string
+          created_at?: string
+          feedback_text?: string | null
+          file_path?: string
+          grade?: number | null
+          id?: string
+          instructions_used?: string | null
+          student_id?: string | null
+          teacher_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checked_papers_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checker_presets: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          instructions: string
+          is_default: boolean
+          name: string
+          reference_document_id: string | null
+          rubric_categories: Json
+          teacher_id: string
+          total_points: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instructions: string
+          is_default?: boolean
+          name: string
+          reference_document_id?: string | null
+          rubric_categories?: Json
+          teacher_id: string
+          total_points?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instructions?: string
+          is_default?: boolean
+          name?: string
+          reference_document_id?: string | null
+          rubric_categories?: Json
+          teacher_id?: string
+          total_points?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checker_presets_reference_document_id_fkey"
+            columns: ["reference_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checker_presets_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classroom_tutors: {
+        Row: {
+          classroom_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          classroom_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          classroom_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_tutors_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classrooms: {
         Row: {
           created_at: string
@@ -301,37 +431,59 @@ export type Database = {
           updated_at?: string
           workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "classrooms_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      classroom_tutors: {
+      credit_assignments_audit: {
         Row: {
-          classroom_id: string
-          user_id: string
+          action: string
+          assigned_by_user_id: string
+          assigned_to_user_id: string
           created_at: string
+          credits: number
+          id: string
+          new_limit: number | null
+          period: string
+          previous_limit: number | null
+          workspace_id: string
         }
         Insert: {
-          classroom_id: string
-          user_id: string
+          action: string
+          assigned_by_user_id: string
+          assigned_to_user_id: string
           created_at?: string
+          credits: number
+          id?: string
+          new_limit?: number | null
+          period: string
+          previous_limit?: number | null
+          workspace_id: string
         }
         Update: {
-          classroom_id?: string
-          user_id?: string
+          action?: string
+          assigned_by_user_id?: string
+          assigned_to_user_id?: string
           created_at?: string
+          credits?: number
+          id?: string
+          new_limit?: number | null
+          period?: string
+          previous_limit?: number | null
+          workspace_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "classroom_tutors_classroom_id_fkey"
-            columns: ["classroom_id"]
+            foreignKeyName: "credit_assignments_audit_workspace_id_fkey"
+            columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "classrooms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classroom_tutors_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -374,20 +526,20 @@ export type Database = {
       }
       document_one_to_one_room_shares: {
         Row: {
-          id: string
           document_id: string
+          id: string
           one_to_one_room_id: string
           shared_at: string
         }
         Insert: {
-          id?: string
           document_id: string
+          id?: string
           one_to_one_room_id: string
           shared_at?: string
         }
         Update: {
-          id?: string
           document_id?: string
+          id?: string
           one_to_one_room_id?: string
           shared_at?: string
         }
@@ -444,6 +596,35 @@ export type Database = {
           },
         ]
       }
+      document_user_shares: {
+        Row: {
+          document_id: string
+          id: string
+          shared_at: string
+          shared_with_user_id: string
+        }
+        Insert: {
+          document_id: string
+          id?: string
+          shared_at?: string
+          shared_with_user_id: string
+        }
+        Update: {
+          document_id?: string
+          id?: string
+          shared_at?: string
+          shared_with_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_user_shares_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string
@@ -487,45 +668,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      source_documents: {
-        Row: {
-          created_at: string
-          description: string | null
-          document_type: string
-          file_path: string
-          file_size: number
-          file_type: string
-          id: string
-          teacher_id: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          document_type: string
-          file_path: string
-          file_size: number
-          file_type: string
-          id?: string
-          teacher_id: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          document_type?: string
-          file_path?: string
-          file_size?: number
-          file_type?: string
-          id?: string
-          teacher_id?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       enrollments: {
         Row: {
@@ -597,937 +739,6 @@ export type Database = {
           },
         ]
       }
-      profiles: {
-        Row: {
-          avatar_url: string | null
-          bio: string | null
-          created_at: string
-          display_name: string | null
-          email: string | null
-          id: string
-          updated_at: string
-          user_id: string
-          account_type: "business" | "student" | "tutor" | null
-          onboarding_completed_at: string | null
-          password_changed_at: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string
-          display_name?: string | null
-          email?: string | null
-          id?: string
-          updated_at?: string
-          user_id: string
-          account_type?: "business" | "student" | "tutor" | null
-          onboarding_completed_at?: string | null
-          password_changed_at?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string
-          display_name?: string | null
-          email?: string | null
-          id?: string
-          updated_at?: string
-          user_id?: string
-          account_type?: "business" | "student" | "tutor" | null
-          onboarding_completed_at?: string | null
-          password_changed_at?: string | null
-        }
-        Relationships: []
-      }
-      tutor_contracts: {
-        Row: {
-          id: string
-          workspace_id: string
-          tutor_id: string
-          contract_status: string
-          pay_type: string
-          rate_amount: number
-          rate_currency: string
-          subjects: Json
-          contract_body_text: string | null
-          contract_storage_path: string | null
-          contract_signed_at: string | null
-          tutor_signature_name: string | null
-          owner_signature_name: string | null
-          owner_signed_at: string | null
-          change_requested_at: string | null
-          change_request_note: string | null
-          created_at: string
-          updated_at: string
-          contract_type: "fixed_monthly" | "per_session" | "hourly"
-          platform_fee_pct: number
-          start_date: string
-          end_date: string | null
-          status: "active" | "paused" | "ended"
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          tutor_id: string
-          contract_status?: string
-          pay_type?: string
-          rate_amount?: number
-          rate_currency?: string
-          subjects?: Json
-          contract_body_text?: string | null
-          contract_storage_path?: string | null
-          contract_signed_at?: string | null
-          tutor_signature_name?: string | null
-          owner_signature_name?: string | null
-          owner_signed_at?: string | null
-          change_requested_at?: string | null
-          change_request_note?: string | null
-          created_at?: string
-          updated_at?: string
-          contract_type?: "fixed_monthly" | "per_session" | "hourly"
-          platform_fee_pct?: number
-          start_date?: string
-          end_date?: string | null
-          status?: "active" | "paused" | "ended"
-        }
-        Update: {
-          id?: string
-          workspace_id?: string
-          tutor_id?: string
-          contract_status?: string
-          pay_type?: string
-          rate_amount?: number
-          rate_currency?: string
-          subjects?: Json
-          contract_body_text?: string | null
-          contract_storage_path?: string | null
-          contract_signed_at?: string | null
-          tutor_signature_name?: string | null
-          owner_signature_name?: string | null
-          owner_signed_at?: string | null
-          change_requested_at?: string | null
-          change_request_note?: string | null
-          created_at?: string
-          updated_at?: string
-          contract_type?: "fixed_monthly" | "per_session" | "hourly"
-          platform_fee_pct?: number
-          start_date?: string
-          end_date?: string | null
-          status?: "active" | "paused" | "ended"
-        }
-        Relationships: []
-      }
-      tutor_earning_rows: {
-        Row: {
-          id: string
-          workspace_id: string
-          tutor_id: string
-          tutor_contract_id: string | null
-          session_id: string | null
-          earning_type: "session" | "monthly_salary"
-          period_date: string
-          description: string | null
-          gross_amount: number
-          platform_fee_amount: number
-          net_amount: number
-          currency: string
-          status: "pending" | "approved" | "paid"
-          payout_id: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          tutor_id: string
-          tutor_contract_id?: string | null
-          session_id?: string | null
-          earning_type: "session" | "monthly_salary"
-          period_date: string
-          description?: string | null
-          gross_amount?: number
-          platform_fee_amount?: number
-          net_amount?: number
-          currency?: string
-          status?: "pending" | "approved" | "paid"
-          payout_id?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          workspace_id?: string
-          tutor_id?: string
-          tutor_contract_id?: string | null
-          session_id?: string | null
-          earning_type?: "session" | "monthly_salary"
-          period_date?: string
-          description?: string | null
-          gross_amount?: number
-          platform_fee_amount?: number
-          net_amount?: number
-          currency?: string
-          status?: "pending" | "approved" | "paid"
-          payout_id?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      tutor_payouts: {
-        Row: {
-          id: string
-          workspace_id: string
-          tutor_id: string
-          total_net_amount: number
-          currency: string
-          payment_note: string | null
-          proof_storage_path: string | null
-          status: "pending" | "paid"
-          paid_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          tutor_id: string
-          total_net_amount?: number
-          currency?: string
-          payment_note?: string | null
-          proof_storage_path?: string | null
-          status?: "pending" | "paid"
-          paid_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          workspace_id?: string
-          tutor_id?: string
-          total_net_amount?: number
-          currency?: string
-          payment_note?: string | null
-          proof_storage_path?: string | null
-          status?: "pending" | "paid"
-          paid_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      workspaces: {
-        Row: {
-          id: string
-          name: string
-          type: "business" | "solo"
-          owner_id: string
-          created_at: string
-          updated_at: string
-          settings: Json
-          trial_ends_at: string | null
-          logo_url: string | null
-        }
-        Insert: {
-          id?: string
-          name: string
-          type: "business" | "solo"
-          owner_id: string
-          created_at?: string
-          updated_at?: string
-          settings?: Json
-          trial_ends_at?: string | null
-          logo_url?: string | null
-        }
-        Update: {
-          name?: string
-          type?: "business" | "solo"
-          owner_id?: string
-          updated_at?: string
-          settings?: Json
-          trial_ends_at?: string | null
-          logo_url?: string | null
-        }
-        Relationships: []
-      }
-      workspace_members: {
-        Row: {
-          id: string
-          workspace_id: string
-          user_id: string
-          role: "owner" | "tutor"
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          user_id: string
-          role: "owner" | "tutor"
-          created_at?: string
-        }
-        Update: {
-          workspace_id?: string
-          user_id?: string
-          role?: "owner" | "tutor"
-        }
-        Relationships: []
-      }
-      tutor_student_assignments: {
-        Row: {
-          id: string
-          workspace_id: string
-          tutor_id: string
-          student_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          tutor_id: string
-          student_id: string
-          created_at?: string
-        }
-        Update: {
-          workspace_id?: string
-          tutor_id?: string
-          student_id?: string
-        }
-        Relationships: []
-      }
-      workspace_students: {
-        Row: {
-          workspace_id: string
-          student_id: string
-          created_at: string
-        }
-        Insert: {
-          workspace_id: string
-          student_id: string
-          created_at?: string
-        }
-        Update: {
-          workspace_id?: string
-          student_id?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
-      one_to_one_rooms: {
-        Row: {
-          id: string
-          workspace_id: string
-          tutor_id: string
-          student_id: string
-          name: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          tutor_id: string
-          student_id: string
-          name?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          workspace_id?: string
-          tutor_id?: string
-          student_id?: string
-          name?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      workspace_subscriptions: {
-        Row: {
-          id: string
-          workspace_id: string
-          paddle_subscription_id: string | null
-          paddle_customer_id: string | null
-          price_id: string | null
-          status: string
-          current_period_ends_at: string | null
-          trial_ends_at: string | null
-          doc_storage_limit_mb: number | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          paddle_subscription_id?: string | null
-          paddle_customer_id?: string | null
-          price_id?: string | null
-          status?: string
-          current_period_ends_at?: string | null
-          trial_ends_at?: string | null
-          doc_storage_limit_mb?: number | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          workspace_id?: string
-          paddle_subscription_id?: string | null
-          paddle_customer_id?: string | null
-          price_id?: string | null
-          status?: string
-          current_period_ends_at?: string | null
-          trial_ends_at?: string | null
-          doc_storage_limit_mb?: number | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      workspace_credit_pools: {
-        Row: {
-          id: string
-          workspace_id: string
-          period: string
-          credits_allocated: number
-          credits_assigned_out: number
-          credits_used_direct: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          period: string
-          credits_allocated?: number
-          credits_assigned_out?: number
-          credits_used_direct?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          workspace_id?: string
-          period?: string
-          credits_allocated?: number
-          credits_assigned_out?: number
-          credits_used_direct?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_credit_allocations: {
-        Row: {
-          id: string
-          user_id: string
-          period: string
-          source_type: string
-          source_id: string
-          credits_limit: number
-          credits_used: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          period: string
-          source_type: string
-          source_id: string
-          credits_limit?: number
-          credits_used?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          period?: string
-          source_type?: string
-          source_id?: string
-          credits_limit?: number
-          credits_used?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_subscriptions: {
-        Row: {
-          id: string
-          user_id: string
-          paddle_subscription_id: string | null
-          paddle_customer_id: string | null
-          price_id: string | null
-          status: string
-          current_period_ends_at: string | null
-          trial_ends_at: string | null
-          doc_storage_limit_mb: number | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          paddle_subscription_id?: string | null
-          paddle_customer_id?: string | null
-          price_id?: string | null
-          status?: string
-          current_period_ends_at?: string | null
-          trial_ends_at?: string | null
-          doc_storage_limit_mb?: number | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          paddle_subscription_id?: string | null
-          paddle_customer_id?: string | null
-          price_id?: string | null
-          status?: string
-          current_period_ends_at?: string | null
-          trial_ends_at?: string | null
-          doc_storage_limit_mb?: number | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_storage_allocations: {
-        Row: {
-          id: string
-          workspace_id: string
-          user_id: string
-          storage_limit_mb: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          user_id: string
-          storage_limit_mb?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          workspace_id?: string
-          user_id?: string
-          storage_limit_mb?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      quizzes: {
-        Row: {
-          id: string
-          classroom_id: string | null
-          teacher_id: string
-          title: string
-          description: string | null
-          instructions: string | null
-          time_limit_minutes: number | null
-          available_from: string | null
-          available_until: string | null
-          passing_score: number | null
-          max_attempts: number | null
-          randomize_questions: boolean | null
-          show_correct_answers: boolean | null
-          show_results_immediately: boolean | null
-          status: string
-          published_at: string | null
-          created_at: string
-          updated_at: string
-          one_to_one_room_id: string | null
-        }
-        Insert: {
-          id?: string
-          classroom_id?: string | null
-          teacher_id: string
-          title: string
-          description?: string | null
-          instructions?: string | null
-          time_limit_minutes?: number | null
-          available_from?: string | null
-          available_until?: string | null
-          passing_score?: number | null
-          max_attempts?: number | null
-          randomize_questions?: boolean | null
-          show_correct_answers?: boolean | null
-          show_results_immediately?: boolean | null
-          status?: string
-          published_at?: string | null
-          created_at?: string
-          updated_at?: string
-          one_to_one_room_id?: string | null
-        }
-        Update: {
-          id?: string
-          classroom_id?: string | null
-          teacher_id?: string
-          title?: string
-          description?: string | null
-          instructions?: string | null
-          time_limit_minutes?: number | null
-          available_from?: string | null
-          available_until?: string | null
-          passing_score?: number | null
-          max_attempts?: number | null
-          randomize_questions?: boolean | null
-          show_correct_answers?: boolean | null
-          show_results_immediately?: boolean | null
-          status?: string
-          published_at?: string | null
-          created_at?: string
-          updated_at?: string
-          one_to_one_room_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quizzes_classroom_id_fkey"
-            columns: ["classroom_id"]
-            isOneToOne: false
-            referencedRelation: "classrooms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quizzes_one_to_one_room_id_fkey"
-            columns: ["one_to_one_room_id"]
-            isOneToOne: false
-            referencedRelation: "one_to_one_rooms"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      quiz_questions: {
-        Row: {
-          id: string
-          quiz_id: string
-          question_type: string
-          question_text: string
-          points: number
-          order_index: number
-          options: Json | null
-          correct_answer: string | null
-          explanation: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          quiz_id: string
-          question_type: string
-          question_text: string
-          points?: number
-          order_index?: number
-          options?: Json | null
-          correct_answer?: string | null
-          explanation?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          quiz_id?: string
-          question_type?: string
-          question_text?: string
-          points?: number
-          order_index?: number
-          options?: Json | null
-          correct_answer?: string | null
-          explanation?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quiz_questions_quiz_id_fkey"
-            columns: ["quiz_id"]
-            isOneToOne: false
-            referencedRelation: "quizzes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      quiz_attempts: {
-        Row: {
-          id: string
-          quiz_id: string
-          student_id: string
-          attempt_number: number
-          started_at: string
-          submitted_at: string | null
-          time_spent_seconds: number | null
-          answers: Json
-          score: number | null
-          points_earned: number | null
-          points_possible: number | null
-          status: string
-          auto_graded_at: string | null
-          manually_graded_at: string | null
-          feedback: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          quiz_id: string
-          student_id: string
-          attempt_number?: number
-          started_at?: string
-          submitted_at?: string | null
-          time_spent_seconds?: number | null
-          answers?: Json
-          score?: number | null
-          points_earned?: number | null
-          points_possible?: number | null
-          status?: string
-          auto_graded_at?: string | null
-          manually_graded_at?: string | null
-          feedback?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          quiz_id?: string
-          student_id?: string
-          attempt_number?: number
-          started_at?: string
-          submitted_at?: string | null
-          time_spent_seconds?: number | null
-          answers?: Json
-          score?: number | null
-          points_earned?: number | null
-          points_possible?: number | null
-          status?: string
-          auto_graded_at?: string | null
-          manually_graded_at?: string | null
-          feedback?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quiz_attempts_quiz_id_fkey"
-            columns: ["quiz_id"]
-            isOneToOne: false
-            referencedRelation: "quizzes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      submissions: {
-        Row: {
-          assignment_id: string
-          created_at: string
-          feedback: string | null
-          file_name: string | null
-          file_path: string | null
-          grade: number | null
-          graded_at: string | null
-          id: string
-          is_late: boolean | null
-          returned_at: string | null
-          status: string
-          student_id: string
-          submitted_at: string
-          text_content: string | null
-          updated_at: string
-        }
-        Insert: {
-          assignment_id: string
-          created_at?: string
-          feedback?: string | null
-          file_name?: string | null
-          file_path?: string | null
-          grade?: number | null
-          graded_at?: string | null
-          id?: string
-          is_late?: boolean | null
-          returned_at?: string | null
-          status?: string
-          student_id: string
-          submitted_at?: string
-          text_content?: string | null
-          updated_at?: string
-        }
-        Update: {
-          assignment_id?: string
-          created_at?: string
-          feedback?: string | null
-          file_name?: string | null
-          file_path?: string | null
-          grade?: number | null
-          graded_at?: string | null
-          id?: string
-          is_late?: boolean | null
-          returned_at?: string | null
-          status?: string
-          student_id?: string
-          submitted_at?: string
-          text_content?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "submissions_assignment_id_fkey"
-            columns: ["assignment_id"]
-            isOneToOne: false
-            referencedRelation: "assignments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      student_fee_configs: {
-        Row: {
-          id: string
-          workspace_id: string
-          student_id: string
-          fee_type: "monthly_fixed" | "per_session" | "per_hour"
-          amount: number
-          currency: string
-          description: string | null
-          active: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          student_id: string
-          fee_type: "monthly_fixed" | "per_session" | "per_hour"
-          amount?: number
-          currency?: string
-          description?: string | null
-          active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          workspace_id?: string
-          student_id?: string
-          fee_type?: "monthly_fixed" | "per_session" | "per_hour"
-          amount?: number
-          currency?: string
-          description?: string | null
-          active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      student_invoice_rows: {
-        Row: {
-          id: string
-          workspace_id: string
-          student_id: string
-          fee_config_id: string | null
-          session_id: string | null
-          invoice_type: "monthly_fee" | "session_fee" | "manual_fine"
-          description: string | null
-          amount: number
-          currency: string
-          due_date: string
-          status: "unpaid" | "proof_submitted" | "paid" | "waived"
-          paid_at: string | null
-          proof_storage_path: string | null
-          proof_submitted_at: string | null
-          waived_reason: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          student_id: string
-          fee_config_id?: string | null
-          session_id?: string | null
-          invoice_type: "monthly_fee" | "session_fee" | "manual_fine"
-          description?: string | null
-          amount?: number
-          currency?: string
-          due_date: string
-          status?: "unpaid" | "proof_submitted" | "paid" | "waived"
-          paid_at?: string | null
-          proof_storage_path?: string | null
-          proof_submitted_at?: string | null
-          waived_reason?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          workspace_id?: string
-          student_id?: string
-          fee_config_id?: string | null
-          session_id?: string | null
-          invoice_type?: "monthly_fee" | "session_fee" | "manual_fine"
-          description?: string | null
-          amount?: number
-          currency?: string
-          due_date?: string
-          status?: "unpaid" | "proof_submitted" | "paid" | "waived"
-          paid_at?: string | null
-          proof_storage_path?: string | null
-          proof_submitted_at?: string | null
-          waived_reason?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      tags: {
-        Row: {
-          color: string
-          created_at: string
-          id: string
-          name: string
-          user_id: string
-        }
-        Insert: {
-          color?: string
-          created_at?: string
-          id?: string
-          name: string
-          user_id: string
-        }
-        Update: {
-          color?: string
-          created_at?: string
-          id?: string
-          name?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      planner_events: {
-        Row: {
-          id: string
-          teacher_id: string
-          title: string
-          start_at: string
-          end_at: string
-          all_day: boolean
-          description: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          teacher_id: string
-          title: string
-          start_at: string
-          end_at: string
-          all_day?: boolean
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          teacher_id?: string
-          title?: string
-          start_at?: string
-          end_at?: string
-          all_day?: boolean
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       google_calendar_connections: {
         Row: {
           access_token: string
@@ -1568,12 +779,316 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
+        Relationships: []
+      }
+      one_to_one_rooms: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          student_id: string
+          tutor_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          student_id: string
+          tutor_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          student_id?: string
+          tutor_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "google_calendar_connections_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "one_to_one_rooms_workspace_id_fkey"
+            columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_events: {
+        Row: {
+          all_day: boolean
+          created_at: string
+          description: string | null
+          end_at: string
+          id: string
+          start_at: string
+          teacher_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          all_day?: boolean
+          created_at?: string
+          description?: string | null
+          end_at: string
+          id?: string
+          start_at: string
+          teacher_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          all_day?: boolean
+          created_at?: string
+          description?: string | null
+          end_at?: string
+          id?: string
+          start_at?: string
+          teacher_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          account_type: string | null
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          onboarding_completed_at: string | null
+          password_changed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          onboarding_completed_at?: string | null
+          password_changed_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          onboarding_completed_at?: string | null
+          password_changed_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quiz_attempts: {
+        Row: {
+          answers: Json
+          attempt_number: number
+          auto_graded_at: string | null
+          created_at: string
+          feedback: string | null
+          id: string
+          manually_graded_at: string | null
+          points_earned: number | null
+          points_possible: number | null
+          quiz_id: string
+          score: number | null
+          started_at: string
+          status: string
+          student_id: string
+          submitted_at: string | null
+          time_spent_seconds: number | null
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          attempt_number?: number
+          auto_graded_at?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          manually_graded_at?: string | null
+          points_earned?: number | null
+          points_possible?: number | null
+          quiz_id: string
+          score?: number | null
+          started_at?: string
+          status?: string
+          student_id: string
+          submitted_at?: string | null
+          time_spent_seconds?: number | null
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          attempt_number?: number
+          auto_graded_at?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          manually_graded_at?: string | null
+          points_earned?: number | null
+          points_possible?: number | null
+          quiz_id?: string
+          score?: number | null
+          started_at?: string
+          status?: string
+          student_id?: string
+          submitted_at?: string | null
+          time_spent_seconds?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          correct_answer: string | null
+          created_at: string
+          explanation: string | null
+          id: string
+          options: Json | null
+          order_index: number
+          points: number
+          question_text: string
+          question_type: string
+          quiz_id: string
+        }
+        Insert: {
+          correct_answer?: string | null
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json | null
+          order_index?: number
+          points?: number
+          question_text: string
+          question_type: string
+          quiz_id: string
+        }
+        Update: {
+          correct_answer?: string | null
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json | null
+          order_index?: number
+          points?: number
+          question_text?: string
+          question_type?: string
+          quiz_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          available_from: string | null
+          available_until: string | null
+          classroom_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          instructions: string | null
+          max_attempts: number | null
+          one_to_one_room_id: string | null
+          passing_score: number | null
+          published_at: string | null
+          randomize_questions: boolean | null
+          show_correct_answers: boolean | null
+          show_results_immediately: boolean | null
+          status: string
+          teacher_id: string
+          time_limit_minutes: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          available_from?: string | null
+          available_until?: string | null
+          classroom_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          instructions?: string | null
+          max_attempts?: number | null
+          one_to_one_room_id?: string | null
+          passing_score?: number | null
+          published_at?: string | null
+          randomize_questions?: boolean | null
+          show_correct_answers?: boolean | null
+          show_results_immediately?: boolean | null
+          status?: string
+          teacher_id: string
+          time_limit_minutes?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          available_from?: string | null
+          available_until?: string | null
+          classroom_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          instructions?: string | null
+          max_attempts?: number | null
+          one_to_one_room_id?: string | null
+          passing_score?: number | null
+          published_at?: string | null
+          randomize_questions?: boolean | null
+          show_correct_answers?: boolean | null
+          show_results_immediately?: boolean | null
+          status?: string
+          teacher_id?: string
+          time_limit_minutes?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quizzes_one_to_one_room_id_fkey"
+            columns: ["one_to_one_room_id"]
+            isOneToOne: false
+            referencedRelation: "one_to_one_rooms"
             referencedColumns: ["id"]
           },
         ]
@@ -1646,186 +1161,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_series_tutor_id_fkey"
-            columns: ["tutor_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_series_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_series_created_by_user_id_fkey"
-            columns: ["created_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      session_financial_mock: {
-        Row: {
-          created_at: string
-          created_by_user_id: string
-          id: string
-          session_id: string
-          student_charge_amount: number
-          student_charge_currency: string
-          student_charge_type: string
-          tutor_id: string
-          tutor_rate_amount: number
-          tutor_rate_currency: string
-          tutor_rate_type: string
-          updated_at: string
-          updated_by_user_id: string
-          workspace_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by_user_id: string
-          id?: string
-          session_id: string
-          student_charge_amount?: number
-          student_charge_currency?: string
-          student_charge_type?: string
-          tutor_id: string
-          tutor_rate_amount?: number
-          tutor_rate_currency?: string
-          tutor_rate_type?: string
-          updated_at?: string
-          updated_by_user_id: string
-          workspace_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by_user_id?: string
-          id?: string
-          session_id?: string
-          student_charge_amount?: number
-          student_charge_currency?: string
-          student_charge_type?: string
-          tutor_id?: string
-          tutor_rate_amount?: number
-          tutor_rate_currency?: string
-          tutor_rate_type?: string
-          updated_at?: string
-          updated_by_user_id?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "session_financial_mock_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_financial_mock_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_financial_mock_tutor_id_fkey"
-            columns: ["tutor_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_financial_mock_created_by_user_id_fkey"
-            columns: ["created_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_financial_mock_updated_by_user_id_fkey"
-            columns: ["updated_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      session_notes: {
-        Row: {
-          content: string
-          created_at: string
-          created_by_user_id: string
-          id: string
-          session_id: string
-          tutor_id: string
-          updated_at: string
-          updated_by_user_id: string
-          workspace_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          created_by_user_id: string
-          id?: string
-          session_id: string
-          tutor_id: string
-          updated_at?: string
-          updated_by_user_id: string
-          workspace_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          created_by_user_id?: string
-          id?: string
-          session_id?: string
-          tutor_id?: string
-          updated_at?: string
-          updated_by_user_id?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "session_notes_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_notes_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_notes_tutor_id_fkey"
-            columns: ["tutor_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_notes_created_by_user_id_fkey"
-            columns: ["created_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_notes_updated_by_user_id_fkey"
-            columns: ["updated_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -1912,13 +1247,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "sessions_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "sessions_series_id_fkey"
             columns: ["series_id"]
             isOneToOne: false
@@ -1926,64 +1254,924 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "sessions_tutor_id_fkey"
-            columns: ["tutor_id"]
+            foreignKeyName: "sessions_workspace_id_fkey"
+            columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sessions_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sessions_created_by_user_id_fkey"
-            columns: ["created_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
       }
-      checked_papers: {
+      source_documents: {
         Row: {
+          created_at: string | null
+          description: string | null
+          document_type: string
+          file_path: string
+          file_size: number
+          file_type: string
           id: string
           teacher_id: string
-          classroom_id: string
-          student_id: string | null
           title: string
-          file_path: string
-          grade: number | null
-          feedback_text: string | null
-          instructions_used: string | null
-          created_at: string
+          updated_at: string | null
         }
         Insert: {
+          created_at?: string | null
+          description?: string | null
+          document_type: string
+          file_path: string
+          file_size: number
+          file_type: string
           id?: string
           teacher_id: string
-          classroom_id: string
-          student_id?: string | null
           title: string
-          file_path: string
-          grade?: number | null
-          feedback_text?: string | null
-          instructions_used?: string | null
-          created_at?: string
+          updated_at?: string | null
         }
         Update: {
+          created_at?: string | null
+          description?: string | null
+          document_type?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
           id?: string
           teacher_id?: string
-          classroom_id?: string
-          student_id?: string | null
           title?: string
-          file_path?: string
-          grade?: number | null
-          feedback_text?: string | null
-          instructions_used?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_documents_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_fee_configs: {
+        Row: {
+          active: boolean
+          amount: number
+          created_at: string
+          currency: string
+          description: string | null
+          fee_type: string
+          id: string
+          student_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          amount?: number
           created_at?: string
+          currency?: string
+          description?: string | null
+          fee_type: string
+          id?: string
+          student_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          fee_type?: string
+          id?: string
+          student_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_fee_configs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_invoice_rows: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          description: string | null
+          due_date: string
+          fee_config_id: string | null
+          id: string
+          invoice_type: string
+          paid_at: string | null
+          proof_storage_path: string | null
+          proof_submitted_at: string | null
+          session_id: string | null
+          status: string
+          student_id: string
+          updated_at: string
+          waived_reason: string | null
+          workspace_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date: string
+          fee_config_id?: string | null
+          id?: string
+          invoice_type: string
+          paid_at?: string | null
+          proof_storage_path?: string | null
+          proof_submitted_at?: string | null
+          session_id?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+          waived_reason?: string | null
+          workspace_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string
+          fee_config_id?: string | null
+          id?: string
+          invoice_type?: string
+          paid_at?: string | null
+          proof_storage_path?: string | null
+          proof_submitted_at?: string | null
+          session_id?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+          waived_reason?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_invoice_rows_fee_config_id_fkey"
+            columns: ["fee_config_id"]
+            isOneToOne: false
+            referencedRelation: "student_fee_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_invoice_rows_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_invoice_rows_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_requirements: {
+        Row: {
+          availability: string[] | null
+          budget_hourly: number | null
+          created_at: string | null
+          created_by: string | null
+          curriculum: string
+          goal: string | null
+          grade: string
+          id: string
+          language: string | null
+          preferred_teaching_style: string | null
+          status: string | null
+          student_id: string | null
+          student_level: string | null
+          student_name: string
+          student_nature: string[] | null
+          subject: string
+          updated_at: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          availability?: string[] | null
+          budget_hourly?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          curriculum: string
+          goal?: string | null
+          grade: string
+          id?: string
+          language?: string | null
+          preferred_teaching_style?: string | null
+          status?: string | null
+          student_id?: string | null
+          student_level?: string | null
+          student_name: string
+          student_nature?: string[] | null
+          subject: string
+          updated_at?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          availability?: string[] | null
+          budget_hourly?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          curriculum?: string
+          goal?: string | null
+          grade?: string
+          id?: string
+          language?: string | null
+          preferred_teaching_style?: string | null
+          status?: string | null
+          student_id?: string | null
+          student_level?: string | null
+          student_name?: string
+          student_nature?: string[] | null
+          subject?: string
+          updated_at?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_requirements_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submissions: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          feedback: string | null
+          file_name: string | null
+          file_path: string | null
+          grade: number | null
+          graded_at: string | null
+          id: string
+          is_late: boolean | null
+          returned_at: string | null
+          status: string
+          student_id: string
+          submitted_at: string
+          text_content: string | null
+          updated_at: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          feedback?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          grade?: number | null
+          graded_at?: string | null
+          id?: string
+          is_late?: boolean | null
+          returned_at?: string | null
+          status?: string
+          student_id: string
+          submitted_at?: string
+          text_content?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          feedback?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          grade?: number | null
+          graded_at?: string | null
+          id?: string
+          is_late?: boolean | null
+          returned_at?: string | null
+          status?: string
+          student_id?: string
+          submitted_at?: string
+          text_content?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_submissions_student_profile"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      teacher_ai_profiles: {
+        Row: {
+          best_for: string[] | null
+          created_at: string | null
+          evaluation_test_id: string | null
+          id: string
+          not_best_for: string[] | null
+          overall_score: number | null
+          owner_notes: string | null
+          owner_reviewed: boolean | null
+          owner_reviewed_at: string | null
+          owner_reviewed_by: string | null
+          personality_scores: Json | null
+          preferences: Json | null
+          recommendation: string | null
+          strengths: string[] | null
+          student_fit_scores: Json | null
+          subject_scores: Json | null
+          summary: string | null
+          teacher_id: string | null
+          teacher_nature: string | null
+          teaching_style_scores: Json | null
+          updated_at: string | null
+          weaknesses: string[] | null
+          workspace_id: string | null
+        }
+        Insert: {
+          best_for?: string[] | null
+          created_at?: string | null
+          evaluation_test_id?: string | null
+          id?: string
+          not_best_for?: string[] | null
+          overall_score?: number | null
+          owner_notes?: string | null
+          owner_reviewed?: boolean | null
+          owner_reviewed_at?: string | null
+          owner_reviewed_by?: string | null
+          personality_scores?: Json | null
+          preferences?: Json | null
+          recommendation?: string | null
+          strengths?: string[] | null
+          student_fit_scores?: Json | null
+          subject_scores?: Json | null
+          summary?: string | null
+          teacher_id?: string | null
+          teacher_nature?: string | null
+          teaching_style_scores?: Json | null
+          updated_at?: string | null
+          weaknesses?: string[] | null
+          workspace_id?: string | null
+        }
+        Update: {
+          best_for?: string[] | null
+          created_at?: string | null
+          evaluation_test_id?: string | null
+          id?: string
+          not_best_for?: string[] | null
+          overall_score?: number | null
+          owner_notes?: string | null
+          owner_reviewed?: boolean | null
+          owner_reviewed_at?: string | null
+          owner_reviewed_by?: string | null
+          personality_scores?: Json | null
+          preferences?: Json | null
+          recommendation?: string | null
+          strengths?: string[] | null
+          student_fit_scores?: Json | null
+          subject_scores?: Json | null
+          summary?: string | null
+          teacher_id?: string | null
+          teacher_nature?: string | null
+          teaching_style_scores?: Json | null
+          updated_at?: string | null
+          weaknesses?: string[] | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_ai_profiles_evaluation_test_id_fkey"
+            columns: ["evaluation_test_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_evaluation_tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_ai_profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_evaluation_answers: {
+        Row: {
+          answers_json: Json
+          created_at: string | null
+          evaluation_test_id: string | null
+          id: string
+          submitted_at: string | null
+          teacher_id: string | null
+        }
+        Insert: {
+          answers_json: Json
+          created_at?: string | null
+          evaluation_test_id?: string | null
+          id?: string
+          submitted_at?: string | null
+          teacher_id?: string | null
+        }
+        Update: {
+          answers_json?: Json
+          created_at?: string | null
+          evaluation_test_id?: string | null
+          id?: string
+          submitted_at?: string | null
+          teacher_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_evaluation_answers_evaluation_test_id_fkey"
+            columns: ["evaluation_test_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_evaluation_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_evaluation_tests: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          created_at: string | null
+          curriculum: string[]
+          experience_years: number | null
+          grades: string[]
+          id: string
+          language: string | null
+          questions_json: Json | null
+          started_at: string | null
+          status: string | null
+          subject: string
+          submitted_at: string | null
+          teacher_id: string | null
+          updated_at: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          created_at?: string | null
+          curriculum: string[]
+          experience_years?: number | null
+          grades: string[]
+          id?: string
+          language?: string | null
+          questions_json?: Json | null
+          started_at?: string | null
+          status?: string | null
+          subject: string
+          submitted_at?: string | null
+          teacher_id?: string | null
+          updated_at?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          created_at?: string | null
+          curriculum?: string[]
+          experience_years?: number | null
+          grades?: string[]
+          id?: string
+          language?: string | null
+          questions_json?: Json | null
+          started_at?: string | null
+          status?: string | null
+          subject?: string
+          submitted_at?: string | null
+          teacher_id?: string | null
+          updated_at?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_evaluation_tests_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutor_contracts: {
+        Row: {
+          change_request_note: string | null
+          change_requested_at: string | null
+          contract_body_text: string | null
+          contract_signed_at: string | null
+          contract_status: string
+          contract_storage_path: string | null
+          contract_type: string | null
+          created_at: string
+          end_date: string | null
+          id: string
+          owner_signature_name: string | null
+          owner_signed_at: string | null
+          pay_type: string
+          platform_fee_pct: number | null
+          rate_amount: number
+          rate_currency: string
+          start_date: string | null
+          status: string | null
+          subjects: Json
+          tutor_id: string
+          tutor_signature_name: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          change_request_note?: string | null
+          change_requested_at?: string | null
+          contract_body_text?: string | null
+          contract_signed_at?: string | null
+          contract_status?: string
+          contract_storage_path?: string | null
+          contract_type?: string | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          owner_signature_name?: string | null
+          owner_signed_at?: string | null
+          pay_type?: string
+          platform_fee_pct?: number | null
+          rate_amount?: number
+          rate_currency?: string
+          start_date?: string | null
+          status?: string | null
+          subjects?: Json
+          tutor_id: string
+          tutor_signature_name?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          change_request_note?: string | null
+          change_requested_at?: string | null
+          contract_body_text?: string | null
+          contract_signed_at?: string | null
+          contract_status?: string
+          contract_storage_path?: string | null
+          contract_type?: string | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          owner_signature_name?: string | null
+          owner_signed_at?: string | null
+          pay_type?: string
+          platform_fee_pct?: number | null
+          rate_amount?: number
+          rate_currency?: string
+          start_date?: string | null
+          status?: string | null
+          subjects?: Json
+          tutor_id?: string
+          tutor_signature_name?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_contracts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutor_earning_rows: {
+        Row: {
+          created_at: string
+          currency: string
+          description: string | null
+          earning_type: string
+          gross_amount: number
+          id: string
+          net_amount: number
+          payout_id: string | null
+          period_date: string
+          platform_fee_amount: number
+          session_id: string | null
+          status: string
+          tutor_contract_id: string | null
+          tutor_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          earning_type: string
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          payout_id?: string | null
+          period_date: string
+          platform_fee_amount?: number
+          session_id?: string | null
+          status?: string
+          tutor_contract_id?: string | null
+          tutor_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          earning_type?: string
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          payout_id?: string | null
+          period_date?: string
+          platform_fee_amount?: number
+          session_id?: string | null
+          status?: string
+          tutor_contract_id?: string | null
+          tutor_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_earning_rows_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "tutor_payouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tutor_earning_rows_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tutor_earning_rows_tutor_contract_id_fkey"
+            columns: ["tutor_contract_id"]
+            isOneToOne: false
+            referencedRelation: "tutor_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tutor_earning_rows_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutor_matches: {
+        Row: {
+          ai_explanation: Json | null
+          best_match_teacher_id: string | null
+          code_scores: Json | null
+          created_at: string | null
+          id: string
+          ranked_matches: Json
+          requirement_id: string | null
+          status: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          ai_explanation?: Json | null
+          best_match_teacher_id?: string | null
+          code_scores?: Json | null
+          created_at?: string | null
+          id?: string
+          ranked_matches: Json
+          requirement_id?: string | null
+          status?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          ai_explanation?: Json | null
+          best_match_teacher_id?: string | null
+          code_scores?: Json | null
+          created_at?: string | null
+          id?: string
+          ranked_matches?: Json
+          requirement_id?: string | null
+          status?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_matches_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "student_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tutor_matches_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutor_payouts: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          paid_at: string | null
+          payment_note: string | null
+          proof_storage_path: string | null
+          status: string
+          total_net_amount: number
+          tutor_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          paid_at?: string | null
+          payment_note?: string | null
+          proof_storage_path?: string | null
+          status?: string
+          total_net_amount?: number
+          tutor_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          paid_at?: string | null
+          payment_note?: string | null
+          proof_storage_path?: string | null
+          status?: string
+          total_net_amount?: number
+          tutor_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_payouts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutor_student_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          student_id: string
+          tutor_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          student_id: string
+          tutor_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          student_id?: string
+          tutor_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_student_assignments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ai_usage: {
+        Row: {
+          cost: number | null
+          created_at: string
+          id: string
+          interactions_count: number | null
+          limit_reached: boolean | null
+          month: string
+          tokens_used: number | null
+          updated_at: string
+          usage_limit: number | null
+          user_id: string
+        }
+        Insert: {
+          cost?: number | null
+          created_at?: string
+          id?: string
+          interactions_count?: number | null
+          limit_reached?: boolean | null
+          month: string
+          tokens_used?: number | null
+          updated_at?: string
+          usage_limit?: number | null
+          user_id: string
+        }
+        Update: {
+          cost?: number | null
+          created_at?: string
+          id?: string
+          interactions_count?: number | null
+          limit_reached?: boolean | null
+          month?: string
+          tokens_used?: number | null
+          updated_at?: string
+          usage_limit?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_credit_allocations: {
+        Row: {
+          created_at: string
+          credits_limit: number
+          credits_used: number
+          id: string
+          period: string
+          source_id: string
+          source_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits_limit?: number
+          credits_used?: number
+          id?: string
+          period: string
+          source_id: string
+          source_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits_limit?: number
+          credits_used?: number
+          id?: string
+          period?: string
+          source_id?: string
+          source_type?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -2008,26 +2196,327 @@ export type Database = {
         }
         Relationships: []
       }
+      user_storage_allocations: {
+        Row: {
+          created_at: string
+          id: string
+          storage_limit_mb: number
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          storage_limit_mb?: number
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          storage_limit_mb?: number
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_storage_allocations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_subscriptions: {
+        Row: {
+          created_at: string
+          current_period_ends_at: string | null
+          doc_storage_limit_mb: number | null
+          id: string
+          paddle_customer_id: string | null
+          paddle_subscription_id: string | null
+          price_id: string | null
+          status: string
+          trial_ends_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
+          id?: string
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
+          price_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
+          id?: string
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
+          price_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workspace_credit_pools: {
+        Row: {
+          created_at: string
+          credits_allocated: number
+          credits_assigned_out: number
+          credits_used_direct: number
+          id: string
+          period: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits_allocated?: number
+          credits_assigned_out?: number
+          credits_used_direct?: number
+          id?: string
+          period: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          credits_allocated?: number
+          credits_assigned_out?: number
+          credits_used_direct?: number
+          id?: string
+          period?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_credit_pools_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_students: {
+        Row: {
+          created_at: string
+          student_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          student_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          student_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_students_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_subscriptions: {
+        Row: {
+          created_at: string
+          current_period_ends_at: string | null
+          doc_storage_limit_mb: number | null
+          id: string
+          paddle_customer_id: string | null
+          paddle_subscription_id: string | null
+          price_id: string | null
+          status: string
+          trial_ends_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
+          id?: string
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
+          price_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_ends_at?: string | null
+          doc_storage_limit_mb?: number | null
+          id?: string
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
+          price_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          owner_id: string
+          settings: Json
+          trial_ends_at: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          owner_id: string
+          settings?: Json
+          trial_ends_at?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          owner_id?: string
+          settings?: Json
+          trial_ends_at?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      calculate_quiz_score: {
-        Args: { attempt_id: string }
-        Returns: {
-          score: number | null
-          points_earned: number | null
-          points_possible: number | null
+      ai_credit_renewal_monthly: { Args: never; Returns: undefined }
+      assign_credits_to_member: {
+        Args: {
+          _caller_user_id: string
+          _credits: number
+          _member_user_id: string
+          _workspace_id: string
         }
+        Returns: Json
       }
+      assign_storage_to_member: {
+        Args: {
+          _caller_user_id: string
+          _member_user_id: string
+          _storage_limit_mb: number
+          _workspace_id: string
+        }
+        Returns: Json
+      }
+      billing_run_monthly_billing: { Args: never; Returns: undefined }
+      calculate_quiz_score: { Args: { attempt_id: string }; Returns: Json }
       can_attempt_quiz: {
         Args: { _quiz_id: string; _student_id: string }
-        Returns: { can_attempt: boolean; reason: string | null }
+        Returns: Json
       }
-      start_quiz_attempt: {
-        Args: { _quiz_id: string; _student_id: string }
-        Returns: Database['public']['Tables']['quiz_attempts']['Row'][]
+      can_make_ai_request: { Args: { _user_id: string }; Returns: Json }
+      can_manage_student_assignment: {
+        Args: {
+          p_student_id: string
+          p_tutor_id: string
+          p_workspace_id: string
+        }
+        Returns: boolean
+      }
+      can_user_access_shared_storage_object: {
+        Args: { p_file_path: string; p_user_id: string }
+        Returns: boolean
+      }
+      can_view_student_session: {
+        Args: {
+          p_student_id: string
+          p_tutor_id: string
+          p_workspace_id: string
+        }
+        Returns: boolean
+      }
+      check_and_deduct_credits: {
+        Args: {
+          _credit_cost: number
+          _interaction_id?: string
+          _task_type: string
+          _user_id: string
+        }
+        Returns: Json
       }
       generate_join_code: { Args: never; Returns: string }
       get_classroom_by_join_code: {
@@ -2039,46 +2528,40 @@ export type Database = {
           teacher_name: string
         }[]
       }
-      get_user_role: {
-        Args: { _user_id: string }
-        Returns: Database["public"]["Enums"]["app_role"]
-      }
       get_credit_context: {
         Args: { _user_id: string }
         Returns: {
           credits_limit: number
           credits_used: number
           remaining: number
-          source_type: string
           source_id: string
+          source_type: string
         }[]
       }
-      assign_storage_to_member: {
-        Args: {
-          _workspace_id: string
-          _member_user_id: string
-          _storage_limit_mb: number
-          _caller_user_id: string
+      get_or_create_ai_usage: {
+        Args: { _month?: string; _user_id: string }
+        Returns: {
+          cost: number | null
+          created_at: string
+          id: string
+          interactions_count: number | null
+          limit_reached: boolean | null
+          month: string
+          tokens_used: number | null
+          updated_at: string
+          usage_limit: number | null
+          user_id: string
         }
-        Returns: Json
+        SetofOptions: {
+          from: "*"
+          to: "user_ai_usage"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
-      assign_credits_to_member: {
-        Args: {
-          _workspace_id: string
-          _member_user_id: string
-          _credits: number
-          _caller_user_id: string
-        }
-        Returns: Json
-      }
-      check_and_deduct_credits: {
-        Args: {
-          _user_id: string
-          _task_type: string
-          _credit_cost: number
-          _interaction_id?: string | null
-        }
-        Returns: Json
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
       }
       has_role: {
         Args: {
@@ -2087,45 +2570,152 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_classroom_in_owner_workspace: {
+        Args: { p_owner_id: string; p_teacher_id: string }
+        Returns: boolean
+      }
+      is_classroom_in_workspace: {
+        Args: { p_classroom_id: string; p_workspace_id: string }
+        Returns: boolean
+      }
+      is_classroom_owned_by_owner: {
+        Args: { p_classroom_id: string; p_owner_id: string }
+        Returns: boolean
+      }
       is_classroom_teacher: {
         Args: { _classroom_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_document_owned_by: {
+        Args: { p_doc_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_document_shared_with_student: {
+        Args: { p_doc_id: string; p_student_id: string }
+        Returns: boolean
+      }
+      is_document_shared_with_user: {
+        Args: { p_doc_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_document_user_in_owner_workspace: {
+        Args: { p_owner_id: string; p_user_id: string }
         Returns: boolean
       }
       is_enrolled_in_classroom: {
         Args: { _classroom_id: string; _user_id: string }
         Returns: boolean
       }
-      update_assigned_storage_limit: {
+      is_enrollment_classroom_in_owner_workspace: {
+        Args: { p_classroom_id: string; p_owner_id: string }
+        Returns: boolean
+      }
+      is_one_to_one_room_in_owner_workspace: {
+        Args: { p_owner_id: string; p_room_id: string }
+        Returns: boolean
+      }
+      is_storage_object_attached_to_assignment: {
+        Args: { p_file_path: string; p_student_id: string }
+        Returns: boolean
+      }
+      is_storage_object_shared_with_student: {
+        Args: { p_file_path: string; p_student_id: string }
+        Returns: boolean
+      }
+      is_submission_in_owner_workspace: {
+        Args: { p_assignment_id: string; p_owner_id: string }
+        Returns: boolean
+      }
+      is_user_tutor_of_classroom: {
+        Args: { p_classroom_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_workspace_member: { Args: { _workspace_id: string }; Returns: boolean }
+      is_workspace_owner: { Args: { _workspace_id: string }; Returns: boolean }
+      owner_can_insert_classroom: {
         Args: {
-          _workspace_id: string
-          _member_user_id: string
-          _new_limit_mb: number
-          _caller_user_id: string
+          p_owner_id: string
+          p_teacher_id: string
+          p_workspace_id: string
         }
-        Returns: Json
+        Returns: boolean
+      }
+      owner_can_view_member_profile: {
+        Args: { _member_user_id: string }
+        Returns: boolean
+      }
+      owner_can_view_student_profile: {
+        Args: { _student_user_id: string }
+        Returns: boolean
+      }
+      record_ai_interaction: {
+        Args: {
+          _cost?: number
+          _error_message?: string
+          _interaction_type: string
+          _model: string
+          _provider: string
+          _success?: boolean
+          _tokens_used?: number
+          _user_id: string
+        }
+        Returns: string
+      }
+      start_quiz_attempt: {
+        Args: { _quiz_id: string; _student_id: string }
+        Returns: {
+          answers: Json
+          attempt_number: number
+          auto_graded_at: string | null
+          created_at: string
+          feedback: string | null
+          id: string
+          manually_graded_at: string | null
+          points_earned: number | null
+          points_possible: number | null
+          quiz_id: string
+          score: number | null
+          started_at: string
+          status: string
+          student_id: string
+          submitted_at: string | null
+          time_spent_seconds: number | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "quiz_attempts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       update_assigned_credits: {
         Args: {
-          _workspace_id: string
+          _caller_user_id: string
           _member_user_id: string
           _new_limit: number
+          _workspace_id: string
+        }
+        Returns: Json
+      }
+      update_assigned_storage_limit: {
+        Args: {
           _caller_user_id: string
+          _member_user_id: string
+          _new_limit_mb: number
+          _workspace_id: string
         }
         Returns: Json
       }
       upsert_user_credit_allocation_subscription: {
-        Args: {
-          _user_id: string
-          _period: string
-          _credits_limit: number
-        }
+        Args: { _credits_limit: number; _period: string; _user_id: string }
         Returns: undefined
       }
       upsert_workspace_credit_pool: {
         Args: {
-          _workspace_id: string
-          _period: string
           _credits_allocated: number
+          _period: string
+          _workspace_id: string
         }
         Returns: undefined
       }

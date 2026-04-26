@@ -13,4 +13,7 @@ export type AITaskType =
   | "flashcards"
   | "study_plan"
   | "contract_generation"
-  | "contract_revision";
+  | "contract_revision"
+  | "teacher_test_generation"
+  | "teacher_evaluation"
+  | "tutor_matching";
