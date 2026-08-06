@@ -1093,6 +1093,123 @@ export type Database = {
           },
         ]
       }
+      session_financial_mock: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          id: string
+          session_id: string
+          student_charge_amount: number
+          student_charge_currency: string
+          student_charge_type: string
+          tutor_id: string
+          tutor_rate_amount: number
+          tutor_rate_currency: string
+          tutor_rate_type: string
+          updated_at: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          id?: string
+          session_id: string
+          student_charge_amount?: number
+          student_charge_currency?: string
+          student_charge_type?: string
+          tutor_id: string
+          tutor_rate_amount?: number
+          tutor_rate_currency?: string
+          tutor_rate_type?: string
+          updated_at?: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          id?: string
+          session_id?: string
+          student_charge_amount?: number
+          student_charge_currency?: string
+          student_charge_type?: string
+          tutor_id?: string
+          tutor_rate_amount?: number
+          tutor_rate_currency?: string
+          tutor_rate_type?: string
+          updated_at?: string
+          updated_by_user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_financial_mock_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_financial_mock_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_notes: {
+        Row: {
+          content: string
+          created_at: string
+          created_by_user_id: string
+          id: string
+          session_id: string
+          tutor_id: string
+          updated_at: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by_user_id: string
+          id?: string
+          session_id: string
+          tutor_id: string
+          updated_at?: string
+          updated_by_user_id: string
+          workspace_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by_user_id?: string
+          id?: string
+          session_id?: string
+          tutor_id?: string
+          updated_at?: string
+          updated_by_user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_notes_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_notes_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_series: {
         Row: {
           classroom_id: string | null
@@ -1107,6 +1224,7 @@ export type Database = {
           scope_type: string
           starts_at: string
           student_id: string | null
+          timezone: string | null
           title: string
           tutor_id: string
           updated_at: string
@@ -1125,6 +1243,7 @@ export type Database = {
           scope_type: string
           starts_at: string
           student_id?: string | null
+          timezone?: string | null
           title: string
           tutor_id: string
           updated_at?: string
@@ -1143,6 +1262,7 @@ export type Database = {
           scope_type?: string
           starts_at?: string
           student_id?: string | null
+          timezone?: string | null
           title?: string
           tutor_id?: string
           updated_at?: string
@@ -1185,6 +1305,7 @@ export type Database = {
           starts_at: string
           status: string
           student_id: string | null
+          timezone: string | null
           title: string
           tutor_id: string
           updated_at: string
@@ -1209,6 +1330,7 @@ export type Database = {
           starts_at: string
           status?: string
           student_id?: string | null
+          timezone?: string | null
           title: string
           tutor_id: string
           updated_at?: string
@@ -1233,6 +1355,7 @@ export type Database = {
           starts_at?: string
           status?: string
           student_id?: string | null
+          timezone?: string | null
           title?: string
           tutor_id?: string
           updated_at?: string

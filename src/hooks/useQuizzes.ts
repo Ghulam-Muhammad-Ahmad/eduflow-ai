@@ -115,6 +115,17 @@ export const useQuizzes = () => {
     display_name: string | null;
   };
 
+  /**
+   * Shape returned by the `calculate_quiz_score` RPC. Declared here because the function
+   * returns `jsonb`, which the generated types widen to `Json`.
+   * See supabase/migrations/20260308170000_basenew.sql:244-247.
+   */
+  type QuizScoreResult = {
+    score: number;
+    points_earned: number;
+    points_possible: number;
+  };
+
   // Fetch all quizzes for a teacher (classrooms and 1v1 rooms)
   const fetchTeacherQuizzes = useCallback(async (teacherId: string) => {
     try {
@@ -580,14 +591,15 @@ export const useQuizzes = () => {
 
       if (scoreError) throw scoreError;
       if (!scoreData) throw new Error('Score calculation failed');
+      const score = scoreData as unknown as QuizScoreResult;
 
       // Update with score
       const { error: updateError } = await supabase
         .from('quiz_attempts')
         .update({
-          score: scoreData.score,
-          points_earned: scoreData.points_earned,
-          points_possible: scoreData.points_possible,
+          score: score.score,
+          points_earned: score.points_earned,
+          points_possible: score.points_possible,
           status: 'graded',
           auto_graded_at: new Date().toISOString(),
         })
@@ -748,14 +760,15 @@ export const useQuizzes = () => {
 
       if (scoreError) throw scoreError;
       if (!scoreData) throw new Error('Score calculation failed');
+      const score = scoreData as unknown as QuizScoreResult;
 
       // Update with new score and mark as graded (manual grading complete)
       const { error: finalUpdateError } = await supabase
         .from('quiz_attempts')
         .update({
-          score: scoreData.score,
-          points_earned: scoreData.points_earned,
-          points_possible: scoreData.points_possible,
+          score: score.score,
+          points_earned: score.points_earned,
+          points_possible: score.points_possible,
           status: 'graded',
         })
         .eq('id', attemptId);
