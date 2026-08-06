@@ -28,24 +28,43 @@ export type CalendarConnectionPayload = {
   tokenType?: string | null;
 };
 
-function getConfiguredRedirectUri(req: NextApiRequest): string {
-  const envRedirect = process.env.GOOGLE_OAUTH_REDIRECT_URI;
-  if (envRedirect) return envRedirect;
+const GOOGLE_CALLBACK_PATH = "/api/google/callback";
 
-  const forwardedProto = req.headers["x-forwarded-proto"];
-  const protocol =
-    typeof forwardedProto === "string"
-      ? forwardedProto
-      : process.env.NODE_ENV === "development"
-        ? "http"
-        : "https";
-  const host = req.headers.host;
+/** A header may arrive as a comma-joined list or an array; take the first value. */
+function firstHeaderValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0]?.split(",")[0]?.trim() || null;
+  if (typeof value === "string") return value.split(",")[0]?.trim() || null;
+  return null;
+}
 
-  if (!host) {
-    throw new Error("Unable to determine Google OAuth redirect URI.");
+/**
+ * Where Google sends the user back to after consent.
+ *
+ * Derived from the incoming request so the flow always returns to the host it started
+ * on — localhost in development, the deployment URL on a Vercel preview, the custom
+ * domain in production. A single hard-coded value cannot serve all three, and setting
+ * it to a localhost URL previously sent every production user to localhost:3000.
+ *
+ * `GOOGLE_OAUTH_REDIRECT_URI` remains supported, but only as a fallback for setups
+ * where the public URL is not visible in the request (e.g. behind a proxy that
+ * rewrites Host). Whatever value this returns must be registered as an authorised
+ * redirect URI in the Google Cloud console.
+ */
+export function getConfiguredRedirectUri(req: NextApiRequest): string {
+  const host = firstHeaderValue(req.headers["x-forwarded-host"]) ?? req.headers.host ?? null;
+
+  if (host) {
+    const forwardedProto = firstHeaderValue(req.headers["x-forwarded-proto"]);
+    const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
+    const protocol = forwardedProto ?? (isLocal ? "http" : "https");
+    return `${protocol}://${host}${GOOGLE_CALLBACK_PATH}`;
   }
 
-  return `${protocol}://${host}/api/google/callback`;
+  // Trailing slashes break Google's exact-match check against the registered URI.
+  const envRedirect = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim().replace(/\/+$/, "");
+  if (envRedirect) return envRedirect;
+
+  throw new Error("Unable to determine Google OAuth redirect URI.");
 }
 
 function getGoogleClientId() {
@@ -94,11 +113,9 @@ function extractMeetingUrl(event: GoogleCalendarEventResponse) {
 }
 
 export function isGoogleCalendarConfigured() {
-  return Boolean(
-    process.env.GOOGLE_CLIENT_ID &&
-      process.env.GOOGLE_CLIENT_SECRET &&
-      (process.env.GOOGLE_OAUTH_REDIRECT_URI || process.env.NEXT_PUBLIC_SUPABASE_URL)
-  );
+  // The redirect URI is derived from the request, so only the OAuth credentials
+  // themselves need to be configured here.
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
 export function buildGoogleCalendarConnectUrl(
