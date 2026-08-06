@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { computeStudentRecordAverages } from "@/lib/studentRecord";
 
 export interface AssignmentGrade {
   assignment_id: string;
@@ -165,33 +166,10 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
           };
         });
         const gradedAssignments = assignmentGrades.filter((g) => g.grade != null);
-        const gradedAttemptsByQuiz = new Map<string, QuizGrade[]>();
-        quizGrades.forEach((g) => {
-          const list = gradedAttemptsByQuiz.get(g.quiz_id) ?? [];
-          list.push(g);
-          gradedAttemptsByQuiz.set(g.quiz_id, list);
-        });
-        const gradedQuizzesCount = gradedAttemptsByQuiz.size;
-        const bestScoresPerQuiz = [...gradedAttemptsByQuiz.values()].map((attemptsForQuiz) => {
-          const withScore = attemptsForQuiz
-            .map((g) => ({
-              g,
-              value: g.score ?? (g.points_possible && g.points_earned != null ? (g.points_earned / g.points_possible) * 100 : 0),
-            }))
-            .filter((x) => x.g.score != null || (x.g.points_earned != null && (x.g.points_possible ?? 0) > 0));
-          return withScore.length ? Math.max(...withScore.map((x) => x.value)) : 0;
-        });
-        const assignmentAvg = gradedAssignments.length > 0
-          ? gradedAssignments.reduce((sum, g) => {
-              const possible = g.points_possible ?? 100;
-              return sum + (possible > 0 ? ((g.grade ?? 0) / possible) * 100 : 0);
-            }, 0) / gradedAssignments.length
-          : null;
-        const quizAvg = bestScoresPerQuiz.length > 0 ? bestScoresPerQuiz.reduce((sum, s) => sum + s, 0) / bestScoresPerQuiz.length : null;
-        const totalGraded = gradedAssignments.length + gradedQuizzesCount;
-        const overallAvg = totalGraded > 0
-          ? ((assignmentAvg ?? 0) * gradedAssignments.length + (quizAvg ?? 0) * gradedQuizzesCount) / totalGraded
-          : null;
+        const { assignmentAvg, quizAvg, overallAvg, gradedQuizzesCount } = computeStudentRecordAverages(
+          assignmentGrades,
+          quizGrades
+        );
         const studentRecord: StudentRecord = {
           student_id: room.student_id,
           display_name: profile?.display_name ?? null,
@@ -392,48 +370,10 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
         });
 
         const gradedAssignments = assignmentGrades.filter((g) => g.grade != null);
-        const gradedAttemptsByQuiz = new Map<string, QuizGrade[]>();
-        quizGrades.forEach((g) => {
-          if (g.score != null || (g.points_earned != null && (g.points_possible ?? 0) > 0)) {
-            const list = gradedAttemptsByQuiz.get(g.quiz_id) ?? [];
-            list.push(g);
-            gradedAttemptsByQuiz.set(g.quiz_id, list);
-          }
-        });
-        const gradedQuizzesCount = gradedAttemptsByQuiz.size;
-        const bestScoresPerQuiz = [...gradedAttemptsByQuiz.values()].map((attemptsForQuiz) => {
-          const withScore = attemptsForQuiz
-            .map((g) => ({
-              g,
-              value: g.score ?? (g.points_possible && g.points_earned != null
-                ? (g.points_earned / g.points_possible) * 100
-                : 0),
-            }))
-            .filter((x) => x.g.score != null || (x.g.points_earned != null && (x.g.points_possible ?? 0) > 0));
-          return withScore.length ? Math.max(...withScore.map((x) => x.value)) : 0;
-        });
-
-        const assignmentAvg =
-          gradedAssignments.length > 0
-            ? gradedAssignments.reduce((sum, g) => {
-                const possible = g.points_possible ?? 100;
-                const pct = possible > 0 ? ((g.grade ?? 0) / possible) * 100 : 0;
-                return sum + pct;
-              }, 0) / gradedAssignments.length
-            : null;
-
-        const quizAvg =
-          bestScoresPerQuiz.length > 0
-            ? bestScoresPerQuiz.reduce((sum, s) => sum + s, 0) / bestScoresPerQuiz.length
-            : null;
-
-        const totalGraded = gradedAssignments.length + gradedQuizzesCount;
-        const overallAvg =
-          totalGraded > 0
-            ? ((assignmentAvg ?? 0) * gradedAssignments.length +
-                (quizAvg ?? 0) * gradedQuizzesCount) /
-              totalGraded
-            : null;
+        const { assignmentAvg, quizAvg, overallAvg, gradedQuizzesCount } = computeStudentRecordAverages(
+          assignmentGrades,
+          quizGrades
+        );
 
         return {
           student_id: enrollment.student_id,

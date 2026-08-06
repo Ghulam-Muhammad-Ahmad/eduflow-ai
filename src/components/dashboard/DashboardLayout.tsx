@@ -1,10 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIUsage } from "@/hooks/useAIUsage";
+import { useStudentHasContent } from "@/hooks/useHasClassrooms";
+import { useStudentNavVisibility } from "@/hooks/useStudentNavVisibility";
+import { STUDENT_NAV_ITEMS } from "@/lib/studentNav";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -82,18 +85,7 @@ const roleConfig = {
   },
   student: {
     title: "Student Dashboard",
-    navItems: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/student" },
-      { icon: Users, label: "My Classes", path: "/dashboard/student/classrooms" },
-      { icon: UserRound, label: "1v1 Rooms", path: "/dashboard/student/rooms" },
-      { icon: Video, label: "Sessions", path: "/dashboard/student/sessions" },
-      { icon: FileText, label: "My Documents", path: "/dashboard/student/documents" },
-      { icon: BookOpen, label: "Course Materials", path: "/dashboard/student/course-materials" },
-      { icon: ClipboardCheck, label: "Assignments", path: "/dashboard/student/assignments" },
-      { icon: ListChecks, label: "Quizzes", path: "/dashboard/student/quizzes" },
-      { icon: GraduationCap, label: "Study Hub", path: "/dashboard/student/study" },
-      { icon: Wallet, label: "My Billing", path: "/dashboard/student/billing" },
-    ],
+    navItems: STUDENT_NAV_ITEMS,
   },
   admin: {
     title: "Owner Dashboard",
@@ -144,6 +136,18 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
   const config =
     role && role in roleConfig ? roleConfig[role as keyof typeof roleConfig] : null;
 
+  // Students only: hide the whole sidebar when they have no classroom/1v1 room yet, and
+  // otherwise apply the workspace/per-student nav visibility settings. "dashboard" is
+  // always kept so a student with everything hidden still has one reachable page.
+  const { hasContent, isLoading: hasContentLoading } = useStudentHasContent();
+  const { hiddenKeys } = useStudentNavVisibility();
+  const navItems = useMemo(() => {
+    if (!config) return [];
+    if (role !== "student") return config.navItems;
+    if (!hasContentLoading && !hasContent) return [];
+    return STUDENT_NAV_ITEMS.filter((item) => item.key === "dashboard" || !hiddenKeys.has(item.key));
+  }, [config, role, hasContent, hasContentLoading, hiddenKeys]);
+
   const handleSignOut = async () => {
     await signOut();
     router.push("/");
@@ -152,9 +156,9 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
   // Get current page title based on route
   const getPageTitle = () => {
     if (!config) return "";
-    
+
     // Find the matching nav item for current route
-    const currentNavItem = config.navItems.find(
+    const currentNavItem = navItems.find(
       (item) => router.pathname === item.path || router.asPath === item.path
     );
     
@@ -163,7 +167,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
     }
     
     // Check for nested routes
-    const nestedNavItem = config.navItems.find(
+    const nestedNavItem = navItems.find(
       (item) => 
         item.path !== '/dashboard/teacher' && 
         item.path !== '/dashboard/student' && 
@@ -242,7 +246,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
         {/* Navigation */}
         <nav className="sidebar-nav-scroll flex-1 pl-2.5 pr-2.5 pt-0 pb-0 mt-2.5 mb-2.5 overflow-y-auto">
           <div className="space-y-0.5">
-            {config.navItems.map((item) => {
+            {navItems.map((item) => {
               // Check for exact match or if current path starts with nav item path (for nested routes)
               const isActive = 
                 router.pathname === item.path || 
@@ -395,7 +399,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
                   </kbd>
                 </div>
                 <div className="max-h-[50vh] overflow-y-auto py-2">
-                  {config.navItems
+                  {navItems
                     .filter((item) =>
                       item.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
                     )
@@ -414,7 +418,7 @@ const DashboardLayout = ({ children, role: _role }: DashboardLayoutProps) => {
                         {item.label}
                       </button>
                     ))}
-                  {config.navItems.filter((item) =>
+                  {navItems.filter((item) =>
                     item.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
                   ).length === 0 && (
                     <div className="py-8 text-center text-sm text-muted-foreground">

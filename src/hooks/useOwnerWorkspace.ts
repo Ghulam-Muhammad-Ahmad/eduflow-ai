@@ -10,6 +10,8 @@ export type WorkspaceSettings = {
   default_currency?: string;
   /** IANA timezone new sessions are scheduled in by default, e.g. "Europe/London". */
   default_timezone?: string;
+  /** Student sidebar item keys (see src/lib/studentNav.ts) hidden by default workspace-wide. */
+  student_nav_hidden?: string[];
   [key: string]: unknown;
 };
 
@@ -38,6 +40,8 @@ export type AssignedStudentRow = {
   workspace_id: string;
   student_id: string;
   created_at: string;
+  /** { nav_hidden?: string[] } — this student's sidebar override, if any. See workspace_students.settings. */
+  settings?: { nav_hidden?: string[] } | null;
   student?: { user_id: string; display_name: string | null; email: string | null; avatar_url?: string | null } | null;
 };
 
@@ -152,7 +156,7 @@ export function useOwnerWorkspace() {
       if (!workspaceId) return [];
       const { data: rows, error } = await supabase
         .from("workspace_students")
-        .select("workspace_id, student_id, created_at")
+        .select("workspace_id, student_id, created_at, settings")
         .eq("workspace_id", workspaceId);
       if (error) throw error;
       if (!rows?.length) return [];

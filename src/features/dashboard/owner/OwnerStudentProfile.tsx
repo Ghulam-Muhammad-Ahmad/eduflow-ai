@@ -1,10 +1,22 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { TOGGLEABLE_STUDENT_NAV_ITEMS } from "@/lib/studentNav";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   User,
@@ -18,6 +30,7 @@ import {
   FileText,
   Plus,
   ChevronRight,
+  PanelLeft,
 } from "lucide-react";
 import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
 import { MemberStorageCard } from "@/components/storage/MemberStorageCard";
@@ -37,6 +50,7 @@ import { useQuery } from "@tanstack/react-query";
 
 type WorkspaceStudentRow = {
   student_id: string;
+  settings?: { nav_hidden?: string[] } | null;
   student?: { display_name: string | null; email: string | null } | null;
 };
 
@@ -78,10 +92,65 @@ export default function OwnerStudentProfile() {
   const router = useRouter();
   const { id } = router.query;
   const studentId = typeof id === "string" ? id : null;
-  const { assignedStudents, oneToOneRooms, tutors, isLoading } = useOwnerWorkspace();
+  const { workspace, assignedStudents, oneToOneRooms, tutors, isLoading } = useOwnerWorkspace();
+  const queryClient = useQueryClient();
 
   const workspaceStudent = (assignedStudents as WorkspaceStudentRow[]).find((s) => s.student_id === studentId);
   const student1v1Rooms = (oneToOneRooms as OneToOneRoomWithProfiles[]).filter((r) => r.student_id === studentId);
+
+  const [navMode, setNavMode] = useState<"default" | "custom">("default");
+  const [navHidden, setNavHidden] = useState<string[]>([]);
+  const [navSaving, setNavSaving] = useState(false);
+
+  useEffect(() => {
+    const override = workspaceStudent?.settings?.nav_hidden;
+    if (Array.isArray(override)) {
+      setNavMode("custom");
+      setNavHidden(override);
+    } else {
+      setNavMode("default");
+      setNavHidden([]);
+    }
+  }, [workspaceStudent?.settings?.nav_hidden]);
+
+  const saveNavOverride = async (mode: "default" | "custom", hidden: string[]) => {
+    if (!workspace?.id || !studentId) return;
+    setNavSaving(true);
+    try {
+      const nextSettings = { ...(workspaceStudent?.settings ?? {}) } as { nav_hidden?: string[] };
+      if (mode === "default") {
+        delete nextSettings.nav_hidden;
+      } else {
+        nextSettings.nav_hidden = hidden;
+      }
+      const { error } = await supabase
+        .from("workspace_students")
+        .update({ settings: nextSettings })
+        .eq("workspace_id", workspace.id)
+        .eq("student_id", studentId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["owner-workspace-students", workspace.id] });
+      toast.success("Sidebar menu saved.");
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Failed to save sidebar menu");
+    } finally {
+      setNavSaving(false);
+    }
+  };
+
+  const handleNavModeChange = (mode: "default" | "custom") => {
+    setNavMode(mode);
+    saveNavOverride(mode, mode === "custom" ? navHidden : []);
+  };
+
+  const handleToggleNavItem = (key: string, hide: boolean) => {
+    const next = hide ? [...new Set([...navHidden, key])] : navHidden.filter((k) => k !== key);
+    setNavHidden(next);
+    saveNavOverride("custom", next);
+  };
 
   const { data: enrollments = [] } = useQuery({
     queryKey: ["student-enrollments", studentId],
@@ -283,6 +352,50 @@ export default function OwnerStudentProfile() {
             )}
           </div>
         </div>
+
+        {/* Sidebar menu (per-student nav override) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <PanelLeft className="w-4 h-4 text-primary" />
+              Sidebar menu
+            </CardTitle>
+            <CardDescription>
+              Control which sidebar items this student sees. By default they follow the
+              workspace-wide setting.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Select value={navMode} onValueChange={(v: "default" | "custom") => handleNavModeChange(v)}>
+              <SelectTrigger className="max-w-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Use workspace default</SelectItem>
+                <SelectItem value="custom">Customize for this student</SelectItem>
+              </SelectContent>
+            </Select>
+            {navMode === "custom" && (
+              <div className="space-y-2">
+                {TOGGLEABLE_STUDENT_NAV_ITEMS.map((item) => (
+                  <label
+                    key={item.key}
+                    className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-secondary/60 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={!navHidden.includes(item.key)}
+                      onCheckedChange={(checked) => handleToggleNavItem(item.key, !checked)}
+                      disabled={navSaving}
+                    />
+                    <item.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm">{item.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {navSaving && <p className="text-xs text-muted-foreground">Saving…</p>}
+          </CardContent>
+        </Card>
 
         {/* Learning progress / Activity timeline — bar chart */}
         <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">

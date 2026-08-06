@@ -1,95 +1,138 @@
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { TrendingUp, BookOpen, Target, Sparkles } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useStudentAssignments } from "@/hooks/useAssignments";
+import { useQuizzes, type Quiz, type QuizAttempt } from "@/hooks/useQuizzes";
+import { computeStudentRecordAverages } from "@/lib/studentRecord";
+import type { AssignmentGrade, QuizGrade, StudentRecord } from "@/hooks/useTeacherStudentRecords";
+import { StudentRecordView } from "@/features/dashboard/teacher/StudentRecordView";
+import { generateStudentPDF } from "@/lib/pdfReports";
+import { useToast } from "@/hooks/use-toast";
+import { Spinner } from "@/components/ui/spinner";
+import { TrendingUp } from "lucide-react";
 
+/**
+ * The student's own progress report — combines every classroom and 1v1 room they're in
+ * into a single StudentRecord, reusing the same view and PDF export teachers/owners use.
+ * A single student sees one report here; a per-room breakdown lives on the 1v1 room
+ * detail page instead.
+ */
 const StudentProgress = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { data: assignments = [], isLoading: assignmentsLoading } = useStudentAssignments();
+  const { fetchStudentQuizzes, fetchStudentAttempts } = useQuizzes();
+
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+  const [quizzesLoading, setQuizzesLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setQuizzesLoading(true);
+    Promise.all([fetchStudentQuizzes(user.id), fetchStudentAttempts(user.id)]).then(
+      ([quizData, attemptData]) => {
+        setQuizzes(quizData);
+        setAttempts(attemptData);
+        setQuizzesLoading(false);
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const record: StudentRecord | null = useMemo(() => {
+    if (!user) return null;
+
+    const assignmentGrades: AssignmentGrade[] = assignments.map((a) => ({
+      assignment_id: a.id,
+      title: a.title,
+      points_possible: a.points_possible ?? null,
+      grade: a.mySubmission?.grade ?? null,
+      status: a.mySubmission?.status ?? "not_submitted",
+      submitted_at: a.mySubmission?.submitted_at ?? null,
+      graded_at: a.mySubmission?.graded_at ?? null,
+      classroom_name: a.classrooms?.name ?? a.one_to_one_rooms?.name ?? "1v1 session",
+    }));
+
+    const gradedAttempts = attempts.filter((a) => a.status === "submitted" || a.status === "graded");
+    const quizGrades: QuizGrade[] = gradedAttempts.map((a) => {
+      const quiz = quizzes.find((q) => q.id === a.quiz_id);
+      return {
+        quiz_id: a.quiz_id,
+        title: quiz?.title ?? "Quiz",
+        attempt_number: a.attempt_number,
+        score: a.score ?? null,
+        points_earned: a.points_earned ?? null,
+        points_possible: a.points_possible ?? null,
+        status: a.status,
+        submitted_at: a.submitted_at ?? null,
+        classroom_name: quiz?.classroom?.name ?? quiz?.one_to_one_rooms?.name ?? "1v1 session",
+      };
+    });
+
+    const { assignmentAvg, quizAvg, overallAvg, gradedQuizzesCount } = computeStudentRecordAverages(
+      assignmentGrades,
+      quizGrades
+    );
+    const gradedAssignmentsCount = assignmentGrades.filter((g) => g.grade != null).length;
+
+    return {
+      student_id: user.id,
+      display_name: user.user_metadata?.display_name ?? user.email?.split("@")[0] ?? null,
+      avatar_url: null,
+      classroom_id: "",
+      classroom_name: "All classes & rooms",
+      joined_at: user.created_at ?? new Date().toISOString(),
+      assignmentGrades,
+      quizGrades,
+      assignmentAvg,
+      quizAvg,
+      overallAvg,
+      totalAssignments: assignmentGrades.length,
+      totalQuizzes: quizzes.length,
+      gradedAssignments: gradedAssignmentsCount,
+      gradedQuizzes: gradedQuizzesCount,
+    };
+  }, [user, assignments, attempts, quizzes]);
+
+  const handleExportPDF = (student: StudentRecord) => {
+    try {
+      const doc = generateStudentPDF(student, format(new Date(), "PPpp"));
+      const name = (student.display_name || "student").replace(/\s+/g, "-");
+      doc.save(`my-progress-${name}-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: "PDF exported" });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: (err as Error)?.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const isLoading = assignmentsLoading || quizzesLoading;
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
-            Progress
+          <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-2">
+            <TrendingUp className="h-7 w-7 text-primary" />
+            My Progress
           </h1>
           <p className="text-muted-foreground mt-1">
-            Track your self-study activity and goals.
+            Your grades and activity across every class and 1v1 room. Export a PDF to share with a parent.
           </p>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <Card className="border-border">
-            <CardHeader className="pb-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <BookOpen className="h-5 w-5" />
-              </div>
-              <CardTitle className="text-base">Study sessions</CardTitle>
-              <CardDescription>Use Study Hub to build a history of sessions.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-foreground">—</p>
-              <p className="text-xs text-muted-foreground">Coming soon</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardHeader className="pb-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Target className="h-5 w-5" />
-              </div>
-              <CardTitle className="text-base">Goals</CardTitle>
-              <CardDescription>Set and track your study goals.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-foreground">—</p>
-              <p className="text-xs text-muted-foreground">Coming soon</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardHeader className="pb-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <CardTitle className="text-base">AI usage</CardTitle>
-              <CardDescription>Your AI Study Coach usage is shown in the sidebar.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Check the AI Credits bar below the nav.</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Keep building
-            </CardTitle>
-            <CardDescription>
-              Use Study Hub regularly to create summaries, flashcards, and practice questions. When you join a classroom, assignment and quiz progress will appear here too.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Self-study progress</span>
-                <span className="font-medium">—</span>
-              </div>
-              <Progress value={0} className="h-2" />
-            </div>
-            <Button asChild variant="outline" className="mt-4">
-              <Link href="/dashboard/student/study">Open Study Hub</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Spinner size="lg" />
+          </div>
+        ) : record ? (
+          <StudentRecordView student={record} onExportPDF={handleExportPDF} />
+        ) : null}
       </div>
     </DashboardLayout>
   );

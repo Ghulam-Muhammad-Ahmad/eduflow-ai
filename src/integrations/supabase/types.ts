@@ -2470,18 +2470,24 @@ export type Database = {
         ]
       }
       workspace_students: {
+        // `settings` was added by 20260806120000_student_nav_visibility.sql; hand-edited here
+        // because this sandbox cannot reach the Supabase project to run
+        // `supabase gen types typescript`. A real regeneration should overwrite this block.
         Row: {
           created_at: string
+          settings: Json
           student_id: string
           workspace_id: string
         }
         Insert: {
           created_at?: string
+          settings?: Json
           student_id: string
           workspace_id: string
         }
         Update: {
           created_at?: string
+          settings?: Json
           student_id?: string
           workspace_id?: string
         }

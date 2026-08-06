@@ -47,8 +47,8 @@ export default function StudentOneToOneRoomsList() {
                     </p>
                   </div>
                   <Button variant="outline" size="sm" asChild>
-                    <Link href={`/dashboard/student/sessions`}>
-                      Sessions
+                    <Link href={`/dashboard/student/rooms/${room.id}`}>
+                      View room
                     </Link>
                   </Button>
                 </CardContent>

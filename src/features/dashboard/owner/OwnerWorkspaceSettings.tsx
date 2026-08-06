@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Save, AlertCircle, ImageIcon, Settings, Pencil } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Building2, Save, AlertCircle, ImageIcon, Settings, Pencil, PanelLeft } from "lucide-react";
 import { CurrencySelect } from "@/components/ui/currency-select";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { resolveBrowserTimezone } from "@/lib/timezone";
+import { TOGGLEABLE_STUDENT_NAV_ITEMS } from "@/lib/studentNav";
 import { toast } from "sonner";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +39,10 @@ export default function OwnerWorkspaceSettings() {
   const [error, setError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
-  const workspaceSettings: { default_currency?: string; default_timezone?: string } =
+  const [hiddenNavKeys, setHiddenNavKeys] = useState<string[]>([]);
+  const [navSaving, setNavSaving] = useState(false);
+
+  const workspaceSettings: { default_currency?: string; default_timezone?: string; student_nav_hidden?: string[] } =
     workspace?.settings ?? {};
 
   useEffect(() => {
@@ -59,6 +64,12 @@ export default function OwnerWorkspaceSettings() {
     const tz = workspaceSettings.default_timezone;
     if (typeof tz === "string" && tz.trim()) setDefaultTimezone(tz.trim());
   }, [workspaceSettings.default_timezone]);
+
+  useEffect(() => {
+    if (Array.isArray(workspaceSettings.student_nav_hidden)) {
+      setHiddenNavKeys(workspaceSettings.student_nav_hidden);
+    }
+  }, [workspaceSettings.student_nav_hidden]);
 
   const handleTimezoneChange = async (value: string) => {
     setDefaultTimezone(value);
@@ -107,6 +118,33 @@ export default function OwnerWorkspaceSettings() {
       toast.error((err as Error)?.message ?? "Failed to save currency");
     } finally {
       setCurrencySaving(false);
+    }
+  };
+
+  const handleToggleNavItem = async (key: string, hide: boolean) => {
+    const next = hide
+      ? [...new Set([...hiddenNavKeys, key])]
+      : hiddenNavKeys.filter((k) => k !== key);
+    setHiddenNavKeys(next);
+    if (!workspace?.id || !user?.id) return;
+    setNavSaving(true);
+    try {
+      const nextSettings = { ...workspace?.settings, student_nav_hidden: next };
+      const { error: updateError } = await supabase
+        .from("workspaces")
+        .update({ settings: nextSettings, updated_at: new Date().toISOString() })
+        .eq("id", workspace.id)
+        .eq("owner_id", user.id);
+      if (updateError) {
+        toast.error(updateError.message);
+        return;
+      }
+      invalidate();
+      toast.success("Student sidebar default saved.");
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Failed to save student sidebar default");
+    } finally {
+      setNavSaving(false);
     }
   };
 
@@ -375,6 +413,39 @@ export default function OwnerWorkspaceSettings() {
                     )}
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* Student sidebar default */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <PanelLeft className="w-4 h-4 text-primary" />
+                  Student sidebar (default)
+                </CardTitle>
+                <CardDescription>
+                  Choose which sidebar items students see by default. You can override this
+                  for an individual student from their profile.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {TOGGLEABLE_STUDENT_NAV_ITEMS.map((item) => (
+                    <label
+                      key={item.key}
+                      className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-secondary/60 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={!hiddenNavKeys.includes(item.key)}
+                        onCheckedChange={(checked) => handleToggleNavItem(item.key, !checked)}
+                        disabled={navSaving}
+                      />
+                      <item.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm">{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {navSaving && <p className="text-xs text-muted-foreground mt-2">Saving…</p>}
               </CardContent>
             </Card>
 

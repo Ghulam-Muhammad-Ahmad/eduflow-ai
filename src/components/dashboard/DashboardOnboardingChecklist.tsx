@@ -5,7 +5,7 @@ import { OnboardingChecklist, type OnboardingItem } from "@/components/dashboard
 import { useAuth } from "@/hooks/useAuth";
 import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { useTutorOnboardingStats } from "@/hooks/useTutorOnboardingStats";
-import { useHasClassrooms } from "@/hooks/useHasClassrooms";
+import { useStudentHasContent } from "@/hooks/useHasClassrooms";
 
 /**
  * Renders the onboarding checklist in the dashboard layout so it appears on every dashboard page.
@@ -15,7 +15,7 @@ export function DashboardOnboardingChecklist() {
   const { user, role } = useAuth();
   const { stats } = useOwnerWorkspace();
   const { classroomsCount, assignmentsCount, enrollmentsCount } = useTutorOnboardingStats();
-  const { hasClassrooms } = useHasClassrooms();
+  const { hasContent } = useStudentHasContent();
 
   const displayName = user?.user_metadata?.display_name ?? user?.email?.split("@")[0] ?? "User";
 
@@ -53,7 +53,7 @@ export function DashboardOnboardingChecklist() {
 
   if (role === "student") {
     const items: OnboardingItem[] = [
-      { label: "Get added to a class by your tutor or school", done: hasClassrooms, href: "/dashboard/student", icon: UserPlus },
+      { label: "Get added to a class or 1v1 room by your tutor or school", done: hasContent, href: "/dashboard/student", icon: UserPlus },
     ];
     return (
       <OnboardingChecklist

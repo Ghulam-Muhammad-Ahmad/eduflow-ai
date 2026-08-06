@@ -57,11 +57,15 @@ export type OneToOneRoomDetailContentProps = {
   quizzes: QuizItem[];
   quizzesLoading: boolean;
   viewRecordHref: string;
-  /** Teacher: show sessions button and assignment/quiz create + row links. Owner: no sessions, optional links. */
-  variant: "teacher" | "owner";
-  /** Owner only: last 6 weeks for Activities graph */
+  /**
+   * Teacher: show sessions button and assignment/quiz create + row links.
+   * Owner: no sessions, optional links.
+   * Student: read-only — no mutate controls, "person in this room" table shows the tutor instead of the student.
+   */
+  variant: "teacher" | "owner" | "student";
+  /** Owner and student only: last 6 weeks for Activities graph */
   activityTimeline?: { week: string; sessions: number; submissions: number; quizzes: number }[];
-  /** Owner only: session counts for Sessions analytics card */
+  /** Owner and student only: session counts for Sessions analytics card */
   sessionsAnalytics?: { completed: number; scheduled: number };
   /**
    * Show the student's contact details. Defaults to false — only owner views opt in;
@@ -87,8 +91,12 @@ export default function OneToOneRoomDetailContent({
   showContact = false,
 }: OneToOneRoomDetailContentProps) {
   const router = useRouter();
-  const studentName = room.studentProfile?.display_name ?? "Student";
-  const studentEmail = room.studentProfile?.email ?? "—";
+  // A student viewing their own room sees the tutor here, not themselves.
+  const isStudentVariant = variant === "student";
+  const personProfile = isStudentVariant ? room.tutorProfile : room.studentProfile;
+  const personName = personProfile?.display_name ?? (isStudentVariant ? "Tutor" : "Student");
+  const personEmail = personProfile?.email ?? "—";
+  const personLabel = isStudentVariant ? "Tutor" : "Student";
 
   const teacherBase = "/dashboard/teacher";
 
@@ -146,8 +154,8 @@ export default function OneToOneRoomDetailContent({
           </Card>
         </div>
 
-        {/* Owner only: Sessions analytics */}
-        {variant === "owner" && sessionsAnalytics != null && (
+        {/* Owner/student: Sessions analytics */}
+        {(variant === "owner" || variant === "student") && sessionsAnalytics != null && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -179,8 +187,8 @@ export default function OneToOneRoomDetailContent({
           </Card>
         )}
 
-        {/* Owner only: Activities graph */}
-        {variant === "owner" && (
+        {/* Owner/student: Activities graph */}
+        {(variant === "owner" || variant === "student") && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-2xl flex items-center gap-2">
@@ -245,11 +253,13 @@ export default function OneToOneRoomDetailContent({
           </Card>
         )}
 
-        {/* Student in this room */}
+        {/* Person in this room */}
         <Card>
           <CardHeader>
-            <CardTitle>Student in this room</CardTitle>
-            <CardDescription>The student assigned to this 1v1 room.</CardDescription>
+            <CardTitle>{personLabel} in this room</CardTitle>
+            <CardDescription>
+              {isStudentVariant ? "Your tutor for this 1v1 room." : "The student assigned to this 1v1 room."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -257,7 +267,7 @@ export default function OneToOneRoomDetailContent({
                 <thead>
                   <tr className="border-b border-border/80 bg-muted/30">
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Student
+                      {personLabel}
                     </th>
                     {showContact && (
                       <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -267,9 +277,11 @@ export default function OneToOneRoomDetailContent({
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
                       Joined
                     </th>
-                    <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Action
-                    </th>
+                    {!isStudentVariant && (
+                      <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Action
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -277,30 +289,32 @@ export default function OneToOneRoomDetailContent({
                     <td className="px-6 py-3.5">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 shrink-0">
-                          <AvatarImage src={room.studentProfile?.avatar_url ?? undefined} />
+                          <AvatarImage src={personProfile?.avatar_url ?? undefined} />
                           <AvatarFallback className="text-sm">
-                            {(studentName[0] || "S").toUpperCase()}
+                            {(personName[0] || "S").toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium truncate">{studentName}</span>
+                        <span className="font-medium truncate">{personName}</span>
                       </div>
                     </td>
                     {showContact && (
                       <td className="px-6 py-3.5 text-muted-foreground truncate max-w-[200px]">
-                        {studentEmail}
+                        {personEmail}
                       </td>
                     )}
                     <td className="px-6 py-3.5 text-muted-foreground text-xs hidden sm:table-cell">
                       {room.created_at ? new Date(room.created_at).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-6 py-3.5 text-right">
-                      <Button variant="outline" size="sm" className="gap-1.5 shrink-0" asChild>
-                        <Link href={viewRecordHref}>
-                          <ScrollText className="w-4 h-4" />
-                          View record
-                        </Link>
-                      </Button>
-                    </td>
+                    {!isStudentVariant && (
+                      <td className="px-6 py-3.5 text-right">
+                        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" asChild>
+                          <Link href={viewRecordHref}>
+                            <ScrollText className="w-4 h-4" />
+                            View record
+                          </Link>
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 </tbody>
               </table>
