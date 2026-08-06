@@ -91,7 +91,9 @@ export default function OwnerClassroomDetail() {
     isLoading: workspaceLoading,
   } = useOwnerWorkspace();
   const queryClient = useQueryClient();
-  const { data: roster = [], isLoading: rosterLoading } = useClassroomRoster(id || null);
+  const { data: roster = [], isLoading: rosterLoading } = useClassroomRoster(id || null, {
+    includeContact: true,
+  });
   const { data: classSessions = [] } = useClassroomLectureSessions(id || null);
   const { toast } = useToast();
 

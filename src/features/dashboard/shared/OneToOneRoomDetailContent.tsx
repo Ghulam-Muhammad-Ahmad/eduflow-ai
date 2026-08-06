@@ -63,6 +63,11 @@ export type OneToOneRoomDetailContentProps = {
   activityTimeline?: { week: string; sessions: number; submissions: number; quizzes: number }[];
   /** Owner only: session counts for Sessions analytics card */
   sessionsAnalytics?: { completed: number; scheduled: number };
+  /**
+   * Show the student's contact details. Defaults to false — only owner views opt in;
+   * teachers must not see student contact info.
+   */
+  showContact?: boolean;
 };
 
 export default function OneToOneRoomDetailContent({
@@ -79,9 +84,10 @@ export default function OneToOneRoomDetailContent({
   variant,
   activityTimeline = [],
   sessionsAnalytics,
+  showContact = false,
 }: OneToOneRoomDetailContentProps) {
   const router = useRouter();
-  const studentName = room.studentProfile?.display_name ?? room.studentProfile?.email ?? "Student";
+  const studentName = room.studentProfile?.display_name ?? "Student";
   const studentEmail = room.studentProfile?.email ?? "—";
 
   const teacherBase = "/dashboard/teacher";
@@ -253,9 +259,11 @@ export default function OneToOneRoomDetailContent({
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Student
                     </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Email
-                    </th>
+                    {showContact && (
+                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Email
+                      </th>
+                    )}
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
                       Joined
                     </th>
@@ -277,9 +285,11 @@ export default function OneToOneRoomDetailContent({
                         <span className="font-medium truncate">{studentName}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-3.5 text-muted-foreground truncate max-w-[200px]">
-                      {studentEmail}
-                    </td>
+                    {showContact && (
+                      <td className="px-6 py-3.5 text-muted-foreground truncate max-w-[200px]">
+                        {studentEmail}
+                      </td>
+                    )}
                     <td className="px-6 py-3.5 text-muted-foreground text-xs hidden sm:table-cell">
                       {room.created_at ? new Date(room.created_at).toLocaleDateString() : "—"}
                     </td>

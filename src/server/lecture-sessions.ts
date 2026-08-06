@@ -1,5 +1,7 @@
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
 import type { AppRole } from "@/types/auth";
+import { isValidTimezone } from "@/lib/timezone";
 import { refreshGoogleAccessToken } from "@/server/google-calendar";
 
 type SessionScopeType = "classroom" | "one_to_one";
@@ -200,6 +202,10 @@ async function isTutorAssignedToClassroom(userId: string, classroom: ClassroomRe
   return Boolean(data);
 }
 
+/**
+ * Session creation is owner-only — POST /api/sessions rejects any non-admin caller before
+ * reaching here. The `teacher` branches below are kept as defence in depth.
+ */
 export async function resolveLectureCreationContext(params: {
   callerId: string;
   callerRole: AppRole;
@@ -420,18 +426,25 @@ export function buildRecurringOccurrences(params: {
   frequency: "daily" | "weekly";
   interval: number;
   occurrencesCount: number;
+  timezone?: string;
 }) {
   const startsAtDate = new Date(params.startsAt);
   const endsAtDate = new Date(params.endsAt);
   const durationMs = endsAtDate.getTime() - startsAtDate.getTime();
+  const timezone = params.timezone && isValidTimezone(params.timezone) ? params.timezone : "UTC";
 
   return Array.from({ length: params.occurrencesCount }, (_, index) => {
-    const occurrenceStart = new Date(startsAtDate);
+    let occurrenceStart = new Date(startsAtDate);
     if (index > 0) {
       const dayMultiplier = params.frequency === "weekly" ? 7 : 1;
-      occurrenceStart.setUTCDate(
-        occurrenceStart.getUTCDate() + index * params.interval * dayMultiplier
-      );
+      const days = index * params.interval * dayMultiplier;
+      // Advance calendar days on the *wall clock* in the scheduler's zone, then re-anchor.
+      // Adding a flat 24h/168h in UTC would shift a 9am local series by an hour across a
+      // DST boundary. The wall clock is carried through a Date as if it were UTC purely so
+      // we can use calendar arithmetic on it — the value is naive, not an instant.
+      const naive = new Date(`${formatInTimeZone(startsAtDate, timezone, "yyyy-MM-dd'T'HH:mm:ss")}Z`);
+      naive.setUTCDate(naive.getUTCDate() + days);
+      occurrenceStart = fromZonedTime(naive.toISOString().slice(0, 19), timezone);
     }
 
     const occurrenceEnd = new Date(occurrenceStart.getTime() + durationMs);

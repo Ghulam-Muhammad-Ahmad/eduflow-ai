@@ -43,7 +43,7 @@ export default function StudentOneToOneRoomsList() {
                       {room.name || "1v1 room"}
                     </p>
                     <p className="text-sm text-muted-foreground truncate">
-                      {room.tutorProfile?.display_name ?? room.tutorProfile?.email ?? room.tutor_id}
+                      {room.tutorProfile?.display_name ?? "Tutor"}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" asChild>

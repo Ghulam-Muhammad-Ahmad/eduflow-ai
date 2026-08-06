@@ -204,6 +204,7 @@ export default function OwnerOneToOneRoomDetail() {
     <>
       <OneToOneRoomDetailContent
         room={room}
+        showContact
         backHref="/dashboard/owner/rooms"
         title={roomTitle}
         subtitle={`${tutorName} · ${studentName}`}

@@ -27,7 +27,20 @@ type CreateLectureBody = {
   recurrenceFrequency?: unknown;
   recurrenceInterval?: unknown;
   occurrencesCount?: unknown;
+  timezone?: unknown;
 };
+
+const DEFAULT_TIMEZONE = "UTC";
+
+function parseTimezone(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) return DEFAULT_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: value });
+    return value;
+  } catch {
+    throw new Error(`${value} is not a recognised timezone.`);
+  }
+}
 
 function parseIsoDate(value: unknown, fieldName: string) {
   if (typeof value !== "string") {
@@ -92,6 +105,7 @@ function validateCreateBody(body: CreateLectureBody) {
     recurrenceFrequency,
     recurrenceInterval,
     occurrencesCount,
+    timezone: parseTimezone(body.timezone),
   };
 }
 
@@ -112,8 +126,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const callerRole = await getCallerRole(user.id);
-    if (callerRole !== "admin" && callerRole !== "teacher") {
-      return res.status(403).json({ error: "Only owners and tutors can schedule lectures." });
+    if (callerRole !== "admin") {
+      return res.status(403).json({ error: "Only workspace owners can schedule lectures." });
     }
 
     const input = validateCreateBody((req.body ?? {}) as CreateLectureBody);
@@ -157,6 +171,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           recurrence_frequency: input.recurrenceFrequency!,
           recurrence_interval: input.recurrenceInterval,
           occurrences_count: input.occurrencesCount,
+          timezone: input.timezone,
           created_at: now,
           updated_at: now,
         })
@@ -177,6 +192,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           frequency: input.recurrenceFrequency!,
           interval: input.recurrenceInterval,
           occurrencesCount: input.occurrencesCount,
+          timezone: input.timezone,
         })
       : [{ occurrenceIndex: 0, startsAt: input.startsAt, endsAt: input.endsAt }];
 
@@ -193,6 +209,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           description: input.description,
           startsAt: occurrence.startsAt,
           endsAt: occurrence.endsAt,
+          timezone: input.timezone,
           attendeeEmails: context.attendeeEmails,
         });
 
@@ -214,6 +231,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           description: input.description,
           starts_at: occurrence.startsAt,
           ends_at: occurrence.endsAt,
+          timezone: input.timezone,
           status: "scheduled",
           meeting_provider: "google_meet",
           meeting_url: googleEvent.meetingUrl,

@@ -153,15 +153,21 @@ export function generateStudentPDF(
 
   doc.setFontSize(11);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Email: ${student.email || "—"}`, 14, 42);
-  doc.text(`Joined: ${format(new Date(student.joined_at), "MMMM d, yyyy")}`, 14, 48);
+  // Email is only present on owner-scoped records; teachers' reports omit the line.
+  let cursorY = 42;
+  if (student.email) {
+    doc.text(`Email: ${student.email}`, 14, cursorY);
+    cursorY += 6;
+  }
+  doc.text(`Joined: ${format(new Date(student.joined_at), "MMMM d, yyyy")}`, 14, cursorY);
+  cursorY += 6;
   doc.text(
     `Overall average: ${student.overallAvg != null ? `${Math.round(student.overallAvg)}%` : "—"} (Assignments: ${student.assignmentAvg != null ? `${Math.round(student.assignmentAvg)}%` : "—"} | Quizzes: ${student.quizAvg != null ? `${Math.round(student.quizAvg)}%` : "—"})`,
     14,
-    54
+    cursorY
   );
 
-  let startY = 64;
+  let startY = cursorY + 10;
 
   doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);

@@ -60,13 +60,12 @@ const TeacherClassroomDetail = () => {
     );
   }
 
-  type ProfileLike = { display_name?: string; email?: string; avatar_url?: string };
+  // Student contact details are deliberately not available to teachers.
+  type ProfileLike = { display_name?: string; avatar_url?: string };
   // Filter students based on search query
   const filteredRoster = roster?.filter((enrollment) => {
     const studentName = (enrollment.profiles as ProfileLike | null)?.display_name || "Student";
-    const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "";
-    const query = searchQuery.toLowerCase();
-    return studentName.toLowerCase().includes(query) || studentEmail.toLowerCase().includes(query);
+    return studentName.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   return (
@@ -193,9 +192,6 @@ const TeacherClassroomDetail = () => {
                       <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         Student
                       </th>
-                      <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
-                        Email
-                      </th>
                       <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground w-24">
                         Action
                       </th>
@@ -204,7 +200,6 @@ const TeacherClassroomDetail = () => {
                   <tbody className="divide-y divide-border/60">
                     {filteredRoster.map((enrollment) => {
                       const studentName = (enrollment.profiles as ProfileLike | null)?.display_name || "Student";
-                      const studentEmail = (enrollment.profiles as ProfileLike | null)?.email || "";
                       const avatarUrl = (enrollment.profiles as ProfileLike | null)?.avatar_url;
                       return (
                         <tr key={enrollment.id} className="hover:bg-muted/30 transition-colors">
@@ -219,12 +214,6 @@ const TeacherClassroomDetail = () => {
                               </Avatar>
                               <span className="truncate">{studentName}</span>
                             </Link>
-                            {studentEmail && (
-                              <p className="text-muted-foreground text-xs sm:hidden mt-0.5 truncate pl-12">{studentEmail}</p>
-                            )}
-                          </td>
-                          <td className="px-6 py-3.5 text-muted-foreground hidden sm:table-cell">
-                            {studentEmail || "—"}
                           </td>
                           <td className="px-6 py-3.5 text-right">
                             <Button asChild variant="outline" size="sm" className="gap-1.5">

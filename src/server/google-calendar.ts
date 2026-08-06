@@ -201,6 +201,7 @@ export async function createGoogleMeetEvent(params: {
   description?: string | null;
   startsAt: string;
   endsAt: string;
+  timezone?: string | null;
   attendeeEmails?: string[];
 }) {
   const calendarId = encodeURIComponent(params.calendarId || "primary");
@@ -215,8 +216,8 @@ export async function createGoogleMeetEvent(params: {
       body: JSON.stringify({
         summary: params.title,
         description: params.description ?? null,
-        start: { dateTime: params.startsAt },
-        end: { dateTime: params.endsAt },
+        start: { dateTime: params.startsAt, timeZone: params.timezone || "UTC" },
+        end: { dateTime: params.endsAt, timeZone: params.timezone || "UTC" },
         attendees: (params.attendeeEmails ?? []).map((email) => ({ email })),
         conferenceData: {
           createRequest: {
@@ -244,6 +245,7 @@ export async function updateGoogleMeetEvent(params: {
   description?: string | null;
   startsAt: string;
   endsAt: string;
+  timezone?: string | null;
   attendeeEmails?: string[];
 }) {
   const calendarId = encodeURIComponent(params.calendarId || "primary");
@@ -260,8 +262,8 @@ export async function updateGoogleMeetEvent(params: {
       body: JSON.stringify({
         summary: params.title,
         description: params.description ?? null,
-        start: { dateTime: params.startsAt },
-        end: { dateTime: params.endsAt },
+        start: { dateTime: params.startsAt, timeZone: params.timezone || "UTC" },
+        end: { dateTime: params.endsAt, timeZone: params.timezone || "UTC" },
         attendees: (params.attendeeEmails ?? []).map((email) => ({ email })),
       }),
     }

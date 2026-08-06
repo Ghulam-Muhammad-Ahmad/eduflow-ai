@@ -272,10 +272,32 @@ export const useClassroomStudentCounts = (classroomIds: string[]) => {
   });
 };
 
-// Hook for fetching classroom roster (enrollments)
-export const useClassroomRoster = (classroomId: string | null) => {
+/** Columns of `profiles` the roster needs. Contact details are opt-in — see below. */
+const ROSTER_PROFILE_COLUMNS = "user_id, display_name, avatar_url";
+
+type RosterProfile = {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  /** Only present when the caller passed `includeContact`. */
+  email?: string | null;
+};
+
+/**
+ * Hook for fetching classroom roster (enrollments).
+ *
+ * `includeContact` adds the student's email to each profile. It defaults to false so
+ * teacher-facing screens never pull contact details; only owner screens opt in. The flag
+ * is part of the query key — sharing one cache entry between an owner and a teacher view
+ * would otherwise let whichever mounted first decide what both of them see.
+ */
+export const useClassroomRoster = (
+  classroomId: string | null,
+  options?: { includeContact?: boolean }
+) => {
+  const includeContact = options?.includeContact ?? false;
   return useQuery({
-    queryKey: ["classroom-roster", classroomId],
+    queryKey: ["classroom-roster", classroomId, includeContact],
     queryFn: async () => {
       if (!classroomId) return [];
 
@@ -296,11 +318,12 @@ export const useClassroomRoster = (classroomId: string | null) => {
       // Defensive: don't run query if no student IDs
       if (!studentIds.length) return enrollments.map(e => ({ ...e, profiles: null }));
 
-      // Fetch profiles, but only select real profile columns (fix for "user_id" error)
+      // The select list is built at runtime, so PostgREST can't infer the row shape here.
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("*") // assuming all user columns are on 'profiles'
-        .in("user_id", studentIds);
+        .select(includeContact ? `${ROSTER_PROFILE_COLUMNS}, email` : ROSTER_PROFILE_COLUMNS)
+        .in("user_id", studentIds)
+        .returns<RosterProfile[]>();
 
       if (profilesError) throw profilesError;
 
@@ -315,6 +338,7 @@ export const useClassroomRoster = (classroomId: string | null) => {
     enabled: !!classroomId,
   });
 };
+
 
 // Hook for leaving a classroom (student)
 export const useLeaveClassroom = () => {

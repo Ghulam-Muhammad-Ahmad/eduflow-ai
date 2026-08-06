@@ -18,8 +18,7 @@ export default function TeacherOneToOneRoomsList() {
     return (oneToOneRooms ?? []).filter((room) => {
       const name = (room.name ?? "").toLowerCase();
       const studentName = (room.studentProfile?.display_name ?? "").toLowerCase();
-      const studentEmail = (room.studentProfile?.email ?? "").toLowerCase();
-      return name.includes(q) || studentName.includes(q) || studentEmail.includes(q);
+      return name.includes(q) || studentName.includes(q);
     });
   }, [oneToOneRooms, searchQuery]);
 
@@ -110,7 +109,7 @@ export default function TeacherOneToOneRoomsList() {
                           </Link>
                         </td>
                         <td className="px-6 py-3.5 text-muted-foreground">
-                          {room.studentProfile?.display_name ?? room.studentProfile?.email ?? "—"}
+                          {room.studentProfile?.display_name ?? "—"}
                         </td>
                         <td className="px-6 py-3.5 text-muted-foreground text-sm hidden sm:table-cell">
                           {room.created_at ? format(new Date(room.created_at), "MMM d, yyyy") : "—"}

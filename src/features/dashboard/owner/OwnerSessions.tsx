@@ -40,6 +40,12 @@ import {
   type StudentChargeType,
 } from "@/hooks/useLectureSessions";
 import { SessionsListCard } from "@/components/lectures/SessionsListCard";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
+import {
+  resolveBrowserTimezone,
+  utcIsoToWallClock,
+  wallClockToUtcIso,
+} from "@/lib/timezone";
 import { AlertTriangle, Plus } from "lucide-react";
 import { addMinutes, format, setHours, setMinutes, startOfTomorrow } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,13 +71,9 @@ const EMPTY_FINANCIAL_FORM: FinancialFormState = {
   studentChargeType: "per_session",
 };
 
-function toLocalInputValue(value: string) {
-  return value.slice(0, 16);
-}
-
 export default function OwnerSessions() {
   const router = useRouter();
-  const { workspaceId, classrooms, tutors, tutorsByClassroomId, oneToOneRooms = [], isLoading: workspaceLoading } = useOwnerWorkspace();
+  const { workspaceId, workspace, classrooms, tutors, tutorsByClassroomId, oneToOneRooms = [], isLoading: workspaceLoading } = useOwnerWorkspace();
   const { data: sessions = [], isLoading: sessionsLoading } = useWorkspaceLectureSessions(workspaceId);
   const { data: googleCalendarConnection } = useGoogleCalendarConnection();
   const cancelLecture = useCancelLectureSession();
@@ -89,7 +91,13 @@ export default function OwnerSessions() {
   );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<LectureSession | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", description: "", startsAt: "", endsAt: "" });
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    startsAt: "",
+    endsAt: "",
+    timezone: "",
+  });
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteSession, setNoteSession] = useState<LectureSession | null>(null);
   const [noteContent, setNoteContent] = useState("");
@@ -97,14 +105,17 @@ export default function OwnerSessions() {
   const [financialSession, setFinancialSession] = useState<LectureSession | null>(null);
   const [financialForm, setFinancialForm] = useState<FinancialFormState>(EMPTY_FINANCIAL_FORM);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createScope, setCreateScope] = useState<"classroom" | "one_to_one">("classroom");
   const [createForm, setCreateForm] = useState({
     classroomId: "",
+    oneToOneRoomId: "",
     tutorId: "",
     title: "",
     description: "",
     notes: "",
     startsAt: "",
     endsAt: "",
+    timezone: "",
     instantSession: false,
     durationMinutes: 30,
     recurrenceFrequency: "none" as "none" | "daily" | "weekly",
@@ -113,6 +124,15 @@ export default function OwnerSessions() {
   });
 
   const createLecture = useCreateLectureSession();
+
+  /** Workspace default timezone, falling back to the owner's own browser zone. */
+  const defaultTimezone = useMemo(
+    () => workspace?.settings?.default_timezone || resolveBrowserTimezone(),
+    [workspace?.settings?.default_timezone]
+  );
+
+  const toLocalInputValue = (value: string, tz?: string | null) =>
+    utcIsoToWallClock(value, tz || defaultTimezone);
 
   const tutorMap = useMemo(
     () => new Map(tutors.map((t) => [t.user_id, t.profile?.display_name ?? t.profile?.email ?? "Tutor"])),
@@ -204,14 +224,17 @@ export default function OwnerSessions() {
     const tomorrow = startOfTomorrow();
     const defaultStart = setMinutes(setHours(tomorrow, 10), 0);
     const defaultEnd = addMinutes(defaultStart, 30);
+    setCreateScope("classroom");
     setCreateForm({
       classroomId: classroomIdFromQuery ?? "",
+      oneToOneRoomId: "",
       tutorId: "",
       title: "",
       description: "",
       notes: "",
       startsAt: format(defaultStart, "yyyy-MM-dd'T'HH:mm"),
       endsAt: format(defaultEnd, "yyyy-MM-dd'T'HH:mm"),
+      timezone: defaultTimezone,
       instantSession: false,
       durationMinutes: 30,
       recurrenceFrequency: "none",
@@ -225,25 +248,35 @@ export default function OwnerSessions() {
       toast({ title: "Title required", variant: "destructive" });
       return;
     }
-    if (!createForm.classroomId) {
+    if (createScope === "classroom" && !createForm.classroomId) {
       toast({ title: "Select a classroom", variant: "destructive" });
       return;
     }
+    // 1:1 sessions are keyed by student on the API; the room only tells us which
+    // student/tutor pair the owner picked.
+    const selectedRoom =
+      createScope === "one_to_one"
+        ? oneToOneRooms.find((r) => r.id === createForm.oneToOneRoomId)
+        : null;
+    if (createScope === "one_to_one" && !selectedRoom) {
+      toast({ title: "Select a 1:1 room", variant: "destructive" });
+      return;
+    }
+    const timezone = createForm.timezone || defaultTimezone;
     let startsAt: string;
     let endsAt: string;
     if (createForm.instantSession) {
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
-      const end = addMinutes(start, createForm.durationMinutes);
+      const start = new Date();
+      start.setSeconds(0, 0);
       startsAt = start.toISOString();
-      endsAt = end.toISOString();
+      endsAt = addMinutes(start, createForm.durationMinutes).toISOString();
     } else {
       if (!createForm.startsAt || !createForm.endsAt) {
         toast({ title: "Start and end time required", variant: "destructive" });
         return;
       }
-      startsAt = new Date(createForm.startsAt).toISOString();
-      endsAt = new Date(createForm.endsAt).toISOString();
+      startsAt = wallClockToUtcIso(createForm.startsAt, timezone);
+      endsAt = wallClockToUtcIso(createForm.endsAt, timezone);
       if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
         toast({ title: "End must be after start", variant: "destructive" });
         return;
@@ -256,18 +289,33 @@ export default function OwnerSessions() {
       recurrenceActive && createForm.recurrenceFrequency !== "none"
         ? createForm.recurrenceFrequency
         : null;
-    await createLecture.mutateAsync({
-      scopeType: "classroom",
-      classroomId: createForm.classroomId,
-      tutorId: createForm.tutorId || undefined,
+    const shared = {
       title: createForm.title.trim(),
       description,
       startsAt,
       endsAt,
+      timezone,
       recurrenceFrequency: recurrenceFreq,
       recurrenceInterval: recurrenceActive ? Number(createForm.recurrenceInterval) || 1 : 1,
       occurrencesCount: recurrenceActive ? Math.max(2, Number(createForm.occurrencesCount) || 2) : 1,
-    });
+    };
+    if (selectedRoom) {
+      await createLecture.mutateAsync({
+        ...shared,
+        scopeType: "one_to_one",
+        studentId: selectedRoom.student_id,
+        // Passing the tutor explicitly matters: the server otherwise resolves the room
+        // by student alone and picks arbitrarily when a student has several tutors.
+        tutorId: selectedRoom.tutor_id,
+      });
+    } else {
+      await createLecture.mutateAsync({
+        ...shared,
+        scopeType: "classroom",
+        classroomId: createForm.classroomId,
+        tutorId: createForm.tutorId || undefined,
+      });
+    }
     setCreateDialogOpen(false);
     resetCreateForm();
   };
@@ -291,12 +339,14 @@ export default function OwnerSessions() {
   };
 
   const openEditDialog = (session: LectureSession) => {
+    const tz = session.timezone || defaultTimezone;
     setEditingSession(session);
     setEditForm({
       title: session.title,
       description: session.description ?? "",
-      startsAt: toLocalInputValue(session.starts_at),
-      endsAt: toLocalInputValue(session.ends_at),
+      startsAt: toLocalInputValue(session.starts_at, tz),
+      endsAt: toLocalInputValue(session.ends_at, tz),
+      timezone: tz,
     });
     setEditDialogOpen(true);
   };
@@ -311,8 +361,11 @@ export default function OwnerSessions() {
       toast({ title: "Start and end time required", variant: "destructive" });
       return;
     }
-    const startsAt = new Date(editForm.startsAt).toISOString();
-    const endsAt = new Date(editForm.endsAt).toISOString();
+    // Convert back through the same zone the form was hydrated with, otherwise an
+    // untouched save shifts the session by the UTC offset.
+    const editTz = editForm.timezone || defaultTimezone;
+    const startsAt = wallClockToUtcIso(editForm.startsAt, editTz);
+    const endsAt = wallClockToUtcIso(editForm.endsAt, editTz);
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
       toast({ title: "End must be after start", variant: "destructive" });
       return;
@@ -461,6 +514,9 @@ export default function OwnerSessions() {
                 />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Times shown in {editForm.timezone || defaultTimezone}.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
@@ -625,35 +681,85 @@ export default function OwnerSessions() {
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Schedule session</DialogTitle>
             <DialogDescription>
-              Choose classroom, date and time. Add optional notes for the session.
+              Choose a classroom or 1:1 room, date and time. Add optional notes for the session.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 px-6 py-4 overflow-y-auto flex-1 min-h-0">
             <div className="space-y-2">
-              <Label>Classroom</Label>
+              <Label>Type</Label>
               <Select
-                value={createForm.classroomId}
-                onValueChange={(v) =>
+                value={createScope}
+                onValueChange={(v: "classroom" | "one_to_one") => {
+                  setCreateScope(v);
                   setCreateForm((f) => ({
                     ...f,
-                    classroomId: v,
+                    classroomId: "",
+                    oneToOneRoomId: "",
                     tutorId: "",
-                  }))
-                }
+                  }));
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select classroom" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {classrooms.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="classroom">Classroom lecture</SelectItem>
+                  <SelectItem value="one_to_one">One-to-one session</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {tutorsForSelectedClassroom.length > 1 && (
+            {createScope === "classroom" ? (
+              <div className="space-y-2">
+                <Label>Classroom</Label>
+                <Select
+                  value={createForm.classroomId}
+                  onValueChange={(v) =>
+                    setCreateForm((f) => ({
+                      ...f,
+                      classroomId: v,
+                      tutorId: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select classroom" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classrooms.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>1:1 room</Label>
+                <Select
+                  value={createForm.oneToOneRoomId}
+                  onValueChange={(v) => setCreateForm((f) => ({ ...f, oneToOneRoomId: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select 1:1 room" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {oneToOneRoomOptions.length === 0 ? (
+                      <div className="px-2 py-4 text-sm text-muted-foreground">
+                        No 1:1 rooms in this workspace yet.
+                      </div>
+                    ) : (
+                      oneToOneRoomOptions.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {createScope === "classroom" && tutorsForSelectedClassroom.length > 1 && (
               <div className="space-y-2">
                 <Label>Tutor</Label>
                 <Select
@@ -752,6 +858,16 @@ export default function OwnerSessions() {
                       onChange={(e) => setCreateForm((f) => ({ ...f, endsAt: e.target.value }))}
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Timezone</Label>
+                  <TimezoneSelect
+                    value={createForm.timezone || defaultTimezone}
+                    onChange={(tz) => setCreateForm((f) => ({ ...f, timezone: tz }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The start and end times above are read in this timezone.
+                  </p>
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
                   <Label>Recurrence</Label>

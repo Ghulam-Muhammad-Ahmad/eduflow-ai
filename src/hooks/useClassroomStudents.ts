@@ -12,6 +12,7 @@ export const useClassroomStudents = (classroomId: string | null) => {
     queryFn: async () => {
       if (!classroomId) return [];
 
+      // Names only — teachers must not see student contact details.
       const { data, error } = await supabase
         .from("enrollments")
         .select(
@@ -19,8 +20,7 @@ export const useClassroomStudents = (classroomId: string | null) => {
           student_id,
           profiles (
             id,
-            display_name,
-            email
+            display_name
           )
         `
         )
@@ -30,12 +30,11 @@ export const useClassroomStudents = (classroomId: string | null) => {
       if (error) throw error;
 
       return data.map(enrollment => {
-        const p = (enrollment as { profiles?: { display_name?: string | null; email?: string | null } | { display_name?: string | null; email?: string | null }[] }).profiles;
+        const p = (enrollment as { profiles?: { display_name?: string | null } | { display_name?: string | null }[] }).profiles;
         const s = Array.isArray(p) ? p[0] : p;
         return {
           id: enrollment.student_id,
-          display_name: s?.display_name ?? s?.email ?? "Unknown Student",
-          email: s?.email ?? "",
+          display_name: s?.display_name ?? "Unknown Student",
         };
       });
     },

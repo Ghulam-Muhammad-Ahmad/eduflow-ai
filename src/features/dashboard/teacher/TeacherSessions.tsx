@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,11 +27,9 @@ import { useClassrooms } from "@/hooks/useClassrooms";
 import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import {
   useTeacherAllLectureSessions,
-  useGoogleCalendarConnection,
   useCancelLectureSession,
   useUpdateLectureSession,
   useCompleteLectureSession,
-  useCreateLectureSession,
   useSaveLectureSessionNote,
   useSaveLectureSessionFinancial,
   useLectureSessionNotes,
@@ -42,11 +39,9 @@ import {
   type TutorRateType,
   type StudentChargeType,
 } from "@/hooks/useLectureSessions";
-import { useTutorStudents } from "@/hooks/useTutorWorkspace";
 import { SessionsListCard } from "@/components/lectures/SessionsListCard";
-import { AlertTriangle, Plus } from "lucide-react";
-import { addMinutes, format, setHours, setMinutes, startOfTomorrow } from "date-fns";
-import { Checkbox } from "@/components/ui/checkbox";
+import { resolveBrowserTimezone, utcIsoToWallClock, wallClockToUtcIso } from "@/lib/timezone";
+import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 type SessionFilter = "active" | "completed" | "cancelled" | "all";
@@ -69,18 +64,12 @@ const EMPTY_FINANCIAL_FORM: FinancialFormState = {
   studentChargeType: "per_session",
 };
 
-function toLocalInputValue(value: string) {
-  return value.slice(0, 16);
-}
-
 export default function TeacherSessions() {
   const router = useRouter();
   const { user } = useAuth();
   const { classrooms } = useClassrooms();
   const { oneToOneRooms = [] } = useOneToOneRooms();
-  const { students: tutorStudents } = useTutorStudents();
   const { data: sessions = [], isLoading: sessionsLoading } = useTeacherAllLectureSessions();
-  const { data: googleCalendarConnection } = useGoogleCalendarConnection();
   const cancelLecture = useCancelLectureSession();
   const updateLecture = useUpdateLectureSession();
   const completeLecture = useCompleteLectureSession();
@@ -97,32 +86,19 @@ export default function TeacherSessions() {
   );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<LectureSession | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", description: "", startsAt: "", endsAt: "" });
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    startsAt: "",
+    endsAt: "",
+    timezone: "",
+  });
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteSession, setNoteSession] = useState<LectureSession | null>(null);
   const [noteContent, setNoteContent] = useState("");
   const [financialDialogOpen, setFinancialDialogOpen] = useState(false);
   const [financialSession, setFinancialSession] = useState<LectureSession | null>(null);
   const [financialForm, setFinancialForm] = useState<FinancialFormState>(EMPTY_FINANCIAL_FORM);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createScope, setCreateScope] = useState<"classroom" | "one_to_one">("classroom");
-  const [createForm, setCreateForm] = useState({
-    classroomId: "",
-    studentId: "",
-    title: "",
-    description: "",
-    notes: "",
-    startsAt: "",
-    endsAt: "",
-    instantSession: false,
-    durationMinutes: 30,
-    recurrenceFrequency: "none" as "none" | "daily" | "weekly",
-    recurrenceInterval: "1",
-    occurrencesCount: "4",
-  });
-
-  const createLecture = useCreateLectureSession();
-
   const classroomMap = useMemo(
     () => new Map((classrooms ?? []).map((c) => [c.id, c.name])),
     [classrooms]
@@ -131,7 +107,7 @@ export default function TeacherSessions() {
     () =>
       (oneToOneRooms ?? []).map((r) => ({
         id: r.id,
-        label: r.name || (r.studentProfile?.display_name ?? r.studentProfile?.email ?? "Room"),
+        label: r.name || (r.studentProfile?.display_name ?? "Room"),
       })),
     [oneToOneRooms]
   );
@@ -196,103 +172,6 @@ export default function TeacherSessions() {
     });
   }, [orderedSessions, sessionFilter, scopeFilter, searchQuery, oneToOneRooms]);
 
-  const disableSchedulingReason = !googleCalendarConnection?.configured
-    ? "Google Meet scheduling is unavailable until Google OAuth is configured on the server."
-    : !googleCalendarConnection.connected
-      ? "Connect Google Calendar in Settings before creating lectures."
-      : null;
-
-  const resetCreateForm = () => {
-    const tomorrow = startOfTomorrow();
-    const defaultStart = setMinutes(setHours(tomorrow, 10), 0);
-    const defaultEnd = addMinutes(defaultStart, 30);
-    setCreateForm({
-      classroomId: classroomIdFromQuery ?? "",
-      studentId: "",
-      title: "",
-      description: "",
-      notes: "",
-      startsAt: format(defaultStart, "yyyy-MM-dd'T'HH:mm"),
-      endsAt: format(defaultEnd, "yyyy-MM-dd'T'HH:mm"),
-      instantSession: false,
-      durationMinutes: 30,
-      recurrenceFrequency: "none",
-      recurrenceInterval: "1",
-      occurrencesCount: "4",
-    });
-  };
-
-  const handleCreateSchedule = async () => {
-    if (!createForm.title.trim()) {
-      toast({ title: "Title required", variant: "destructive" });
-      return;
-    }
-    if (createScope === "classroom" && !createForm.classroomId) {
-      toast({ title: "Select a classroom", variant: "destructive" });
-      return;
-    }
-    if (createScope === "one_to_one" && !createForm.studentId) {
-      toast({ title: "Select a student", variant: "destructive" });
-      return;
-    }
-    let startsAt: string;
-    let endsAt: string;
-    if (createForm.instantSession) {
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
-      const end = addMinutes(start, createForm.durationMinutes);
-      startsAt = start.toISOString();
-      endsAt = end.toISOString();
-    } else {
-      if (!createForm.startsAt || !createForm.endsAt) {
-        toast({ title: "Start and end time required", variant: "destructive" });
-        return;
-      }
-      startsAt = new Date(createForm.startsAt).toISOString();
-      endsAt = new Date(createForm.endsAt).toISOString();
-      if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
-        toast({ title: "End must be after start", variant: "destructive" });
-        return;
-      }
-    }
-    const description = [createForm.description, createForm.notes].filter(Boolean).join("\n\n") || null;
-    const recurrenceActive =
-      createForm.recurrenceFrequency !== "none" && Number(createForm.occurrencesCount) > 1;
-    const recurrenceFreq: "daily" | "weekly" | null =
-      recurrenceActive && createForm.recurrenceFrequency !== "none"
-        ? createForm.recurrenceFrequency
-        : null;
-    if (createScope === "classroom") {
-      await createLecture.mutateAsync({
-        scopeType: "classroom",
-        classroomId: createForm.classroomId,
-        tutorId: user?.id,
-        title: createForm.title.trim(),
-        description,
-        startsAt,
-        endsAt,
-        recurrenceFrequency: recurrenceFreq,
-        recurrenceInterval: recurrenceActive ? Number(createForm.recurrenceInterval) || 1 : 1,
-        occurrencesCount: recurrenceActive ? Math.max(2, Number(createForm.occurrencesCount) || 2) : 1,
-      });
-    } else {
-      await createLecture.mutateAsync({
-        scopeType: "one_to_one",
-        studentId: createForm.studentId,
-        tutorId: user?.id,
-        title: createForm.title.trim(),
-        description,
-        startsAt,
-        endsAt,
-        recurrenceFrequency: recurrenceFreq,
-        recurrenceInterval: recurrenceActive ? Number(createForm.recurrenceInterval) || 1 : 1,
-        occurrencesCount: recurrenceActive ? Math.max(2, Number(createForm.occurrencesCount) || 2) : 1,
-      });
-    }
-    setCreateDialogOpen(false);
-    resetCreateForm();
-  };
-
   const handleCancel = async (session: LectureSession, mode: "single" | "series") => {
     if (typeof window !== "undefined") {
       const confirmed = window.confirm(
@@ -320,12 +199,14 @@ export default function TeacherSessions() {
   };
 
   const openEditDialog = (session: LectureSession) => {
+    const tz = session.timezone || resolveBrowserTimezone();
     setEditingSession(session);
     setEditForm({
       title: session.title,
       description: session.description ?? "",
-      startsAt: toLocalInputValue(session.starts_at),
-      endsAt: toLocalInputValue(session.ends_at),
+      startsAt: utcIsoToWallClock(session.starts_at, tz),
+      endsAt: utcIsoToWallClock(session.ends_at, tz),
+      timezone: tz,
     });
     setEditDialogOpen(true);
   };
@@ -340,8 +221,11 @@ export default function TeacherSessions() {
       toast({ title: "Start and end time required", variant: "destructive" });
       return;
     }
-    const startsAt = new Date(editForm.startsAt).toISOString();
-    const endsAt = new Date(editForm.endsAt).toISOString();
+    // Convert back through the same zone the form was hydrated with, otherwise an
+    // untouched save shifts the session by the UTC offset.
+    const editTz = editForm.timezone || resolveBrowserTimezone();
+    const startsAt = wallClockToUtcIso(editForm.startsAt, editTz);
+    const endsAt = wallClockToUtcIso(editForm.endsAt, editTz);
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
       toast({ title: "End must be after start", variant: "destructive" });
       return;
@@ -402,29 +286,10 @@ export default function TeacherSessions() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Lecture sessions</h1>
             <p className="text-muted-foreground mt-1">
-              Schedule and manage your Google Meet lectures.
+              Manage your Google Meet lectures. Sessions are scheduled by your workspace owner.
             </p>
           </div>
-          <Button
-            className="gap-2"
-            onClick={() => setCreateDialogOpen(true)}
-            disabled={Boolean(disableSchedulingReason)}
-            title={disableSchedulingReason ?? undefined}
-          >
-            <Plus className="h-4 w-4" />
-            Schedule lecture
-          </Button>
         </div>
-
-        {disableSchedulingReason && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <p>{disableSchedulingReason}</p>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/settings">Go to Settings</Link>
-            </Button>
-          </div>
-        )}
 
         <SessionsListCard
           role="teacher"
@@ -490,6 +355,9 @@ export default function TeacherSessions() {
                 />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Times shown in {editForm.timezone || resolveBrowserTimezone()}.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
@@ -641,222 +509,6 @@ export default function TeacherSessions() {
         </DialogContent>
       </Dialog>
 
-      {/* Create dialog */}
-      <Dialog
-        open={createDialogOpen}
-        onOpenChange={(open) => {
-          setCreateDialogOpen(open);
-          if (open) resetCreateForm();
-          if (!open) resetCreateForm();
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
-            <DialogTitle>Schedule lecture</DialogTitle>
-            <DialogDescription>
-              Choose classroom or student (1:1), date and time. Add optional notes.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 px-6 py-4 overflow-y-auto flex-1 min-h-0">
-            <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select
-                value={createScope}
-                onValueChange={(v: "classroom" | "one_to_one") => {
-                  setCreateScope(v);
-                  setCreateForm((f) => ({ ...f, classroomId: "", studentId: "" }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="classroom">Classroom lecture</SelectItem>
-                  <SelectItem value="one_to_one">One-to-one session</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {createScope === "classroom" ? (
-              <div className="space-y-2">
-                <Label>Classroom</Label>
-                <Select
-                  value={createForm.classroomId}
-                  onValueChange={(v) => setCreateForm((f) => ({ ...f, classroomId: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select classroom" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(classrooms ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Student</Label>
-                <Select
-                  value={createForm.studentId}
-                  onValueChange={(v) => setCreateForm((f) => ({ ...f, studentId: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select student" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(tutorStudents ?? []).map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.display_name || s.email || s.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            </div>
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input
-                value={createForm.title}
-                onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder={createScope === "classroom" ? "e.g. Weekly lecture" : "e.g. 1:1 coaching"}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Description (optional)</Label>
-              <Textarea
-                value={createForm.description}
-                onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-                rows={1}
-                placeholder="Agenda or materials"
-                className="resize-none"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Notes (optional)</Label>
-              <Textarea
-                value={createForm.notes}
-                onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
-                rows={1}
-                placeholder="Private notes for this schedule"
-                className="resize-none"
-              />
-            </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="instant-teacher"
-                checked={createForm.instantSession}
-                onCheckedChange={(checked) =>
-                  setCreateForm((f) => ({ ...f, instantSession: checked === true }))
-                }
-              />
-              <Label htmlFor="instant-teacher" className="font-normal cursor-pointer">
-                Start immediately (instant session)
-              </Label>
-            </div>
-            {createForm.instantSession ? (
-              <div className="space-y-2">
-                <Label>Duration (minutes)</Label>
-                <Select
-                  value={String(createForm.durationMinutes)}
-                  onValueChange={(v) =>
-                    setCreateForm((f) => ({ ...f, durationMinutes: Number(v) }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">15 min</SelectItem>
-                    <SelectItem value="30">30 min</SelectItem>
-                    <SelectItem value="45">45 min</SelectItem>
-                    <SelectItem value="60">60 min</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start</Label>
-                    <Input
-                      type="datetime-local"
-                      value={createForm.startsAt}
-                      onChange={(e) => setCreateForm((f) => ({ ...f, startsAt: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End</Label>
-                    <Input
-                      type="datetime-local"
-                      value={createForm.endsAt}
-                      onChange={(e) => setCreateForm((f) => ({ ...f, endsAt: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Recurrence</Label>
-                  <Select
-                    value={createForm.recurrenceFrequency}
-                    onValueChange={(v: "none" | "daily" | "weekly") =>
-                      setCreateForm((f) => ({ ...f, recurrenceFrequency: v }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Does not repeat</SelectItem>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {createForm.recurrenceFrequency !== "none" && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Every (interval)</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={createForm.recurrenceInterval}
-                          onChange={(e) =>
-                            setCreateForm((f) => ({ ...f, recurrenceInterval: e.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Occurrences</Label>
-                        <Input
-                          type="number"
-                          min={2}
-                          max={24}
-                          value={createForm.occurrencesCount}
-                          onChange={(e) =>
-                            setCreateForm((f) => ({ ...f, occurrencesCount: e.target.value }))
-                          }
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter className="shrink-0 px-6 py-4 border-t bg-muted/30">
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateSchedule} disabled={createLecture.isPending}>
-              {createLecture.isPending ? "Scheduling..." : "Schedule"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }

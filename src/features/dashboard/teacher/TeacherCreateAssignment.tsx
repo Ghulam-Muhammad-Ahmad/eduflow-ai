@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAssignments } from "@/hooks/useAssignments";
 import { useClassrooms } from "@/hooks/useClassrooms";
@@ -19,7 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Paperclip, FileText } from "lucide-react";
+import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
+import { ArrowLeft, Sparkles, Paperclip, FileText, FolderOpen } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
@@ -28,6 +30,7 @@ const ASSIGNMENT_AI_SYSTEM = `You are an educational assistant. Return ONLY vali
 const TeacherCreateAssignment = () => {
   const router = useRouter();
   useAuth();
+  const queryClient = useQueryClient();
   const {
     createAssignment,
     teacherDocuments,
@@ -48,6 +51,22 @@ const TeacherCreateAssignment = () => {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [attachedDocumentIds, setAttachedDocumentIds] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [docCenterOpen, setDocCenterOpen] = useState(false);
+
+  const handleDocCenterSelect = useCallback(
+    (selection: DocCenterSelection) => {
+      // Uploading inside the modal doesn't emit a selectable document id; ignore it defensively.
+      if (selection.type !== "document") return;
+      setAttachedDocumentIds((prev) =>
+        prev.includes(selection.doc.id) ? prev : [...prev, selection.doc.id]
+      );
+      // The checkbox list below is fed by a different query key than the modal, so a
+      // freshly uploaded document only shows up once this is refetched.
+      queryClient.invalidateQueries({ queryKey: ["teacher-documents"] });
+      toast.success(`Attached "${selection.doc.name}"`);
+    },
+    [queryClient]
+  );
 
   const handleGenerateWithAI = async () => {
     if (!aiPrompt.trim()) return;
@@ -329,6 +348,22 @@ const TeacherCreateAssignment = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDocCenterOpen(true)}
+              >
+                <FolderOpen className="h-4 w-4 mr-1.5" />
+                Choose from Doc Center
+              </Button>
+            </div>
+            <DocCenterMini
+              open={docCenterOpen}
+              onOpenChange={setDocCenterOpen}
+              onSelect={handleDocCenterSelect}
+            />
             {teacherDocuments && teacherDocuments.length > 0 ? (
               <div className="max-h-40 overflow-y-auto space-y-2 rounded border border-border bg-secondary/30 p-3">
                 {teacherDocuments.map((doc: { id: string; name: string; file_type?: string }) => (
@@ -347,7 +382,7 @@ const TeacherCreateAssignment = () => {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground italic">
-                No documents yet. Upload files in Documents first, then they will appear here.
+                No documents yet. Use “Choose from Doc Center” above to upload one.
               </p>
             )}
             {attachedDocumentIds.length > 0 && (

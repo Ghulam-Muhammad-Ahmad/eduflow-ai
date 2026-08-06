@@ -5,7 +5,12 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
-export type LectureSession = Tables<"sessions">;
+/**
+ * `timezone` is declared here rather than coming from the generated types: it was added by
+ * the 20260806120000_session_timezone migration and lands in types.ts on the next
+ * `supabase gen types typescript` run.
+ */
+export type LectureSession = Tables<"sessions"> & { timezone?: string | null };
 export type LectureSessionNote = Tables<"session_notes">;
 export type LectureSessionFinancialMock = Tables<"session_financial_mock">;
 export type SessionScopeType = "classroom" | "one_to_one";
@@ -25,6 +30,8 @@ export type CreateLectureSessionInput = {
   recurrenceFrequency?: RecurrenceFrequency | null;
   recurrenceInterval?: number;
   occurrencesCount?: number;
+  /** IANA zone the start/end wall-clock times were entered in. Defaults to UTC server-side. */
+  timezone?: string;
 };
 
 export type UpdateLectureSessionInput = {

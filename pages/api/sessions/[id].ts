@@ -167,6 +167,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           description: input.description,
           startsAt: input.startsAt,
           endsAt: input.endsAt,
+          timezone: (session as { timezone?: string | null }).timezone ?? null,
           attendeeEmails,
         })
       : await createGoogleMeetEvent({
@@ -176,6 +177,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           description: input.description,
           startsAt: input.startsAt,
           endsAt: input.endsAt,
+          timezone: (session as { timezone?: string | null }).timezone ?? null,
           attendeeEmails,
         });
 

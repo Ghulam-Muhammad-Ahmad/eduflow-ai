@@ -109,8 +109,7 @@ const TeacherStudentRecordPage = () => {
                 {student.display_name || "Student"} — Report
               </h1>
               <p className="text-muted-foreground mt-1">
-                {student.classroom_name}
-                {student.email ? ` • ${student.email}` : ""} • Joined{" "}
+                {student.classroom_name} • Joined{" "}
                 {student.joined_at ? format(new Date(student.joined_at), "MMMM d, yyyy") : "—"}
               </p>
             </div>

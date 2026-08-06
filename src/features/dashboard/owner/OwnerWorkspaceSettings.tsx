@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Save, AlertCircle, ImageIcon, Settings, Pencil } from "lucide-react";
 import { CurrencySelect } from "@/components/ui/currency-select";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
+import { resolveBrowserTimezone } from "@/lib/timezone";
 import { toast } from "sonner";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,12 +30,15 @@ export default function OwnerWorkspaceSettings() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [defaultCurrency, setDefaultCurrency] = useState("GBP");
   const [currencySaving, setCurrencySaving] = useState(false);
+  const [defaultTimezone, setDefaultTimezone] = useState(() => resolveBrowserTimezone());
+  const [timezoneSaving, setTimezoneSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
-  const workspaceSettings: { default_currency?: string } = workspace?.settings ?? {};
+  const workspaceSettings: { default_currency?: string; default_timezone?: string } =
+    workspace?.settings ?? {};
 
   useEffect(() => {
     if (workspace?.name != null) {
@@ -49,6 +54,36 @@ export default function OwnerWorkspaceSettings() {
     const c = workspaceSettings.default_currency;
     if (typeof c === "string" && c.trim()) setDefaultCurrency(c.trim());
   }, [workspaceSettings.default_currency]);
+
+  useEffect(() => {
+    const tz = workspaceSettings.default_timezone;
+    if (typeof tz === "string" && tz.trim()) setDefaultTimezone(tz.trim());
+  }, [workspaceSettings.default_timezone]);
+
+  const handleTimezoneChange = async (value: string) => {
+    setDefaultTimezone(value);
+    if (!workspace?.id || !user?.id) return;
+    setTimezoneSaving(true);
+    try {
+      // Merge so other settings keys are preserved.
+      const nextSettings = { ...workspace?.settings, default_timezone: value };
+      const { error: updateError } = await supabase
+        .from("workspaces")
+        .update({ settings: nextSettings, updated_at: new Date().toISOString() })
+        .eq("id", workspace.id)
+        .eq("owner_id", user.id);
+      if (updateError) {
+        toast.error(updateError.message);
+        return;
+      }
+      invalidate();
+      toast.success("Default timezone saved.");
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Failed to save timezone");
+    } finally {
+      setTimezoneSaving(false);
+    }
+  };
 
   const handleCurrencyChange = async (value: string) => {
     setDefaultCurrency(value);
@@ -320,6 +355,22 @@ export default function OwnerWorkspaceSettings() {
                       Default for new invoices and projects.
                     </p>
                     {currencySaving && (
+                      <p className="text-xs text-muted-foreground">Saving…</p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 flex flex-col gap-1">
+                    <Label className="text-foreground text-sm">Default timezone</Label>
+                    <div className="max-w-[400px]">
+                      <TimezoneSelect
+                        value={defaultTimezone}
+                        onChange={handleTimezoneChange}
+                        disabled={timezoneSaving}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Pre-selected when scheduling a new session.
+                    </p>
+                    {timezoneSaving && (
                       <p className="text-xs text-muted-foreground">Saving…</p>
                     )}
                   </div>

@@ -78,11 +78,7 @@ const TeacherStudentRecords = () => {
     const students = data?.students ?? [];
     if (!searchQuery.trim()) return students;
     const q = searchQuery.toLowerCase();
-    return students.filter(
-      (s) =>
-        (s.display_name ?? "").toLowerCase().includes(q) ||
-        (s.email ?? "").toLowerCase().includes(q)
-    );
+    return students.filter((s) => (s.display_name ?? "").toLowerCase().includes(q));
   }, [data?.students, searchQuery]);
 
   const formatPct = (v: number | null) =>
@@ -192,7 +188,7 @@ const TeacherStudentRecords = () => {
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name or email..."
+                  placeholder="Search by name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -249,9 +245,6 @@ const TeacherStudentRecords = () => {
                               </Avatar>
                               <div className="min-w-0">
                                 <p className="font-medium truncate">{student.display_name || "Unknown"}</p>
-                                {student.email && (
-                                  <p className="text-xs text-muted-foreground truncate">{student.email}</p>
-                                )}
                               </div>
                             </div>
                           </TableCell>

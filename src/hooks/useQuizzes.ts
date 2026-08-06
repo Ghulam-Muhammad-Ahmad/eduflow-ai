@@ -77,7 +77,6 @@ export interface QuizAttempt {
   quiz?: Quiz;
   student?: {
     display_name: string;
-    email?: string;
   };
 }
 
@@ -107,14 +106,13 @@ export const useQuizzes = () => {
   type QuizAttemptWithStudent = QuizAttempt & {
     student: {
       display_name: string;
-      email?: string | null;
     };
   };
 
+  // Teachers see student names only — contact details are deliberately not fetched.
   type StudentProfile = {
     user_id: string;
     display_name: string | null;
-    email: string | null;
   };
 
   // Fetch all quizzes for a teacher (classrooms and 1v1 rooms)
@@ -669,7 +667,7 @@ export const useQuizzes = () => {
       // Fetch profiles for these students
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, display_name, email')
+        .select('user_id, display_name')
         .in('user_id', studentIds)
         .returns<StudentProfile[]>();
 
@@ -682,7 +680,6 @@ export const useQuizzes = () => {
           ...attempt,
           student: {
             display_name: p?.display_name ?? 'Unknown Student',
-            email: p?.email ?? undefined,
           },
         };
       });

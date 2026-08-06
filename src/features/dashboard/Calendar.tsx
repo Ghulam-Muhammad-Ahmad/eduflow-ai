@@ -44,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import type { ToolbarProps } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths } from "date-fns";
+import { formatInZone } from "@/lib/timezone";
 import { enUS } from "date-fns/locale/en-US";
 import type { CalendarEventSuggestion } from "@/services/aiService";
 import "react-big-calendar/lib/css/react-big-calendar.css";
@@ -647,14 +648,14 @@ export default function Calendar() {
                   <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <p className="font-medium text-muted-foreground">Start</p>
-                    <p>{format(new Date(detailLecture.starts_at), "PPp")}</p>
+                    <p>{formatInZone(detailLecture.starts_at, detailLecture.timezone, "PPp zzz")}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <p className="font-medium text-muted-foreground">End</p>
-                    <p>{format(new Date(detailLecture.ends_at), "PPp")}</p>
+                    <p>{formatInZone(detailLecture.ends_at, detailLecture.timezone, "PPp zzz")}</p>
                   </div>
                 </div>
               </div>

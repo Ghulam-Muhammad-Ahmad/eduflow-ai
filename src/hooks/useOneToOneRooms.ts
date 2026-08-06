@@ -10,8 +10,12 @@ export type OneToOneRoomRow = {
   name: string | null;
   created_at: string;
   updated_at: string;
-  tutorProfile?: { display_name: string | null; email: string | null; avatar_url?: string | null } | null;
-  studentProfile?: { display_name: string | null; email: string | null; avatar_url?: string | null } | null;
+  /**
+   * `email` is optional because it is only ever populated for owner-scoped queries
+   * (see useOwnerWorkspace). Teacher and student views deliberately omit it.
+   */
+  tutorProfile?: { display_name: string | null; email?: string | null; avatar_url?: string | null } | null;
+  studentProfile?: { display_name: string | null; email?: string | null; avatar_url?: string | null } | null;
 };
 
 /**
@@ -35,7 +39,7 @@ export function useOneToOneRooms() {
         const studentIds = [...new Set(rows.map((r) => r.student_id))];
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, display_name, email, avatar_url")
+          .select("user_id, display_name, avatar_url")
           .in("user_id", studentIds);
         const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
         return rows.map((r) => ({
@@ -54,7 +58,7 @@ export function useOneToOneRooms() {
         const tutorIds = [...new Set(rows.map((r) => r.tutor_id))];
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, display_name, email, avatar_url")
+          .select("user_id, display_name, avatar_url")
           .in("user_id", tutorIds);
         const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
         return rows.map((r) => ({

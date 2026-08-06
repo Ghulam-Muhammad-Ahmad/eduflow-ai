@@ -58,7 +58,7 @@ const TeacherOneToOneRoomDetail = () => {
   }
 
   const roomTitle = room.name || `${room.studentProfile?.display_name ?? "Student"} (1v1)`;
-  const studentName = room.studentProfile?.display_name ?? room.studentProfile?.email ?? "Student";
+  const studentName = room.studentProfile?.display_name ?? "Student";
 
   return (
     <OneToOneRoomDetailContent

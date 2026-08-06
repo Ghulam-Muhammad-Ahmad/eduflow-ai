@@ -69,10 +69,10 @@ export function useTutorWorkspace() {
   };
 }
 
+/** Teacher-facing student row. Contact details are deliberately absent. */
 export type TutorStudentRow = {
   id: string;
   display_name: string | null;
-  email: string | null;
   avatar_url: string | null;
 };
 
@@ -116,15 +116,15 @@ export function useTutorStudents() {
 
       if (studentIds.size === 0) return [];
 
+      // Teachers see name + avatar only — student contact details are not exposed.
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email, avatar_url")
+        .select("user_id, display_name, avatar_url")
         .in("user_id", Array.from(studentIds));
       if (profileError) throw profileError;
       return (profiles ?? []).map((p) => ({
         id: p.user_id,
         display_name: p.display_name ?? null,
-        email: p.email ?? null,
         avatar_url: p.avatar_url ?? null,
       }));
     },

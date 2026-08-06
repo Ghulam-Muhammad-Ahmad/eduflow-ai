@@ -35,11 +35,7 @@ const TeacherStudentsList = () => {
     if (!students) return [];
     const q = searchQuery.trim().toLowerCase();
     if (!q) return students;
-    return students.filter(
-      (s) =>
-        (s.display_name?.toLowerCase().includes(q)) ||
-        (s.email?.toLowerCase().includes(q))
-    );
+    return students.filter((s) => s.display_name?.toLowerCase().includes(q));
   }, [students, searchQuery]);
 
   return (
@@ -87,7 +83,7 @@ const TeacherStudentsList = () => {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden />
                 <Input
                   type="search"
-                  placeholder="Search by name or email..."
+                  placeholder="Search by name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -102,9 +98,6 @@ const TeacherStudentsList = () => {
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Student
                     </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">
-                      Email
-                    </th>
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Classrooms
                     </th>
@@ -116,7 +109,7 @@ const TeacherStudentsList = () => {
                 <tbody className="divide-y divide-border/60">
                   {filteredStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={3} className="px-6 py-8 text-center text-sm text-muted-foreground">
                         No students match &quot;{searchQuery}&quot;. Try a different search.
                       </td>
                     </tr>
@@ -131,29 +124,15 @@ const TeacherStudentsList = () => {
                               <Avatar className="h-9 w-9 shrink-0">
                                 <AvatarImage src={student.avatar_url ?? undefined} alt="" />
                                 <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                                  {(student.display_name || student.email || "?")[0].toUpperCase()}
+                                  {(student.display_name || "?")[0].toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                               <div>
                                 <span className="font-medium text-foreground">
                                   {student.display_name || "No name"}
                                 </span>
-                                {student.email && (
-                                  <p className="text-muted-foreground text-xs sm:hidden mt-0.5 truncate max-w-[180px]">
-                                    {student.email}
-                                  </p>
-                                )}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-6 py-3.5 text-muted-foreground hidden sm:table-cell">
-                            <a
-                              href={`mailto:${student.email}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:text-foreground truncate max-w-[200px] block"
-                            >
-                              {student.email ?? "—"}
-                            </a>
                           </td>
                           <td className="px-6 py-3.5">
                             {names.length === 0 ? (

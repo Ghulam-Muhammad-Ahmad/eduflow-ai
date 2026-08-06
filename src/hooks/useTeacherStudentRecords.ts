@@ -29,7 +29,11 @@ export interface QuizGrade {
 export interface StudentRecord {
   student_id: string;
   display_name: string | null;
-  email: string | null;
+  /**
+   * Owner-only. Teacher-facing queries never select it, so it is absent on their records —
+   * every consumer must treat it as optional.
+   */
+  email?: string | null;
   avatar_url: string | null;
   classroom_id: string;
   classroom_name: string;
@@ -130,7 +134,7 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
         }
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, display_name, avatar_url, email")
+          .select("user_id, display_name, avatar_url")
           .in("user_id", [room.student_id]);
         const profile = Array.isArray(profiles) && profiles[0] ? profiles[0] : null;
         const assignmentGrades: AssignmentGrade[] = assignmentsList.map((a) => {
@@ -191,7 +195,6 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
         const studentRecord: StudentRecord = {
           student_id: room.student_id,
           display_name: profile?.display_name ?? null,
-          email: profile?.email ?? null,
           avatar_url: profile?.avatar_url ?? null,
           classroom_id: oneToOneRoomId,
           classroom_name: `1v1: ${roomName}`,
@@ -435,7 +438,6 @@ export function useTeacherStudentRecords(classroomId: string | null, oneToOneRoo
         return {
           student_id: enrollment.student_id,
           display_name: profile && typeof profile === "object" && "display_name" in profile ? (profile.display_name as string | null) : null,
-          email: null,
           avatar_url: profile && typeof profile === "object" && "avatar_url" in profile ? (profile.avatar_url as string | null) : null,
           classroom_id: enrollment.classroom_id,
           classroom_name: classroomName,

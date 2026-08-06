@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatInZone } from "@/lib/timezone";
 import {
   CheckCircle2,
   CircleDollarSign,
@@ -113,7 +113,8 @@ export function SessionsTable({
                   )}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {format(new Date(session.starts_at), "PPp")} <br /> {format(new Date(session.ends_at), "p")}
+                  {formatInZone(session.starts_at, session.timezone, "PPp")} <br />{" "}
+                  {formatInZone(session.ends_at, session.timezone, "p zzz")}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground min-w-0">
                   {session.classroom_id ? classroomMap.get(session.classroom_id) ?? "—" : "—"}

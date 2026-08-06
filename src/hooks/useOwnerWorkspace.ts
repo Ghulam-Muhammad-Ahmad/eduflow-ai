@@ -8,6 +8,8 @@ import type { OneToOneRoomRow } from "@/hooks/useOneToOneRooms";
 /** Shape of public.workspaces.settings (jsonb). Persisted to DB on Workspace settings page. */
 export type WorkspaceSettings = {
   default_currency?: string;
+  /** IANA timezone new sessions are scheduled in by default, e.g. "Europe/London". */
+  default_timezone?: string;
   [key: string]: unknown;
 };
 

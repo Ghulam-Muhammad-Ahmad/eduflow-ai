@@ -244,7 +244,6 @@ const TeacherQuizResults = () => {
   const handleExportResults = () => {
     const headers = [
       "Student Name",
-      "Student Email",
       "Attempt #",
       "Score (%)",
       "Points Earned",
@@ -265,7 +264,6 @@ const TeacherQuizResults = () => {
 
     const rows = attempts.map((attempt) => {
       const studentName = attempt.student?.display_name || "Student";
-      const studentEmail = attempt.student?.email || "";
       const score = typeof attempt.score === "number" ? attempt.score.toFixed(1) : "";
       const submittedAt = attempt.submitted_at
         ? format(new Date(attempt.submitted_at), "yyyy-MM-dd HH:mm")
@@ -277,7 +275,6 @@ const TeacherQuizResults = () => {
 
       return [
         studentName,
-        studentEmail,
         attempt.attempt_number,
         score,
         attempt.points_earned ?? "",
@@ -488,12 +485,7 @@ const TeacherQuizResults = () => {
                     attempts.map((attempt) => (
                       <TableRow key={attempt.id}>
                         <TableCell>
-                          <div>
-                            <p className="font-medium">{attempt.student?.display_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {attempt.student?.email}
-                            </p>
-                          </div>
+                          <p className="font-medium">{attempt.student?.display_name}</p>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">Attempt {attempt.attempt_number}</Badge>
