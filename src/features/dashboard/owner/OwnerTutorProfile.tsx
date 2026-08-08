@@ -34,8 +34,10 @@ import {
   Brain,
   CheckCircle2,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
+import DeleteAccountDialog from "@/features/dashboard/owner/components/DeleteAccountDialog";
 import {
   BarChart,
   Bar,
@@ -91,6 +93,7 @@ export default function OwnerTutorProfile() {
     language: "English",
   });
   const [reviewNotes, setReviewNotes] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const assignEval = useAssignEvaluation();
   const generateTest = useGenerateTeacherTest();
   const reviewProfile = useReviewAiProfile();
@@ -243,12 +246,25 @@ export default function OwnerTutorProfile() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <Button variant="ghost" asChild>
-          <Link href="/dashboard/owner/tutors">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Tutors
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between gap-3">
+          <Button variant="ghost" asChild>
+            <Link href="/dashboard/owner/tutors">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Tutors
+            </Link>
+          </Button>
+          {tutorId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete account
+            </Button>
+          )}
+        </div>
 
         {/* Profile (left) + Contract (right) — same row */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -683,6 +699,17 @@ export default function OwnerTutorProfile() {
           </div>
         </div>
       </div>
+
+      {tutorId && (
+        <DeleteAccountDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          userId={tutorId}
+          displayName={tutor?.profile?.display_name ?? "this tutor"}
+          accountType="tutor"
+          onDeleted={() => router.push("/dashboard/owner/tutors")}
+        />
+      )}
     </DashboardLayout>
   );
 }

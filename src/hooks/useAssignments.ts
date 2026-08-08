@@ -259,6 +259,50 @@ export const useAssignmentSubmissions = (assignmentId: string | null) => {
   });
 };
 
+/**
+ * A single published assignment for the signed-in student, with its attachments and
+ * the student's own submission. RLS already restricts `assignments` to rooms/classrooms
+ * the student belongs to, so an id they are not entitled to simply returns null.
+ */
+export const useStudentAssignment = (assignmentId: string | null) => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["student-assignment", user?.id, assignmentId],
+    queryFn: async () => {
+      if (!user || !assignmentId) return null;
+
+      const { data: assignment, error } = await supabase
+        .from("assignments")
+        .select(`
+          *,
+          classrooms (id, name, subject),
+          one_to_one_rooms (id, name, tutor_id, student_id),
+          assignment_attachments (
+            document_id,
+            documents (id, name, file_path, file_type, file_size)
+          )
+        `)
+        .eq("id", assignmentId)
+        .eq("status", "published")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!assignment) return null;
+
+      const { data: submission } = await supabase
+        .from("submissions")
+        .select("*")
+        .eq("assignment_id", assignmentId)
+        .eq("student_id", user.id)
+        .maybeSingle();
+
+      return { ...assignment, mySubmission: submission ?? null };
+    },
+    enabled: !!user && !!assignmentId,
+  });
+};
+
 // Hook for student assignments (classroom and 1v1 room assignments)
 export const useStudentAssignments = (classroomId?: string, oneToOneRoomId?: string) => {
   const { user } = useAuth();

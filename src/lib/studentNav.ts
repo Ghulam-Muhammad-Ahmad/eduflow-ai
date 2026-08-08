@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   UserRound,
+  UserRoundSearch,
   Video,
   FileText,
   BookOpen,
@@ -32,6 +33,7 @@ export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/dashboard/student" },
   { key: "classrooms", label: "My Classes", icon: Users, path: "/dashboard/student/classrooms" },
   { key: "rooms", label: "1v1 Rooms", icon: UserRound, path: "/dashboard/student/rooms" },
+  { key: "tutors", label: "My Tutors", icon: UserRoundSearch, path: "/dashboard/student/tutors" },
   { key: "sessions", label: "Sessions", icon: Video, path: "/dashboard/student/sessions" },
   { key: "documents", label: "My Documents", icon: FileText, path: "/dashboard/student/documents" },
   {

@@ -7,7 +7,8 @@ import { useOwnerWorkspace } from "@/hooks/useOwnerWorkspace";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { GraduationCap, UserPlus, Search, Eye } from "lucide-react";
+import { GraduationCap, UserPlus, Search, Eye, Trash2 } from "lucide-react";
+import DeleteAccountDialog from "@/features/dashboard/owner/components/DeleteAccountDialog";
 
 type WorkspaceStudent = {
   student_id: string;
@@ -26,6 +27,9 @@ export default function OwnerStudentsList() {
   const { workspace, assignedStudents, classrooms, oneToOneRooms, isLoading } = useOwnerWorkspace();
   const students = (assignedStudents ?? []) as WorkspaceStudent[];
   const [searchQuery, setSearchQuery] = useState("");
+  const [studentToDelete, setStudentToDelete] = useState<{ userId: string; name: string } | null>(
+    null
+  );
 
   const classroomIds = useMemo(() => classrooms.map((c) => c.id), [classrooms]);
   const { data: enrollments = [] } = useQuery({
@@ -139,8 +143,8 @@ export default function OwnerStudentsList() {
                     <th className="px-6 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       1v1 rooms
                     </th>
-                    <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground w-24">
-                      Action
+                    <th className="px-6 py-3.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground w-32">
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -179,13 +183,29 @@ export default function OwnerStudentsList() {
                         <td className="px-6 py-3.5 text-muted-foreground text-xs max-w-[180px]">
                           {roomNames.length > 0 ? roomNames.join(", ") : "—"}
                         </td>
-                        <td className="px-6 py-3.5 text-right">
-                          <Button variant="default" size="sm" asChild>
-                            <Link href={`/dashboard/owner/students/${s.student_id}`} className="inline-flex items-center gap-2" aria-label={`View ${s.student?.display_name ?? "student"}`}>
-                              <Eye className="h-4 w-4" />
-                              View
-                            </Link>
-                          </Button>
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button variant="default" size="sm" asChild>
+                              <Link href={`/dashboard/owner/students/${s.student_id}`} className="inline-flex items-center gap-2" aria-label={`View ${s.student?.display_name ?? "student"}`}>
+                                <Eye className="h-4 w-4" />
+                                View
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() =>
+                                setStudentToDelete({
+                                  userId: s.student_id,
+                                  name: s.student?.display_name ?? "this student",
+                                })
+                              }
+                              aria-label={`Delete ${s.student?.display_name ?? "student"}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -196,6 +216,18 @@ export default function OwnerStudentsList() {
           </div>
         )}
       </div>
+
+      {studentToDelete && (
+        <DeleteAccountDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setStudentToDelete(null);
+          }}
+          userId={studentToDelete.userId}
+          displayName={studentToDelete.name}
+          accountType="student"
+        />
+      )}
     </DashboardLayout>
   );
 }

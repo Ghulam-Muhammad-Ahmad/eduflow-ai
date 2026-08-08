@@ -367,6 +367,11 @@ export default function OneToOneRoomDetailContent({
                         {a.due_date && ` · Due ${format(new Date(a.due_date), "MMM d, yyyy")}`}
                       </p>
                     </div>
+                    {variant === "student" && (
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/dashboard/student/assignments/${a.id}`}>Open</Link>
+                      </Button>
+                    )}
                     {variant === "teacher" && (
                       <div className="flex items-center gap-2">
                         <Button asChild variant="outline" size="sm">

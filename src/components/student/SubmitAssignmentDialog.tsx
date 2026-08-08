@@ -13,12 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Upload, File, X, Clock, CheckCircle, Download, Paperclip } from "lucide-react";
+import { FileText, Upload, File, X, Clock, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-
-type AttachedDoc = { id: string; name: string; file_path: string; file_type: string };
+import AttachedDocuments, {
+  toAttachedDocuments,
+  type AttachedDocument as AttachedDoc,
+} from "@/components/student/AttachedDocuments";
 
 interface SubmitAssignmentDialogProps {
   open: boolean;
@@ -95,28 +95,7 @@ const SubmitAssignmentDialog = ({
     (activeTab === "text" && textContent.trim()) ||
     (activeTab === "file" && selectedFile);
 
-  const attachedDocs = (assignment.assignment_attachments ?? [])
-    .map((a) => a.documents)
-    .filter(Boolean) as AttachedDoc[];
-
-  const downloadAttachment = async (doc: AttachedDoc) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("documents")
-        .download(doc.file_path);
-      if (error) throw error;
-      const url = URL.createObjectURL(data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = doc.name;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Document downloaded");
-    } catch (error) {
-      console.error("Error downloading:", error);
-      toast.error("Failed to download document");
-    }
-  };
+  const attachedDocs = toAttachedDocuments(assignment.assignment_attachments);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,27 +138,8 @@ const SubmitAssignmentDialog = ({
 
         {/* Attached reference materials */}
         {attachedDocs.length > 0 && (
-          <div className="space-y-2 py-2 border-b">
-            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-              <Paperclip className="w-3.5 h-3.5" />
-              Reference materials
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {attachedDocs.map((doc) => (
-                <Button
-                  key={doc.id}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs"
-                  onClick={() => downloadAttachment(doc)}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span className="truncate max-w-[160px]">{doc.name}</span>
-                  <Download className="w-3 h-3 shrink-0" />
-                </Button>
-              ))}
-            </div>
+          <div className="py-2 border-b">
+            <AttachedDocuments documents={attachedDocs} title="Reference materials" compact />
           </div>
         )}
 
