@@ -66,15 +66,18 @@ import {
   Copy,
   Lightbulb,
   CheckCircle2,
+  FolderOpen,
+  Paperclip,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuizzes, Quiz, QuizQuestion } from "@/hooks/useQuizzes";
+import { useQuizzes, Quiz, QuizQuestion, QuizAttachedDocument } from "@/hooks/useQuizzes";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { useAIStudio } from "@/hooks/useAIStudio";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { AIGenerateQuestionsDialog } from "@/components/quiz/AIGenerateQuestionsDialog";
+import { DocCenterMini, type DocCenterSelection } from "@/components/ai/DocCenterMini";
 import { cn } from "@/lib/utils";
 
 // ── Question type config ────────────────────────────────────────────
@@ -147,6 +150,7 @@ const TeacherQuizBuilder = () => {
     fetchQuizWithQuestions,
     createQuiz,
     updateQuiz,
+    saveQuizAttachments,
   } = useQuizzes();
   const { classrooms } = useClassrooms();
   const { oneToOneRooms } = useOneToOneRooms();
@@ -157,6 +161,8 @@ const TeacherQuizBuilder = () => {
   const [questionToDelete, setQuestionToDelete] = useState<number | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [docCenterOpen, setDocCenterOpen] = useState(false);
+  const [attachedDocs, setAttachedDocs] = useState<QuizAttachedDocument[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -227,6 +233,11 @@ const TeacherQuizBuilder = () => {
           id: question.id ?? uuidv4(),
         }))
       );
+      setAttachedDocs(
+        (quiz.quiz_attachments ?? [])
+          .map((row) => row.documents)
+          .filter((doc): doc is QuizAttachedDocument => !!doc)
+      );
     } catch (error: unknown) {
       console.error("Error loading quiz:", error);
       toast({
@@ -248,6 +259,7 @@ const TeacherQuizBuilder = () => {
       setShowCorrectAnswers(true);
       setShowResultsImmediately(true);
       setQuestions([]);
+      setAttachedDocs([]);
     } finally {
       setLoadingQuiz(false);
     }
@@ -256,6 +268,31 @@ const TeacherQuizBuilder = () => {
   useEffect(() => {
     if (quizId) loadQuiz();
   }, [quizId, loadQuiz]);
+
+  const handleDocCenterSelect = (selection: DocCenterSelection) => {
+    // Uploading inside the modal doesn't emit a selectable document id; ignore it defensively.
+    if (selection.type !== "document") return;
+    const { doc } = selection;
+    setAttachedDocs((prev) =>
+      prev.some((d) => d.id === doc.id)
+        ? prev
+        : [
+            ...prev,
+            {
+              id: doc.id,
+              name: doc.name,
+              file_path: doc.file_path,
+              file_type: doc.file_type,
+              file_size: doc.file_size,
+            },
+          ]
+    );
+    toast({ title: "Document attached", description: `"${doc.name}" will be shared with students.` });
+  };
+
+  const removeAttachedDoc = (docId: string) => {
+    setAttachedDocs((prev) => prev.filter((d) => d.id !== docId));
+  };
 
   const handleAIGenerateQuestions = (newQuestions: QuizQuestion[]) => {
     const withOrder = newQuestions.map((q, i) => ({
@@ -428,11 +465,17 @@ const TeacherQuizBuilder = () => {
         published_at: publish ? new Date().toISOString() : undefined,
       };
       let success = false;
+      let savedQuizId: string | null = null;
       if (quizId) {
         success = await updateQuiz(quizId as string, quizData, questions);
+        savedQuizId = success ? (quizId as string) : null;
       } else {
         const created = await createQuiz(quizData, questions);
         success = !!created;
+        savedQuizId = created?.id ?? null;
+      }
+      if (success && savedQuizId) {
+        await saveQuizAttachments(savedQuizId, attachedDocs.map((d) => d.id));
       }
       if (success) router.push("/dashboard/teacher/quizzes");
     } catch (error: unknown) {
@@ -1042,6 +1085,64 @@ const TeacherQuizBuilder = () => {
             </div>
           </Card>
 
+          {/* ── Reference documents ────────────────────────────── */}
+          <Card className="overflow-hidden shadow-sm">
+            <div className="border-b bg-muted/30 px-6 py-4 sm:px-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <Paperclip className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Reference documents</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Attach PDFs or Word files from your Doc Center. Students can open them
+                    alongside the quiz.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3 p-4 sm:p-6">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setDocCenterOpen(true)}
+              >
+                <FolderOpen className="h-4 w-4" />
+                Choose from Doc Center
+              </Button>
+
+              {attachedDocs.length === 0 ? (
+                <p className="text-sm italic text-muted-foreground">
+                  No documents attached yet.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {attachedDocs.map((doc) => (
+                    <li
+                      key={doc.id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                    >
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-sm">{doc.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeAttachedDoc(doc.id)}
+                        aria-label={`Remove ${doc.name}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+
           {/* ── Settings ───────────────────────────────────────── */}
           <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
             <Card className="overflow-hidden shadow-sm">
@@ -1272,6 +1373,12 @@ const TeacherQuizBuilder = () => {
         open={aiDialogOpen}
         onOpenChange={setAiDialogOpen}
         onQuestionsGenerated={handleAIGenerateQuestions}
+      />
+
+      <DocCenterMini
+        open={docCenterOpen}
+        onOpenChange={setDocCenterOpen}
+        onSelect={handleDocCenterSelect}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

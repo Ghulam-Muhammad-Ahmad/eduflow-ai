@@ -21,6 +21,7 @@ import {
 import { Search, Clock, Target, Calendar, Play, Eye, CheckCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz, QuizAttempt } from "@/hooks/useQuizzes";
+import AttachedDocuments, { toAttachedDocuments } from "@/components/student/AttachedDocuments";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import { format, isPast, isFuture } from "date-fns";
 
@@ -234,6 +235,12 @@ const StudentQuizzes = () => {
               <span>Due: {format(new Date(quiz.available_until), "MMM d, yyyy h:mm a")}</span>
             </div>
           )}
+
+          <AttachedDocuments
+            documents={toAttachedDocuments(quiz.quiz_attachments)}
+            title="Reference materials"
+            compact
+          />
 
           {attemptInfo.completed > 0 && (
             <div className="flex items-center gap-2 text-sm">

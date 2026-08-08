@@ -18,6 +18,15 @@ export interface QuizQuestion {
   explanation?: string;
 }
 
+/** A Doc Center document attached to a quiz as reference material. */
+export interface QuizAttachedDocument {
+  id: string;
+  name: string;
+  file_path: string;
+  file_type: string | null;
+  file_size: number | null;
+}
+
 export interface Quiz {
   id: string;
   classroom_id: string | null;
@@ -48,6 +57,8 @@ export interface Quiz {
     tutor_id: string;
     student_id: string;
   } | null;
+  /** Only populated by the student-facing queries, which embed the attachment rows. */
+  quiz_attachments?: { document_id: string; documents: QuizAttachedDocument | null }[];
 }
 
 export interface QuizAttempt {
@@ -228,7 +239,7 @@ export const useQuizzes = () => {
 
       const { data, error } = await supabase
         .from('quizzes')
-        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id)')
+        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id), quiz_attachments(document_id, documents(id, name, file_path, file_type, file_size))')
         .or(orParts.join(','))
         .in('status', ['scheduled', 'active', 'closed'])
         .order('created_at', { ascending: false })
@@ -255,7 +266,7 @@ export const useQuizzes = () => {
       
       const { data: quiz, error: quizError } = await supabase
         .from('quizzes')
-        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id)')
+        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id), quiz_attachments(document_id, documents(id, name, file_path, file_type, file_size))')
         .eq('id', quizId)
         .returns<QuizWithClassroom>()
         .single();
@@ -818,8 +829,43 @@ export const useQuizzes = () => {
     }
   };
 
+  /**
+   * Replace a quiz's attachments with `documentIds`. Deleting first keeps this idempotent
+   * and lets the caller pass the full desired set rather than a diff.
+   */
+  const saveQuizAttachments = useCallback(async (quizId: string, documentIds: string[]) => {
+    const { error: deleteError } = await supabase
+      .from('quiz_attachments')
+      .delete()
+      .eq('quiz_id', quizId);
+    if (deleteError) {
+      toast({
+        title: 'Error',
+        description: deleteError.message || 'Failed to update quiz documents',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    if (documentIds.length === 0) return true;
+
+    const { error: insertError } = await supabase
+      .from('quiz_attachments')
+      .insert(documentIds.map((document_id) => ({ quiz_id: quizId, document_id })));
+    if (insertError) {
+      toast({
+        title: 'Error',
+        description: insertError.message || 'Failed to attach quiz documents',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    return true;
+  }, [toast]);
+
   return {
     loading,
+    saveQuizAttachments,
     fetchTeacherQuizzes,
     fetchClassroomQuizzes,
     fetchOneToOneRoomQuizzes,

@@ -31,7 +31,9 @@ import {
   Plus,
   ChevronRight,
   PanelLeft,
+  Trash2,
 } from "lucide-react";
+import DeleteAccountDialog from "@/features/dashboard/owner/components/DeleteAccountDialog";
 import { MemberCreditsCard } from "@/components/credits/MemberCreditsCard";
 import { MemberStorageCard } from "@/components/storage/MemberStorageCard";
 import {
@@ -101,6 +103,7 @@ export default function OwnerStudentProfile() {
   const [navMode, setNavMode] = useState<"default" | "custom">("default");
   const [navHidden, setNavHidden] = useState<string[]>([]);
   const [navSaving, setNavSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     const override = workspaceStudent?.settings?.nav_hidden;
@@ -260,12 +263,25 @@ export default function OwnerStudentProfile() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <Button variant="ghost" asChild>
-          <Link href="/dashboard/owner/students">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Students
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between gap-3">
+          <Button variant="ghost" asChild>
+            <Link href="/dashboard/owner/students">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Students
+            </Link>
+          </Button>
+          {studentId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete account
+            </Button>
+          )}
+        </div>
 
         {/* Profile (left) + 1v1 Rooms (right) — same row */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -630,6 +646,17 @@ export default function OwnerStudentProfile() {
         </div>
 
       </div>
+
+      {studentId && (
+        <DeleteAccountDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          userId={studentId}
+          displayName={displayName}
+          accountType="student"
+          onDeleted={() => router.push("/dashboard/owner/students")}
+        />
+      )}
     </DashboardLayout>
   );
 }

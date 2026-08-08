@@ -897,6 +897,42 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_attachments: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          quiz_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          quiz_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          quiz_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attachments_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attachments_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quiz_attempts: {
         Row: {
           answers: Json

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Users, UserPlus, Mail, GraduationCap, Search, BookOpen, Eye } from "lucide-react";
+import { Users, UserPlus, Mail, GraduationCap, Search, BookOpen, Eye, Trash2 } from "lucide-react";
+import DeleteAccountDialog from "@/features/dashboard/owner/components/DeleteAccountDialog";
 
 const contractStatusLabel: Record<string, string> = {
   draft: "Draft",
@@ -22,6 +23,7 @@ type ClassroomRow = { id: string; name: string; subject?: string | null };
 export default function OwnerTutorsList() {
   const { workspace, tutors, oneToOneRooms, contractByTutorId, classrooms, tutorsByClassroomId, isLoading } = useOwnerWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
+  const [tutorToDelete, setTutorToDelete] = useState<{ userId: string; name: string } | null>(null);
   const classroomIds = useMemo(() => classrooms.map((c) => c.id), [classrooms]);
   const { data: enrollmentCounts = {} } = useQuery({
     queryKey: ["owner-classroom-enrollment-counts", classroomIds],
@@ -136,7 +138,7 @@ export default function OwnerTutorsList() {
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Contract</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm hidden md:table-cell">Classes</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-sm text-center w-28">Students</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground text-sm text-right w-28">Action</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-sm text-right w-36">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -208,17 +210,28 @@ export default function OwnerTutorsList() {
                             {studentCount}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <Button asChild size="sm" variant="default">
-                            <Link
-                              href={`/dashboard/owner/tutors/${t.user_id}`}
-                              className="inline-flex items-center gap-2"
-                              aria-label={`View ${name}`}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button asChild size="sm" variant="default">
+                              <Link
+                                href={`/dashboard/owner/tutors/${t.user_id}`}
+                                className="inline-flex items-center gap-2"
+                                aria-label={`View ${name}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                                View
+                              </Link>
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => setTutorToDelete({ userId: t.user_id, name })}
+                              aria-label={`Delete ${name}`}
                             >
-                              <Eye className="h-4 w-4" />
-                              View
-                            </Link>
-                          </Button>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -229,6 +242,18 @@ export default function OwnerTutorsList() {
           </div>
         )}
       </div>
+
+      {tutorToDelete && (
+        <DeleteAccountDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setTutorToDelete(null);
+          }}
+          userId={tutorToDelete.userId}
+          displayName={tutorToDelete.name}
+          accountType="tutor"
+        />
+      )}
     </DashboardLayout>
   );
 }
