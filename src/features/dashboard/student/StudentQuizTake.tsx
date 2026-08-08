@@ -19,6 +19,7 @@ import {
 import { Clock, AlertCircle, Check } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuizzes, Quiz, QuizQuestion, QuizAttempt } from "@/hooks/useQuizzes";
+import AttachedDocuments, { toAttachedDocuments } from "@/components/student/AttachedDocuments";
 import { Progress } from "@/components/ui/progress";
 
 const StudentQuizTake = () => {
@@ -376,6 +377,17 @@ const StudentQuizTake = () => {
                 </p>
               </div>
             </div>
+          </Card>
+        )}
+
+        {/* Reference documents the tutor attached — available throughout the attempt */}
+        {toAttachedDocuments(quiz.quiz_attachments).length > 0 && (
+          <Card className="p-4 mb-6">
+            <AttachedDocuments
+              documents={toAttachedDocuments(quiz.quiz_attachments)}
+              title="Reference materials"
+              compact
+            />
           </Card>
         )}
 

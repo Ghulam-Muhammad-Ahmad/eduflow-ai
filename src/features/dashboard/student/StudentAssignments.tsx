@@ -1,8 +1,10 @@
 import { useState } from "react";
+import Link from "next/link";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useStudentAssignments } from "@/hooks/useAssignments";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import SubmitAssignmentDialog from "@/components/student/SubmitAssignmentDialog";
+import AttachedDocuments, { toAttachedDocuments } from "@/components/student/AttachedDocuments";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,12 +30,8 @@ import {
   CheckCircle,
   AlertCircle,
   Send,
-  Download,
-  Paperclip,
 } from "lucide-react";
 import { format, isPast, isWithinInterval, addDays } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 interface AssignmentWithSubmission {
   id: string;
@@ -102,35 +100,10 @@ const StudentAssignments = () => {
     setSubmitDialogOpen(true);
   };
 
-  const downloadAttachment = async (doc: { name: string; file_path: string }) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("documents")
-        .download(doc.file_path);
-      if (error) throw error;
-      const url = URL.createObjectURL(data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = doc.name;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Document downloaded");
-    } catch (error) {
-      console.error("Error downloading:", error);
-      toast.error("Failed to download document");
-    }
-  };
-
-  const getAttachments = (assignment: AssignmentWithSubmission) => {
-    const attachments = assignment?.assignment_attachments ?? [];
-    return attachments
-      .map((a: { documents?: { id: string; name: string; file_path: string; file_type: string } }) => a.documents)
-      .filter(Boolean) as { id: string; name: string; file_path: string; file_type: string }[];
-  };
-
   const renderAssignmentCard = (assignment: AssignmentWithSubmission) => {
     const status = getAssignmentStatus(assignment);
     const dueDate = assignment.due_date ? new Date(assignment.due_date) : null;
+    const attachments = toAttachedDocuments(assignment.assignment_attachments);
 
     return (
       <Card
@@ -148,7 +121,14 @@ const StudentAssignments = () => {
                   </Badge>
                 )}
               </div>
-              <CardTitle className="text-lg truncate">{assignment.title}</CardTitle>
+              <CardTitle className="text-lg truncate">
+                <Link
+                  href={`/dashboard/student/assignments/${assignment.id}`}
+                  className="hover:underline"
+                >
+                  {assignment.title}
+                </Link>
+              </CardTitle>
               <CardDescription className="truncate">
                 {assignment.classrooms && typeof assignment.classrooms === "object"
                   ? (assignment.classrooms as { name?: string }).name ?? ""
@@ -164,32 +144,7 @@ const StudentAssignments = () => {
             </p>
           )}
 
-          {getAttachments(assignment).length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Paperclip className="w-3.5 h-3.5" />
-                Attached materials
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {getAttachments(assignment).map((doc) => (
-                  <Button
-                    key={doc.id}
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      downloadAttachment(doc);
-                    }}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span className="truncate max-w-[120px]">{doc.name}</span>
-                    <Download className="w-3 h-3 shrink-0" />
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
+          <AttachedDocuments documents={attachments} title="Attached materials" compact />
 
           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
             {dueDate && (
@@ -212,25 +167,33 @@ const StudentAssignments = () => {
             )}
           </div>
 
-          {status.status !== "graded" && (
-            <Button
-              variant={status.status === "submitted" ? "outline" : "default"}
-              className="w-full gap-2"
-              onClick={() => openSubmitDialog(assignment)}
-            >
-              {status.status === "submitted" ? (
-                <>
-                  <CheckCircle className="w-4 h-4" />
-                  View Submission
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  Submit Assignment
-                </>
-              )}
+          <div className="flex flex-col gap-2">
+            <Button variant="outline" className="w-full gap-2" asChild>
+              <Link href={`/dashboard/student/assignments/${assignment.id}`}>
+                <FileText className="w-4 h-4" />
+                View details
+              </Link>
             </Button>
-          )}
+            {status.status !== "graded" && (
+              <Button
+                variant={status.status === "submitted" ? "outline" : "default"}
+                className="w-full gap-2"
+                onClick={() => openSubmitDialog(assignment)}
+              >
+                {status.status === "submitted" ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    View Submission
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Submit Assignment
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
