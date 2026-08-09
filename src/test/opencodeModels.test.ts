@@ -37,7 +37,7 @@ describe("resolveModel", () => {
   });
 
   it("passes an explicit OpenCode model id through untouched", () => {
-    expect(resolveModel({ requested: "kimi-k2.6", taskType: "checker" })).toBe("kimi-k2.6");
+    expect(resolveModel({ requested: "qwen3.8-max", taskType: "checker" })).toBe("qwen3.8-max");
     expect(resolveModel({ requested: "glm-5.1" })).toBe("glm-5.1");
   });
 

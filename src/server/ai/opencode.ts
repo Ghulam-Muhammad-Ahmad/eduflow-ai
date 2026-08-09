@@ -23,16 +23,20 @@ const DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1";
 
 /**
  * Best-in-class models available on the OpenCode Go plan, grouped by what they
- * are good at. The catalog moves as new versions ship, so every id can be
- * overridden per-role with an env var without touching code.
+ * are good at. Every id below was confirmed present and responding via
+ * `POST /api/ai/test-models`; the newest release in each family is used.
+ *
+ * The catalog moves as new versions ship, so every id can be overridden
+ * per-role with an env var without touching code — use the same health check
+ * after any change.
  */
 export const OPENCODE_MODELS = {
-  /** Kimi K2.6 — strongest all-round instruction following and long-form writing. */
-  general: process.env.OPENCODE_MODEL_GENERAL || "kimi-k2.6",
+  /** Kimi K3 — strongest all-round instruction following and long-form writing. */
+  general: process.env.OPENCODE_MODEL_GENERAL || "kimi-k3",
   /** DeepSeek V4 Pro — deep reasoning; used for grading and evaluation. */
   reasoning: process.env.OPENCODE_MODEL_REASONING || "deepseek-v4-pro",
-  /** GLM 5.1 — very reliable structured/JSON output. */
-  structured: process.env.OPENCODE_MODEL_STRUCTURED || "glm-5.1",
+  /** GLM 5.2 — very reliable structured/JSON output. */
+  structured: process.env.OPENCODE_MODEL_STRUCTURED || "glm-5.2",
   /** MiniMax M3 — 512K context; used when a whole document is in the prompt. */
   longContext: process.env.OPENCODE_MODEL_LONG_CONTEXT || "minimax-m3",
   /** DeepSeek V4 Flash — fast and cheap for short, low-stakes calls. */
