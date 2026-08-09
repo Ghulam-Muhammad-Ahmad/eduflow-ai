@@ -16,4 +16,6 @@ export type AITaskType =
   | "contract_revision"
   | "teacher_test_generation"
   | "teacher_evaluation"
-  | "tutor_matching";
+  | "tutor_matching"
+  /** Owner-run AI gateway health check; one credit per run regardless of model count. */
+  | "model_test";

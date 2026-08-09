@@ -36,6 +36,7 @@ const WEIGHT_ENV_KEYS: Record<AITaskType, string> = {
   teacher_test_generation: "AI_CREDIT_WEIGHT_TEACHER_TEST_GENERATION",
   teacher_evaluation: "AI_CREDIT_WEIGHT_TEACHER_EVALUATION",
   tutor_matching: "AI_CREDIT_WEIGHT_TUTOR_MATCHING",
+  model_test: "AI_CREDIT_WEIGHT_MODEL_TEST",
 };
 
 const DEFAULT_WEIGHT = 1;

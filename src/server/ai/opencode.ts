@@ -65,6 +65,9 @@ const TASK_MODEL_ROLE: Record<AITaskType, ModelRole> = {
   teacher_test_generation: "structured",
   teacher_evaluation: "reasoning",
   tutor_matching: "reasoning",
+  // Health check probes each configured model explicitly, so its default is
+  // only a fallback.
+  model_test: "fast",
 };
 
 /**
@@ -152,6 +155,8 @@ export interface ChatCompleteOptions {
   temperature?: number;
   /** Ask the gateway for a JSON object response. Falls back silently if unsupported. */
   json?: boolean;
+  /** Abort a single attempt after this long. Used by the health check. */
+  timeoutMs?: number;
 }
 
 export interface ChatCompleteResult {
@@ -159,6 +164,12 @@ export interface ChatCompleteResult {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /**
+   * Optional parameters the gateway would not accept for this model, dropped to
+   * get an answer. Empty on a clean first-attempt success. Surfaced so the
+   * health check can report "works, but JSON mode is unsupported".
+   */
+  droppedParams: string[];
 }
 
 const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
@@ -253,6 +264,7 @@ export async function chatComplete({
   model,
   temperature = 0.7,
   json = false,
+  timeoutMs,
 }: ChatCompleteOptions): Promise<ChatCompleteResult> {
   const client = getOpenCodeClient();
   const selectedModel = resolveModel({
@@ -292,16 +304,23 @@ export async function chatComplete({
   for (let i = 0; i < variants.length; i += 1) {
     const isLast = i === variants.length - 1;
     try {
-      const completion = await client.chat.completions.create(buildRequest(variants[i]));
+      const completion = await client.chat.completions.create(
+        buildRequest(variants[i]),
+        timeoutMs ? { timeout: timeoutMs } : undefined
+      );
       const { text, finishReason, refusal } = extractMessageText(completion);
 
       if (text.trim()) {
         const usage = completion.usage;
+        const dropped: string[] = [];
+        if (json && !variants[i].withJson) dropped.push("response_format");
+        if (!variants[i].withTemperature) dropped.push("temperature");
         return {
           content: text,
           model: completion.model || selectedModel,
           inputTokens: usage?.prompt_tokens ?? estimateTokens((system ?? "") + prompt),
           outputTokens: usage?.completion_tokens ?? estimateTokens(text),
+          droppedParams: dropped,
         };
       }
 
@@ -368,6 +387,109 @@ export async function listAvailableModels(): Promise<string[]> {
   const client = getOpenCodeClient();
   const response = await client.models.list();
   return response.data.map((m) => m.id).sort();
+}
+
+/** Outcome of probing one model with a real generation call. */
+export interface ModelTestResult {
+  model: string;
+  /** Routing roles this model serves — which features break if it fails. */
+  roles: ModelRole[];
+  ok: boolean;
+  latencyMs: number;
+  /** Trimmed reply, when the call succeeded. */
+  reply?: string;
+  /** Parameters the gateway would not accept (e.g. `response_format`). */
+  droppedParams?: string[];
+  error?: string;
+  /** Whether the id appears in the gateway's catalog; null if it couldn't be listed. */
+  inCatalog: boolean | null;
+}
+
+export interface ModelTestReport {
+  ok: boolean;
+  baseUrl: string;
+  testedAt: string;
+  results: ModelTestResult[];
+  /** Ids the gateway lists; null when the catalog call failed. */
+  availableModels: string[] | null;
+  catalogError?: string;
+}
+
+/** Per-probe timeout. A wedged model must not hang the whole report. */
+const PROBE_TIMEOUT_MS = 30_000;
+
+/**
+ * Send a real generation call to every distinct model the app is configured to
+ * use, and report which ones answer.
+ *
+ * Probes run against the same `chatComplete` path the app uses, so a model that
+ * passes here is genuinely callable — including the parameter fallbacks. Models
+ * are deduplicated: several roles often point at one id, and each is only worth
+ * one call.
+ */
+export async function testConfiguredModels(): Promise<ModelTestReport> {
+  const baseUrl = process.env.OPENCODE_BASE_URL?.trim() || DEFAULT_BASE_URL;
+
+  let availableModels: string[] | null = null;
+  let catalogError: string | undefined;
+  try {
+    availableModels = await listAvailableModels();
+  } catch (error: unknown) {
+    catalogError = error instanceof Error ? error.message : "Could not list models";
+  }
+
+  // Group roles by model id so one call covers every role sharing it.
+  const rolesByModel = new Map<string, ModelRole[]>();
+  (Object.keys(OPENCODE_MODELS) as ModelRole[]).forEach((role) => {
+    const id = OPENCODE_MODELS[role];
+    rolesByModel.set(id, [...(rolesByModel.get(id) ?? []), role]);
+  });
+
+  const results = await Promise.all(
+    [...rolesByModel.entries()].map(async ([model, roles]): Promise<ModelTestResult> => {
+      const startedAt = Date.now();
+      const inCatalog = availableModels ? availableModels.includes(model) : null;
+      try {
+        const result = await chatComplete({
+          prompt: 'Reply with exactly this JSON and nothing else: {"ok":true}',
+          system: "You return only raw JSON.",
+          model,
+          temperature: 0,
+          json: true,
+          timeoutMs: PROBE_TIMEOUT_MS,
+        });
+        return {
+          model,
+          roles,
+          ok: true,
+          latencyMs: Date.now() - startedAt,
+          reply: result.content.trim().slice(0, 200),
+          droppedParams: result.droppedParams,
+          inCatalog,
+        };
+      } catch (error: unknown) {
+        return {
+          model,
+          roles,
+          ok: false,
+          latencyMs: Date.now() - startedAt,
+          error: error instanceof Error ? error.message : "Request failed",
+          inCatalog,
+        };
+      }
+    })
+  );
+
+  results.sort((a, b) => a.model.localeCompare(b.model));
+
+  return {
+    ok: results.every((r) => r.ok),
+    baseUrl,
+    testedAt: new Date().toISOString(),
+    results,
+    availableModels,
+    catalogError,
+  };
 }
 
 /** Strip a leading/trailing markdown code fence before JSON.parse. */
