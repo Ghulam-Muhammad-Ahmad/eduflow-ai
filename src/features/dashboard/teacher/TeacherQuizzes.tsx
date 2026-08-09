@@ -338,7 +338,9 @@ const TeacherQuizzes = () => {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm font-medium">
-                        {getQuestionCount(quiz)} question{getQuestionCount(quiz) !== 1 ? "s" : ""}
+                        {getQuestionCount(quiz) === 0 && (quiz.quiz_attachments?.length ?? 0) > 0
+                          ? "Document-based"
+                          : `${getQuestionCount(quiz)} question${getQuestionCount(quiz) !== 1 ? "s" : ""}`}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

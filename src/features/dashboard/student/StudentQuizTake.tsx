@@ -16,9 +16,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Clock, AlertCircle, Check } from "lucide-react";
+import { Clock, AlertCircle, Check, Upload, FileText, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuizzes, Quiz, QuizQuestion, QuizAttempt } from "@/hooks/useQuizzes";
+import {
+  useQuizzes,
+  Quiz,
+  QuizQuestion,
+  QuizAttempt,
+  DEFAULT_RESPONSE_POINTS,
+  isDocumentResponseQuiz,
+} from "@/hooks/useQuizzes";
 import AttachedDocuments, { toAttachedDocuments } from "@/components/student/AttachedDocuments";
 import { Progress } from "@/components/ui/progress";
 
@@ -32,9 +39,10 @@ const StudentQuizTake = () => {
     fetchQuizWithQuestions,
     startQuizAttempt,
     submitQuizAttempt,
+    submitDocumentResponse,
+    uploadQuizResponseFile,
     fetchQuizAttemptById,
     fetchStudentAttempts,
-    loading,
   } = useQuizzes();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -45,11 +53,22 @@ const StudentQuizTake = () => {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  /** Document-response quizzes: the student's typed answer and/or uploaded file. */
+  const [responseText, setResponseText] = useState("");
+  const [responseFile, setResponseFile] = useState<File | null>(null);
+  const [quizLoaded, setQuizLoaded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(Date.now());
   const autoSubmitRef = useRef<() => Promise<void> | void>(() => {});
   const submitHandlerRef = useRef<(auto: boolean) => Promise<void>>(() => Promise.resolve());
   const submittingRef = useRef(false);
+
+  /**
+   * The teacher attached a document and added no questions: the document is the
+   * paper, and the student answers with free text and/or a file upload.
+   */
+  const isDocumentResponse = isDocumentResponseQuiz(quiz, questions.length);
 
   useEffect(() => {
     if (quizIdValue) {
@@ -127,6 +146,7 @@ const StudentQuizTake = () => {
   const loadQuiz = async () => {
     if (!quizIdValue) return;
     const data = await fetchQuizWithQuestions(quizIdValue);
+    setQuizLoaded(true);
     if (data) {
       const quiz = data.quiz;
       if (quiz) setQuiz(quiz);
@@ -164,6 +184,11 @@ const StudentQuizTake = () => {
 
       setAttempt(existingAttempt);
       
+      // Restore a document-response draft so resuming doesn't lose typed text.
+      if (existingAttempt.response_text) {
+        setResponseText(existingAttempt.response_text);
+      }
+
       // Restore answers from the attempt
       if (existingAttempt.answers && Array.isArray(existingAttempt.answers)) {
         const restoredAnswers: Record<string, string | string[]> = {};
@@ -270,8 +295,29 @@ const StudentQuizTake = () => {
 
     try {
       const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      const processedAnswers = calculateScore();
 
+      if (isDocumentResponse) {
+        // Upload first so a storage failure doesn't leave the attempt submitted
+        // with a missing file.
+        let uploaded: { path: string; name: string; size: number } | null = null;
+        if (responseFile && user?.id && quizIdValue) {
+          uploaded = await uploadQuizResponseFile(quizIdValue, user.id, responseFile);
+          if (!uploaded) return; // toast already shown by the hook
+        }
+
+        const success = await submitDocumentResponse(
+          attempt.id,
+          { responseText, file: uploaded },
+          timeSpent,
+          quiz?.response_points ?? DEFAULT_RESPONSE_POINTS
+        );
+        if (success) {
+          router.push(`/dashboard/student/quizzes/${quizIdValue}/results/${attempt.id}`);
+        }
+        return;
+      }
+
+      const processedAnswers = calculateScore();
       const hasShortAnswer = questions.some((q) => q.question_type === "short_answer");
       const success = await submitQuizAttempt(attempt.id, processedAnswers, timeSpent, {
         hasShortAnswer,
@@ -294,8 +340,9 @@ const StudentQuizTake = () => {
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Safety check for current question
-  if (loading || !quiz || !attempt || questions.length === 0) {
+  // Wait for the quiz fetch and the attempt, but never for questions — a
+  // document-based quiz legitimately has none.
+  if (!quizLoaded || !quiz || !attempt) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading quiz...</p>
@@ -308,11 +355,37 @@ const StudentQuizTake = () => {
     return null;
   }
 
-  // Ensure currentQuestionIndex is valid
-  const validIndex = Math.min(Math.max(0, currentQuestionIndex), questions.length - 1);
+  // A quiz with neither questions nor a document has nothing to answer. Say so
+  // instead of spinning forever.
+  if (!isDocumentResponse && questions.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="max-w-md p-8 text-center">
+          <AlertCircle className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">This quiz has no content yet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your teacher hasn&apos;t added any questions or attached a document.
+            Please check back later.
+          </p>
+          <Button
+            className="mt-6"
+            variant="outline"
+            onClick={() => router.push("/dashboard/student/quizzes")}
+          >
+            Back to quizzes
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // Ensure currentQuestionIndex is valid (question-based quizzes only)
+  const validIndex = questions.length
+    ? Math.min(Math.max(0, currentQuestionIndex), questions.length - 1)
+    : 0;
   const currentQuestion = questions[validIndex];
-  
-  if (!currentQuestion) {
+
+  if (!isDocumentResponse && !currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading quiz...</p>
@@ -320,7 +393,10 @@ const StudentQuizTake = () => {
     );
   }
 
-  const progress = ((validIndex + 1) / questions.length) * 100;
+  const hasResponse = responseText.trim().length > 0 || responseFile !== null;
+  const progress = isDocumentResponse
+    ? (hasResponse ? 100 : 0)
+    : ((validIndex + 1) / questions.length) * 100;
   const answeredCount = questions.filter((q) => isQuestionAnswered(q.id!)).length;
 
   return (
@@ -332,7 +408,9 @@ const StudentQuizTake = () => {
             <div>
               <h1 className="text-xl font-bold">{quiz.title}</h1>
               <p className="text-sm text-muted-foreground">
-                Question {validIndex + 1} of {questions.length}
+                {isDocumentResponse
+                  ? "Answer from the attached document"
+                  : `Question ${validIndex + 1} of ${questions.length}`}
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -354,7 +432,7 @@ const StudentQuizTake = () => {
                 onClick={() => setSubmitDialogOpen(true)}
                 disabled={submitting}
               >
-                Submit Quiz
+                {isDocumentResponse ? "Submit Answer" : "Submit Quiz"}
               </Button>
             </div>
           </div>
@@ -391,6 +469,86 @@ const StudentQuizTake = () => {
           </Card>
         )}
 
+        {/* Document-response panel: no questions, answer straight from the document */}
+        {isDocumentResponse ? (
+          <Card className="p-6 sm:p-8">
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold">Your answer</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Read the reference material above, then type your answer, upload a
+                file, or do both. Worth {quiz.response_points ?? DEFAULT_RESPONSE_POINTS}{" "}
+                marks — your teacher will mark it.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <Label htmlFor="response-text" className="mb-2 block">
+                  Written answer
+                </Label>
+                <Textarea
+                  id="response-text"
+                  value={responseText}
+                  onChange={(e) => setResponseText(e.target.value)}
+                  placeholder="Type your answer here..."
+                  rows={12}
+                  className="resize-y"
+                />
+              </div>
+
+              <div>
+                <Label className="mb-2 block">Attach a file (optional)</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setResponseFile(file);
+                    // Allow re-selecting the same file after a removal.
+                    e.target.value = "";
+                  }}
+                />
+                {responseFile ? (
+                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {responseFile.name}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {(responseFile.size / 1024 / 1024).toFixed(1)} MB
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setResponseFile(null)}
+                      aria-label="Remove file"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Choose file
+                  </Button>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  PDF, Word, text or image. Max 20 MB.
+                </p>
+              </div>
+            </div>
+          </Card>
+        ) : (
+        <>
         {/* Question Card */}
         <Card className="p-8">
           <div className="mb-6">
@@ -524,29 +682,55 @@ const StudentQuizTake = () => {
             ))}
           </div>
         </Card>
+        </>
+        )}
       </div>
 
       {/* Submit Confirmation Dialog */}
       <AlertDialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Submit Quiz?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isDocumentResponse ? "Submit Answer?" : "Submit Quiz?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              You have answered {answeredCount} out of {questions.length} questions.
-              {answeredCount < questions.length && (
-                <span className="block mt-2 text-destructive">
-                  Warning: You have not answered all questions. Unanswered questions will
-                  receive 0 points.
-                </span>
+              {isDocumentResponse ? (
+                <>
+                  {hasResponse ? (
+                    <span className="block">
+                      Submitting
+                      {responseText.trim() ? " your written answer" : ""}
+                      {responseText.trim() && responseFile ? " and" : ""}
+                      {responseFile ? ` the file "${responseFile.name}"` : ""}.
+                    </span>
+                  ) : (
+                    <span className="block text-destructive">
+                      Warning: you have not written an answer or attached a file. An
+                      empty submission will receive 0 marks.
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  You have answered {answeredCount} out of {questions.length} questions.
+                  {answeredCount < questions.length && (
+                    <span className="block mt-2 text-destructive">
+                      Warning: You have not answered all questions. Unanswered questions
+                      will receive 0 points.
+                    </span>
+                  )}
+                </>
               )}
               <span className="block mt-2">
-                Are you sure you want to submit? You cannot change your answers after
+                Are you sure you want to submit? You cannot change your answer after
                 submission.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Review Answers</AlertDialogCancel>
+            <AlertDialogCancel>
+              {isDocumentResponse ? "Keep editing" : "Review Answers"}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={submitting}
               onClick={() => {
@@ -555,7 +739,16 @@ const StudentQuizTake = () => {
                 handleSubmit();
               }}
             >
-              Submit Quiz
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : isDocumentResponse ? (
+                "Submit Answer"
+              ) : (
+                "Submit Quiz"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -5,14 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, CheckCircle, XCircle, Clock, Target, TrendingUp } from "lucide-react";
-import { useQuizzes, Quiz, QuizAttempt, QuizQuestion } from "@/hooks/useQuizzes";
+import { ArrowLeft, CheckCircle, XCircle, Clock, Target, TrendingUp, FileText, Download } from "lucide-react";
+import {
+  useQuizzes,
+  Quiz,
+  QuizAttempt,
+  QuizQuestion,
+  isDocumentResponseQuiz,
+} from "@/hooks/useQuizzes";
 import { supabase } from "@/integrations/supabase/client";
 
 const StudentQuizResults = () => {
   const router = useRouter();
   const { quizId, attemptId } = router.query;
-  const { fetchQuizWithQuestions } = useQuizzes();
+  const { fetchQuizWithQuestions, getQuizResponseFileUrl } = useQuizzes();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -132,6 +138,42 @@ const StudentQuizResults = () => {
   const totalQuestions = questions.length;
   const correctAnswers = (attempt.answers || []).filter((ans) => ans.is_correct).length;
   const isPendingGrading = attempt.status === "submitted";
+  /** No questions but a document was attached: the student answered from the document. */
+  const isDocumentResponse = isDocumentResponseQuiz(quiz, questions.length);
+
+  const openResponseFile = async () => {
+    if (!attempt.response_file_path) return;
+    const url = await getQuizResponseFileUrl(attempt.response_file_path);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const submittedResponse = (
+    <Card className="p-6">
+      <h2 className="mb-4 text-xl font-semibold">Your submission</h2>
+      {attempt.response_text ? (
+        <div className="rounded-lg border bg-muted/30 p-4">
+          <p className="whitespace-pre-wrap text-sm">{attempt.response_text}</p>
+        </div>
+      ) : (
+        <p className="text-sm italic text-muted-foreground">
+          No written answer was submitted.
+        </p>
+      )}
+      {attempt.response_file_name && (
+        <button
+          type="button"
+          onClick={openResponseFile}
+          className="mt-4 flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-accent"
+        >
+          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-sm">
+            {attempt.response_file_name}
+          </span>
+          <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+      )}
+    </Card>
+  );
 
   return (
     <DashboardLayout role="student">
@@ -156,6 +198,7 @@ const StudentQuizResults = () => {
         </div>
 
         {isPendingGrading ? (
+          <>
           <Card className="p-8">
             <div className="text-center space-y-4">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/10 mb-4">
@@ -163,8 +206,9 @@ const StudentQuizResults = () => {
               </div>
               <h2 className="text-xl font-semibold">Pending Manual Grading</h2>
               <p className="text-muted-foreground max-w-md mx-auto">
-                This quiz contains short answer questions. Your teacher will grade them and your
-                score and results will appear here once grading is complete.
+                {isDocumentResponse
+                  ? "Your response has been sent to your teacher. Your score will appear here once it has been marked."
+                  : "This quiz contains short answer questions. Your teacher will grade them and your score and results will appear here once grading is complete."}
               </p>
               <div className="flex justify-center gap-6 pt-4 text-sm text-muted-foreground">
                 <span>
@@ -184,6 +228,8 @@ const StudentQuizResults = () => {
               </Button>
             </div>
           </Card>
+          {isDocumentResponse && submittedResponse}
+          </>
         ) : (
           <>
         {/* Score Summary */}
@@ -211,12 +257,18 @@ const StudentQuizResults = () => {
               <div className="text-center p-4 bg-secondary/50 rounded-lg">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Target className="h-5 w-5 text-primary" />
-                  <span className="font-semibold">Accuracy</span>
+                  <span className="font-semibold">
+                    {isDocumentResponse ? "Marks" : "Accuracy"}
+                  </span>
                 </div>
                 <p className="text-2xl font-bold">
-                  {correctAnswers}/{totalQuestions}
+                  {isDocumentResponse
+                    ? `${attempt.points_earned?.toFixed(1) ?? 0}/${attempt.points_possible?.toFixed(1) ?? 0}`
+                    : `${correctAnswers}/${totalQuestions}`}
                 </p>
-                <p className="text-xs text-muted-foreground">Correct Answers</p>
+                <p className="text-xs text-muted-foreground">
+                  {isDocumentResponse ? "Awarded" : "Correct Answers"}
+                </p>
               </div>
 
               <div className="text-center p-4 bg-secondary/50 rounded-lg">
@@ -255,7 +307,7 @@ const StudentQuizResults = () => {
               </div>
             )}
 
-            {quiz.show_correct_answers ? (
+            {isDocumentResponse ? null : quiz.show_correct_answers ? (
               <p className="text-sm text-muted-foreground">
                 Scroll down to review your answers and see correct solutions
               </p>
@@ -267,8 +319,10 @@ const StudentQuizResults = () => {
           </div>
         </Card>
 
+        {isDocumentResponse && submittedResponse}
+
         {/* Question Review */}
-        {quiz.show_correct_answers && (
+        {!isDocumentResponse && quiz.show_correct_answers && (
           <div className="space-y-4">
             <h2 className="text-2xl font-semibold">Answer Review</h2>
 

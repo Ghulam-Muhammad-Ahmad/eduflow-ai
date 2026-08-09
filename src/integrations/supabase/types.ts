@@ -945,6 +945,10 @@ export type Database = {
           points_earned: number | null
           points_possible: number | null
           quiz_id: string
+          response_file_name: string | null
+          response_file_path: string | null
+          response_file_size: number | null
+          response_text: string | null
           score: number | null
           started_at: string
           status: string
@@ -964,6 +968,10 @@ export type Database = {
           points_earned?: number | null
           points_possible?: number | null
           quiz_id: string
+          response_file_name?: string | null
+          response_file_path?: string | null
+          response_file_size?: number | null
+          response_text?: string | null
           score?: number | null
           started_at?: string
           status?: string
@@ -983,6 +991,10 @@ export type Database = {
           points_earned?: number | null
           points_possible?: number | null
           quiz_id?: string
+          response_file_name?: string | null
+          response_file_path?: string | null
+          response_file_size?: number | null
+          response_text?: string | null
           score?: number | null
           started_at?: string
           status?: string
@@ -1061,6 +1073,7 @@ export type Database = {
           one_to_one_room_id: string | null
           passing_score: number | null
           published_at: string | null
+          response_points: number
           randomize_questions: boolean | null
           show_correct_answers: boolean | null
           show_results_immediately: boolean | null
@@ -1082,6 +1095,7 @@ export type Database = {
           one_to_one_room_id?: string | null
           passing_score?: number | null
           published_at?: string | null
+          response_points?: number
           randomize_questions?: boolean | null
           show_correct_answers?: boolean | null
           show_results_immediately?: boolean | null
@@ -1103,6 +1117,7 @@ export type Database = {
           one_to_one_room_id?: string | null
           passing_score?: number | null
           published_at?: string | null
+          response_points?: number
           randomize_questions?: boolean | null
           show_correct_answers?: boolean | null
           show_results_immediately?: boolean | null
