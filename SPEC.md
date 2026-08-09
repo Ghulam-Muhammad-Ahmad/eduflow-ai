@@ -1022,6 +1022,7 @@ All API routes are under `pages/api/`. They use `getAuthUser(req, res)` for auth
 | `/api/ai/check-paper` | POST | AI paper checking with rubric/instructions |
 | `/api/ai/smart-tutor` | POST | Interactive AI concept explanation |
 | `/api/ai/lesson-plan-from-syllabus` | POST | Generate structured lesson plan from syllabus text/PDF |
+| `/api/ai/diagnostics` | GET | Owner-only gateway health check: key status, reachable model catalog, role→model mapping, unknown model ids; `?probe=1` also sends a tiny test prompt. No credits deducted |
 
 ### Contracts (`/api/contracts/`)
 
@@ -1267,6 +1268,17 @@ overridable via env var (see §4) so the catalog can move without a code change.
 Legacy OpenAI model ids (`gpt-4`, `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`) sent
 by older clients are remapped onto the equivalent OpenCode role rather than being
 forwarded to the gateway.
+
+### Parameter Fallback
+
+The gateway aggregates several model families and they do not all accept the
+same OpenAI parameters. `chatComplete()` retries down a ladder — full request,
+then without `response_format`, then without `temperature` — and treats an empty
+reply as a failure to retry rather than a successful empty answer. It also reads
+`reasoning_content` when a reasoning model leaves `content` blank, and joins
+array-shaped content parts. When every attempt is empty it throws naming the
+model and pointing at `/models`, so a model id the plan does not expose is
+identifiable without server logs. Use `/api/ai/diagnostics` to confirm.
 
 ### AI Task Types
 
