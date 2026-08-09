@@ -226,10 +226,11 @@ eduflow-ai/
 |----------|-------------|---------|
 | `OPENCODE_API_KEY` | OpenCode Go subscription API key (`sk-…`) | — |
 | `OPENCODE_BASE_URL` | OpenCode Go gateway base URL | `https://opencode.ai/zen/go/v1` |
-| `OPENCODE_MODEL_GENERAL` | Model for prose generation | `kimi-k3` |
-| `OPENCODE_MODEL_REASONING` | Model for grading/evaluation | `deepseek-v4-pro` |
-| `OPENCODE_MODEL_STRUCTURED` | Model for JSON output | `glm-5.2` |
-| `OPENCODE_MODEL_LONG_CONTEXT` | Model for very large prompts | `minimax-m3` |
+| `OPENCODE_MODEL` | Blanket model override for every role | — |
+| `OPENCODE_MODEL_GENERAL` | Model for prose generation | `deepseek-v4-flash` |
+| `OPENCODE_MODEL_REASONING` | Model for grading/evaluation | `deepseek-v4-flash` |
+| `OPENCODE_MODEL_STRUCTURED` | Model for JSON output | `deepseek-v4-flash` |
+| `OPENCODE_MODEL_LONG_CONTEXT` | Model for very large prompts | `deepseek-v4-flash` |
 | `OPENCODE_MODEL_FAST` | Model for short, low-stakes calls | `deepseek-v4-flash` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (bypasses RLS) | — |
 | `PADDLE_API_KEY` | Paddle server API key | — |
@@ -1258,17 +1259,28 @@ text server-side before being inlined into the prompt.
 `resolveModel()` picks a model per task instead of hardcoding one. Each role is
 overridable via env var (see §4) so the catalog can move without a code change.
 
-| Role | Default model | Used for |
-|------|---------------|----------|
-| `general` | `kimi-k3` | Prose: content, papers, lesson plans, contracts, differentiation |
-| `reasoning` | `deepseek-v4-pro` | Grading (`checker`), teacher evaluation, tutor matching |
-| `structured` | `glm-5.2` | JSON output: rubrics, worksheets, quizzes, teacher tests |
-| `longContext` | `minimax-m3` | Any prompt over 60,000 characters (512K context) |
-| `fast` | `deepseek-v4-flash` | Short, low-stakes calls (study plans) |
+| Role | Used for |
+|------|----------|
+| `general` | Prose: content, papers, lesson plans, contracts, differentiation |
+| `reasoning` | Grading (`checker`), teacher evaluation, tutor matching |
+| `structured` | JSON output: rubrics, worksheets, quizzes, teacher tests |
+| `longContext` | Any prompt over 60,000 characters |
+| `fast` | Short, low-stakes calls (study plans) |
 
-Every default is the newest release in its family and was confirmed present and
-responding via `POST /api/ai/test-models`. Re-run that check after changing any
-`OPENCODE_MODEL_*` value.
+**All roles resolve to `deepseek-v4-flash` by default.** Roles previously used a
+different model each, but the gateway returns
+`503 … Upstream request failed: Endpoint is unavailable` when a listed model's
+upstream provider is offline, so every extra model was another thing that could
+take a feature down. The role structure is kept so one task type can be moved
+onto a different model when there is a reason to.
+
+Precedence per role: `OPENCODE_MODEL_<ROLE>` → `OPENCODE_MODEL` (blanket
+override) → the built-in default. Re-run `POST /api/ai/test-models` after any
+change.
+
+Transient failures (429, any 5xx, and network errors without a status) retry the
+identical request up to 3 times with exponential backoff before the parameter
+fallback ladder is considered.
 
 Legacy OpenAI model ids (`gpt-4`, `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`) sent
 by older clients are remapped onto the equivalent OpenCode role rather than being

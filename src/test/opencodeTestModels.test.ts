@@ -35,6 +35,7 @@ afterEach(() => {
   delete process.env.OPENCODE_API_KEY;
   delete process.env.OPENCODE_MODEL_GENERAL;
   delete process.env.OPENCODE_MODEL_FAST;
+  delete process.env.OPENCODE_MODEL_REASONING;
 });
 
 describe("testConfiguredModels", () => {
@@ -68,10 +69,12 @@ describe("testConfiguredModels", () => {
   });
 
   it("reports a failing model without failing the whole run", async () => {
-    const { testConfiguredModels, OPENCODE_MODELS } = await loadModule();
+    // Roles share one model by default, so split one off to get a mixed report.
+    process.env.OPENCODE_MODEL_REASONING = "broken-model";
+    const { testConfiguredModels } = await loadModule();
     modelsList.mockResolvedValue({ data: [] });
     create.mockImplementation((body: { model: string }) =>
-      body.model === OPENCODE_MODELS.reasoning
+      body.model === "broken-model"
         ? Promise.reject(Object.assign(new Error("model not found"), { status: 404 }))
         : Promise.resolve(reply("ok"))
     );
@@ -79,7 +82,7 @@ describe("testConfiguredModels", () => {
     const report = await testConfiguredModels();
 
     expect(report.ok).toBe(false);
-    const failed = report.results.find((r) => r.model === OPENCODE_MODELS.reasoning);
+    const failed = report.results.find((r) => r.model === "broken-model");
     expect(failed?.ok).toBe(false);
     expect(failed?.error).toMatch(/model not found/);
     // Every other model still reported a result.
@@ -87,6 +90,7 @@ describe("testConfiguredModels", () => {
   });
 
   it("flags configured models missing from the plan catalog", async () => {
+    process.env.OPENCODE_MODEL_REASONING = "not-in-catalog";
     const { testConfiguredModels, OPENCODE_MODELS } = await loadModule();
     modelsList.mockResolvedValue({ data: [{ id: OPENCODE_MODELS.general }] });
     create.mockResolvedValue(reply("ok"));
@@ -94,8 +98,7 @@ describe("testConfiguredModels", () => {
     const report = await testConfiguredModels();
 
     expect(report.results.find((r) => r.model === OPENCODE_MODELS.general)?.inCatalog).toBe(true);
-    const others = report.results.filter((r) => r.model !== OPENCODE_MODELS.general);
-    expect(others.every((r) => r.inCatalog === false)).toBe(true);
+    expect(report.results.find((r) => r.model === "not-in-catalog")?.inCatalog).toBe(false);
   });
 
   it("still tests models when the catalog cannot be listed", async () => {
