@@ -22,25 +22,43 @@ export type AIProviderName = typeof AI_PROVIDER;
 const DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1";
 
 /**
- * Best-in-class models available on the OpenCode Go plan, grouped by what they
- * are good at. Every id below was confirmed present and responding via
- * `POST /api/ai/test-models`; the newest release in each family is used.
+ * The model every role uses by default.
  *
- * The catalog moves as new versions ship, so every id can be overridden
- * per-role with an env var without touching code — use the same health check
- * after any change.
+ * The roles below used to point at a different model each. Spreading work over
+ * five models meant any one of them being down took a feature with it, and the
+ * gateway returned `503 ... Endpoint is unavailable` for models that are listed
+ * but whose upstream provider is offline. Consolidating on the one model
+ * confirmed working end to end trades some per-task specialisation for far
+ * fewer moving parts.
+ */
+const DEFAULT_MODEL = "deepseek-v4-flash";
+
+/**
+ * Blanket override: point every role at one model without setting five
+ * variables. A per-role `OPENCODE_MODEL_*` still wins over it, so roles can be
+ * split back out one at a time.
+ */
+const SINGLE_MODEL_OVERRIDE = process.env.OPENCODE_MODEL?.trim();
+
+/**
+ * Model per routing role. All roles resolve to the same model by default; the
+ * role structure is kept so a single task type can be moved onto a different
+ * model with one env var when there is a reason to.
+ *
+ * Precedence: `OPENCODE_MODEL_<ROLE>` → `OPENCODE_MODEL` → `DEFAULT_MODEL`.
+ * Verify any change with `POST /api/ai/test-models`.
  */
 export const OPENCODE_MODELS = {
-  /** Kimi K3 — strongest all-round instruction following and long-form writing. */
-  general: process.env.OPENCODE_MODEL_GENERAL || "kimi-k3",
-  /** DeepSeek V4 Pro — deep reasoning; used for grading and evaluation. */
-  reasoning: process.env.OPENCODE_MODEL_REASONING || "deepseek-v4-pro",
-  /** GLM 5.2 — very reliable structured/JSON output. */
-  structured: process.env.OPENCODE_MODEL_STRUCTURED || "glm-5.2",
-  /** MiniMax M3 — 512K context; used when a whole document is in the prompt. */
-  longContext: process.env.OPENCODE_MODEL_LONG_CONTEXT || "minimax-m3",
-  /** DeepSeek V4 Flash — fast and cheap for short, low-stakes calls. */
-  fast: process.env.OPENCODE_MODEL_FAST || "deepseek-v4-flash",
+  /** Prose: content, papers, lesson plans, contracts, differentiation. */
+  general: process.env.OPENCODE_MODEL_GENERAL || SINGLE_MODEL_OVERRIDE || DEFAULT_MODEL,
+  /** Grading, teacher evaluation, tutor matching. */
+  reasoning: process.env.OPENCODE_MODEL_REASONING || SINGLE_MODEL_OVERRIDE || DEFAULT_MODEL,
+  /** JSON output: rubrics, worksheets, quizzes, teacher tests. */
+  structured: process.env.OPENCODE_MODEL_STRUCTURED || SINGLE_MODEL_OVERRIDE || DEFAULT_MODEL,
+  /** Prompts over the long-context threshold — whole documents in the prompt. */
+  longContext: process.env.OPENCODE_MODEL_LONG_CONTEXT || SINGLE_MODEL_OVERRIDE || DEFAULT_MODEL,
+  /** Short, low-stakes calls. */
+  fast: process.env.OPENCODE_MODEL_FAST || SINGLE_MODEL_OVERRIDE || DEFAULT_MODEL,
 } as const;
 
 export type ModelRole = keyof typeof OPENCODE_MODELS;
@@ -283,6 +301,42 @@ function describeEmptyCompletion(
 }
 
 /**
+ * Issue one chat completion, retrying the identical request while the failure
+ * looks like a transient upstream outage. Backs off between attempts so a
+ * briefly-flapping provider is not hammered.
+ */
+async function createWithTransientRetry(
+  client: OpenAI,
+  request: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+  timeoutMs: number | undefined,
+  model: string
+): Promise<OpenAI.Chat.ChatCompletion> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= TRANSIENT_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await client.chat.completions.create(
+        request,
+        timeoutMs ? { timeout: timeoutMs } : undefined
+      );
+    } catch (error: unknown) {
+      lastError = error;
+      if (attempt === TRANSIENT_RETRY_ATTEMPTS || !isTransientUpstreamError(error)) {
+        throw error;
+      }
+      const delay = TRANSIENT_RETRY_BASE_MS * 2 ** (attempt - 1);
+      console.error(
+        `[opencode] transient failure from ${model} (attempt ${attempt}/${TRANSIENT_RETRY_ATTEMPTS}), retrying in ${delay}ms:`,
+        error instanceof Error ? error.message : error
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Single entry point for text generation. Returns the raw assistant message
  * plus token usage (estimated when the gateway omits it).
  *
@@ -341,9 +395,11 @@ export async function chatComplete({
   for (let i = 0; i < variants.length; i += 1) {
     const isLast = i === variants.length - 1;
     try {
-      const completion = await client.chat.completions.create(
+      const completion = await createWithTransientRetry(
+        client,
         buildRequest(variants[i]),
-        timeoutMs ? { timeout: timeoutMs } : undefined
+        timeoutMs,
+        selectedModel
       );
       const { text, finishReason, refusal } = extractMessageText(completion);
 
@@ -394,6 +450,34 @@ export async function chatComplete({
     `Override it with the matching OPENCODE_MODEL_* env var if not.`;
   throw lastError instanceof Error ? new Error(`${hint} Last error: ${lastError.message}`) : new Error(hint);
 }
+
+/**
+ * True when the failure is the gateway or its upstream provider being briefly
+ * unavailable, rather than anything wrong with the request.
+ *
+ * The Go gateway proxies each model to its provider, and returns
+ * `503 ... Upstream request failed: Endpoint is unavailable` when that provider
+ * is down. Retrying the same request often succeeds.
+ */
+function isTransientUpstreamError(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  if (status === 408 || status === 409 || status === 429) return true;
+  if (typeof status === "number" && status >= 500 && status <= 599) return true;
+  // Network-level failures surface without a status.
+  const message = String((error as { message?: string })?.message ?? "").toLowerCase();
+  return (
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("socket hang up") ||
+    message.includes("fetch failed")
+  );
+}
+
+/** Attempts per request variant when the failure looks transient. */
+const TRANSIENT_RETRY_ATTEMPTS = 3;
+const TRANSIENT_RETRY_BASE_MS = 400;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * True when the gateway rejected the request because of an optional parameter
