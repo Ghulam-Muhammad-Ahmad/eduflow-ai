@@ -174,6 +174,32 @@ export interface ChatCompleteResult {
 
 const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
 
+/** Tags used by models that emit their chain of thought inline in `content`. */
+const THINK_TAGS = "think|thinking|reasoning|thought";
+
+/**
+ * Remove inline chain-of-thought blocks from a reply.
+ *
+ * Confirmed against the live gateway: minimax-m3 answers a plain JSON prompt
+ * with `<think>…</think>` followed by the JSON. Left in place the tags break
+ * JSON.parse and leak the model's reasoning into user-facing papers,
+ * worksheets and contracts.
+ */
+export function stripThinkBlocks(text: string): string {
+  if (!text) return "";
+  const withoutPairs = text.replace(
+    new RegExp(`<(${THINK_TAGS})>[\\s\\S]*?</\\1>`, "gi"),
+    ""
+  );
+  // An opening tag with no close means the answer never arrived — drop the tail
+  // rather than treating half a thought as the reply.
+  const withoutDangling = withoutPairs.replace(
+    new RegExp(`<(${THINK_TAGS})>[\\s\\S]*$`, "i"),
+    ""
+  );
+  return withoutDangling.trim();
+}
+
 /**
  * Pull the assistant text out of a completion.
  *
@@ -213,11 +239,18 @@ function extractMessageText(completion: OpenAI.Chat.ChatCompletion): {
     return "";
   };
 
-  const text =
+  const raw =
     asText(message?.content) ||
     asText(message?.reasoning_content) ||
     asText(message?.reasoning) ||
     "";
+
+  // Prefer the answer with reasoning removed. If that empties the reply, the
+  // model produced nothing but thought — keep the inner text as a last resort
+  // rather than reporting an empty response.
+  const text =
+    stripThinkBlocks(raw) ||
+    raw.replace(new RegExp(`</?(${THINK_TAGS})>`, "gi"), "").trim();
 
   return {
     text,
@@ -506,16 +539,87 @@ export function stripJsonFence(raw: string): string {
  * falling back to the outermost `{...}` / `[...]` span.
  */
 export function parseJsonResponse<T>(raw: string): T {
-  const cleaned = stripJsonFence(raw);
+  // Chain-of-thought first: a `<think>` block routinely contains braces and
+  // quotes of its own, which derails any span-finding below.
+  const cleaned = stripJsonFence(stripThinkBlocks(raw) || raw);
+
   try {
     return JSON.parse(cleaned) as T;
   } catch {
-    const start = cleaned.search(/[[{]/);
-    const end = Math.max(cleaned.lastIndexOf("}"), cleaned.lastIndexOf("]"));
-    if (start >= 0 && end > start) {
-      return JSON.parse(cleaned.slice(start, end + 1)) as T;
+    // Fall through to span extraction.
+  }
+
+  // Take the longest span that parses. Prose routinely contains incidental
+  // brackets — "use { } for blocks" is itself valid JSON — so first-match would
+  // happily return an empty object instead of the real payload.
+  let best: T | undefined;
+  let bestLength = 0;
+  for (const candidate of jsonSpans(cleaned)) {
+    if (candidate.length <= bestLength) continue;
+    try {
+      best = JSON.parse(candidate) as T;
+      bestLength = candidate.length;
+    } catch {
+      // Not JSON — try the next span.
     }
-    throw new Error("Model did not return valid JSON");
+  }
+  if (bestLength > 0) return best as T;
+
+  throw new Error("Model did not return valid JSON");
+}
+
+/** Bound the span scan so a very large reply cannot degrade into O(n²) work. */
+const MAX_JSON_SPAN_CANDIDATES = 500;
+
+/**
+ * Yield candidate JSON documents embedded in prose, longest-first per start
+ * position, by scanning for balanced brackets.
+ *
+ * The previous implementation sliced from the first `[`/`{` to the last
+ * `}`/`]`, which breaks whenever the model writes anything after the JSON —
+ * exactly what a trailing explanation or a stray brace in prose produces.
+ */
+function* jsonSpans(text: string): Generator<string> {
+  let examined = 0;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const open = text[i];
+    if (open !== "{" && open !== "[") continue;
+
+    examined += 1;
+    if (examined > MAX_JSON_SPAN_CANDIDATES) return;
+
+    const close = open === "{" ? "}" : "]";
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let j = i; j < text.length; j += 1) {
+      const ch = text[j];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (inString) {
+        if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === open) depth += 1;
+      else if (ch === close) {
+        depth -= 1;
+        if (depth === 0) {
+          yield text.slice(i, j + 1);
+          break;
+        }
+      }
+    }
   }
 }
 
