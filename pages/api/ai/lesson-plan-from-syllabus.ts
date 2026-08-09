@@ -1,15 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
 import { deductCreditsForRequest } from "@/lib/ai-credits-deduct";
-
-const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OpenAI API key not configured");
-  return new OpenAI({ apiKey });
-};
-
-const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+import { chatComplete, extractDocumentText, parseJsonResponse } from "@/server/ai/opencode";
 
 const SYSTEM = `You are an expert academic planner for teachers. Given syllabus or teaching content and time constraints, you produce a structured lesson plan that fits the content into the available time.
 
@@ -125,80 +117,52 @@ ${editPrompt ? `\nTEACHER EDIT REQUEST: ${editPrompt}` : ""}
 
 Produce the lesson plan JSON. Ensure total lesson duration fits within ${totalMinutes} minutes.`;
 
-  const userPromptText = hasPdf
-    ? `Current date: ${new Date().toISOString().slice(0, 10)}
+  try {
+    // The OpenCode gateway is Chat Completions only, so an uploaded syllabus is
+    // extracted to text and inlined instead of being attached as a file part.
+    let syllabusText: string;
+    let sourceLabel: string;
+    if (hasPdf) {
+      const filename =
+        (pdfFileName && typeof pdfFileName === "string" ? pdfFileName.trim() : null) || "syllabus.pdf";
+      syllabusText = await extractDocumentText(pdfBase64 as string, filename);
+      if (!syllabusText) {
+        return res.status(400).json({
+          success: false,
+          error: "No text could be extracted from the syllabus file. Try another file or paste the content.",
+        });
+      }
+      sourceLabel = `TEACHING CONTENT (syllabus / topics to cover, from ${filename}):`;
+    } else {
+      syllabusText = (text ?? "").slice(0, 12000);
+      if ((text ?? "").length > 12000) {
+        syllabusText += "\n[... content truncated for length ...]";
+      }
+      sourceLabel = "TEACHING CONTENT (syllabus / topics to cover):";
+    }
 
-The teaching content (syllabus / topics to cover) is in the attached PDF document. Use it as the basis for the lesson plan.
+    const userPromptText = `Current date: ${new Date().toISOString().slice(0, 10)}
 
-${constraintsBlock}`
-    : `Current date: ${new Date().toISOString().slice(0, 10)}
-
-TEACHING CONTENT (syllabus / topics to cover):
+${sourceLabel}
 ---
-${(text ?? "").slice(0, 12000)}
-${(text ?? "").length > 12000 ? "\n[... content truncated for length ...]" : ""}
+${syllabusText}
 ---
 
 ${constraintsBlock}`;
 
-  try {
-    const openai = getOpenAIClient();
-    let raw: string;
-    let inputTokens: number;
-    let outputTokens: number;
+    const completion = await chatComplete({
+      prompt: userPromptText,
+      system: SYSTEM,
+      taskType: "lesson_planning",
+      temperature: 0.5,
+      json: true,
+    });
 
-    if (hasPdf) {
-      const base64String = (pdfBase64 as string).startsWith("data:")
-        ? (pdfBase64 as string).replace(/^data:application\/pdf;base64,/, "")
-        : (pdfBase64 as string);
-      const fileData = `data:application/pdf;base64,${base64String}`;
-      const filename = (pdfFileName && typeof pdfFileName === "string" ? pdfFileName.trim() : null) || "syllabus.pdf";
+    const raw = completion.content;
+    const inputTokens = completion.inputTokens;
+    const outputTokens = completion.outputTokens;
 
-      const response = await openai.responses.create({
-        model: "gpt-4o",
-        instructions: SYSTEM,
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_file", filename, file_data: fileData },
-              { type: "input_text", text: userPromptText },
-            ],
-          },
-        ],
-        temperature: 0.5,
-        truncation: "auto",
-      });
-
-      raw =
-        (response as { output_text?: string }).output_text ??
-        (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
-          ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
-              .flatMap((o) => o.content ?? [])
-              .find((c) => c.type === "output_text")
-              ?.text ?? ""
-          : "") ?? "";
-      const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
-      inputTokens = usage?.input_tokens ?? 0;
-      outputTokens = usage?.output_tokens ?? 0;
-    } else {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: userPromptText },
-        ],
-        temperature: 0.5,
-      });
-
-      raw = completion.choices[0]?.message?.content?.trim() ?? "";
-      const usage = completion.usage;
-      inputTokens = usage?.prompt_tokens ?? estimateTokens(SYSTEM + userPromptText);
-      outputTokens = usage?.completion_tokens ?? estimateTokens(raw);
-    }
-
-    const cleaned = raw.replace(/^```json?\s*|\s*```$/g, "");
-    const plan = JSON.parse(cleaned) as {
+    const plan = parseJsonResponse<{
       lessons: Array<{
         lessonNo: number;
         title: string;
@@ -213,7 +177,7 @@ ${constraintsBlock}`;
       confidence?: string;
       summary?: string;
       message?: string;
-    };
+    }>(raw);
 
     if (!Array.isArray(plan.lessons)) {
       return res.status(500).json({

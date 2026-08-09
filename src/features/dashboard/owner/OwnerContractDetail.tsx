@@ -223,7 +223,6 @@ Output only the full contract Markdown, no preamble or explanation.`;
           taskType: "contract_revision",
           prompt,
           systemInstruction: CONTRACT_REVISION_SYSTEM,
-          model: "gpt-4o-mini",
         }),
         credentials: "include",
       });

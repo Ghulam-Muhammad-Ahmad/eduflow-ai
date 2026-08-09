@@ -529,7 +529,7 @@ export const useAIStudio = () => {
     }
   };
 
-  // Smart Tutor: adapt content from pasted text or uploaded file (PDF sent to OpenAI; DOCX/DOC/TXT extracted to text)
+  // Smart Tutor: adapt content from pasted text or uploaded file (PDF/DOCX/DOC/TXT extracted to text server-side)
   // For regeneration from output page: pass current content as pastedText and optional editInstructions.
   const smartTutorContent = async (payload: {
     pastedText?: string;
@@ -584,8 +584,8 @@ export const useAIStudio = () => {
         });
         return {
           content: data.content,
-          provider: 'openai',
-          model: data.model || 'gpt-4o',
+          provider: 'opencode',
+          model: data.model || '',
           tokens: 0,
           cost: 0,
           success: true,

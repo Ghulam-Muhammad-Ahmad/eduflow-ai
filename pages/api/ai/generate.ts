@@ -1,175 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import fs from "fs";
-import os from "os";
-import path from "path";
-import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
 import type { AITaskType } from "@/types/ai";
 import { deductCreditsForRequest, ensureOwnerWorkspaceCreditPool } from "@/lib/ai-credits-deduct";
-
-const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OpenAI API key not configured");
-  }
-  return new OpenAI({ apiKey });
-};
-
-const estimateTokens = (text: string): number => {
-  return Math.ceil(text.length / 4);
-};
-
-const calculateCost = (
-  model: string,
-  inputTokens: number,
-  outputTokens: number
-): number => {
-  if (model.includes("gpt-4")) {
-    return (inputTokens / 1000) * 0.03 + (outputTokens / 1000) * 0.06;
-  } else if (model.includes("gpt-3.5")) {
-    return (inputTokens / 1000) * 0.0015 + (outputTokens / 1000) * 0.002;
-  }
-  return 0;
-};
-
-const generateWithOpenAI = async (
-  prompt: string,
-  systemMessage?: string,
-  model: string = "gpt-4"
-): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
-  const openai = getOpenAIClient();
-
-  const response = await openai.responses.create({
-    model,
-    instructions: systemMessage ?? undefined,
-    input: prompt,
-    temperature: 0.7,
-    truncation: "auto",
-  });
-
-  const content =
-    (response as { output_text?: string }).output_text ??
-    (Array.isArray((response as { output?: unknown[] }).output)
-      ? (response as { output: Array<{ type?: string; text?: string }> }).output
-          .filter((item) => item.type === "message" || item.text)
-          .map((item) => item.text ?? "")
-          .join("")
-      : "") ??
-    "";
-  const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
-  const inputTokens = usage?.input_tokens ?? Math.floor(estimateTokens(prompt + (systemMessage ?? "")) * 0.6);
-  const outputTokens = usage?.output_tokens ?? Math.ceil(estimateTokens(content) * 0.4);
-
-  return { content, inputTokens, outputTokens };
-};
-
-/** Paper generation with PDF only: upload PDF via Files API, then ask with file_id. Reuse file_id in DB for repeated use. */
-const generatePaperWithPdfFile = async (
-  prompt: string,
-  systemMessage: string,
-  pdfBase64: string,
-  filename: string,
-  model: string
-): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
-  const client = getOpenAIClient();
-  const base64String = pdfBase64.startsWith("data:")
-    ? pdfBase64.replace(/^data:application\/pdf;base64,/, "")
-    : pdfBase64;
-  const buffer = Buffer.from(base64String, "base64");
-  const tempPath = path.join(os.tmpdir(), `paper-pdf-${Date.now()}-${filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`);
-  let fileId: string | null = null;
-  try {
-    fs.writeFileSync(tempPath, buffer);
-    const file = await client.files.create({
-      file: fs.createReadStream(tempPath),
-      purpose: "user_data",
-    });
-    fileId = file.id;
-    const response = await client.responses.create({
-      model: model === "gpt-4" ? "gpt-4o" : model,
-      instructions: systemMessage,
-      input: [
-        {
-          role: "user",
-          content: [
-            { type: "input_file", file_id: fileId },
-            { type: "input_text", text: prompt },
-          ],
-        },
-      ],
-      temperature: 0.7,
-      truncation: "auto",
-    });
-    const content =
-      (response as { output_text?: string }).output_text ??
-      (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
-        ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
-            .flatMap((o) => o.content ?? [])
-            .find((c) => c.type === "output_text")
-            ?.text ?? ""
-        : "") ??
-      "";
-    const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
-    return {
-      content,
-      inputTokens: usage?.input_tokens ?? 0,
-      outputTokens: usage?.output_tokens ?? 0,
-    };
-  } finally {
-    try {
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    } catch {
-      // ignore cleanup errors
-    }
-  }
-};
-
-/** Worksheet (or other) PDF: inline base64 with Responses API (no Files API). */
-const generateWithOpenAIPdf = async (
-  prompt: string,
-  systemMessage: string,
-  pdfBase64: string,
-  filename: string,
-  model: string
-): Promise<{ content: string; inputTokens: number; outputTokens: number }> => {
-  const client = getOpenAIClient();
-  const base64String = pdfBase64.startsWith("data:")
-    ? pdfBase64.replace(/^data:application\/pdf;base64,/, "")
-    : pdfBase64;
-  const fileData = `data:application/pdf;base64,${base64String}`;
-
-  const response = await client.responses.create({
-    model: model === "gpt-4" ? "gpt-4o" : model,
-    instructions: systemMessage,
-    input: [
-      {
-        role: "user",
-        content: [
-          { type: "input_file", filename, file_data: fileData },
-          { type: "input_text", text: prompt },
-        ],
-      },
-    ],
-    temperature: 0.7,
-    truncation: "auto",
-  });
-
-  const content =
-    (response as { output_text?: string }).output_text ??
-    (Array.isArray((response as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output)
-      ? (response as { output: Array<{ content?: Array<{ type?: string; text?: string }> }> }).output
-          .flatMap((o) => o.content ?? [])
-          .find((c) => c.type === "output_text")
-          ?.text ?? ""
-      : "") ??
-    "";
-  const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
-  return {
-    content,
-    inputTokens: usage?.input_tokens ?? 0,
-    outputTokens: usage?.output_tokens ?? 0,
-  };
-};
+import {
+  AI_PROVIDER,
+  chatComplete,
+  extractDocumentText,
+  parseJsonResponse,
+} from "@/server/ai/opencode";
 
 interface AIGenerateRequest {
   taskType: AITaskType;
@@ -178,10 +16,14 @@ interface AIGenerateRequest {
   model?: string;
   /** For checker task: max points so the model can suggest a grade within range */
   pointsPossible?: number;
-  /** For paper_generation: send PDF as-is (no text extraction). Model must support PDF (e.g. gpt-4o). */
+  /** For paper/worksheet generation: source document, base64-encoded. Text is extracted server-side. */
   sourcePdfBase64?: string;
   sourcePdfFileName?: string;
 }
+
+export const config = {
+  api: { bodyParser: { sizeLimit: "25mb" } },
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -217,14 +59,10 @@ export default async function handler(
       return res.status(creditError.status).json(creditError.body);
     }
 
-    const selectedModel = model || "gpt-4";
-    const isPaperWithPdf = taskType === "paper_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
-    const isWorksheetWithPdf = taskType === "worksheet_generation" && sourcePdfBase64 && typeof sourcePdfBase64 === "string";
-
     const maxPoints = typeof pointsPossible === "number" && pointsPossible > 0 ? pointsPossible : 100;
     const isCheckerWithGrade = taskType === "checker" && maxPoints > 0;
     const isRubricGeneration = taskType === "rubric_generation";
-    const checkerSystem = isCheckerWithGrade
+    const systemMessage = isCheckerWithGrade
       ? (systemInstruction || "You are an expert teacher providing constructive feedback.") +
         ` Respond with ONLY a single JSON object (no markdown, no code block) with exactly: "suggested_grade" (number from 0 to ${maxPoints}), "feedback" (string with your full feedback).`
       : isRubricGeneration
@@ -232,29 +70,35 @@ export default async function handler(
           " Respond with ONLY a valid JSON object. No markdown, no code fence, no explanation—just the raw JSON."
         : systemInstruction;
 
-    const result = isPaperWithPdf
-      ? await generatePaperWithPdfFile(
-          prompt,
-          checkerSystem ?? systemInstruction ?? "",
-          sourcePdfBase64,
-          sourcePdfFileName?.trim() || "document.pdf",
-          selectedModel
-        )
-      : isWorksheetWithPdf
-        ? await generateWithOpenAIPdf(
-            prompt,
-            checkerSystem ?? systemInstruction ?? "",
-            sourcePdfBase64,
-            sourcePdfFileName?.trim() || "document.pdf",
-            selectedModel
-          )
-        : await generateWithOpenAI(prompt, checkerSystem, selectedModel);
+    // The OpenCode gateway is Chat Completions only, so an attached document is
+    // converted to text here and appended to the prompt.
+    let finalPrompt = prompt;
+    if (typeof sourcePdfBase64 === "string" && sourcePdfBase64.trim()) {
+      const fileName = sourcePdfFileName?.trim() || "document.pdf";
+      const documentText = await extractDocumentText(sourcePdfBase64, fileName);
+      if (!documentText) {
+        return res.status(400).json({
+          error: "No text could be extracted from the attached document. Try another file or paste the content.",
+        });
+      }
+      finalPrompt = `${prompt}\n\n--- Attached document (${fileName}) ---\n${documentText}\n--- End of document ---`;
+    }
+
+    const wantsJson = isCheckerWithGrade || isRubricGeneration;
+    const result = await chatComplete({
+      prompt: finalPrompt,
+      system: systemMessage,
+      taskType,
+      model,
+      json: wantsJson,
+    });
+
     const totalTokens = result.inputTokens + result.outputTokens;
 
     const payload: Record<string, unknown> = {
       content: result.content,
-      provider: "openai",
-      model: selectedModel,
+      provider: AI_PROVIDER,
+      model: result.model,
       tokens: totalTokens,
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
@@ -262,8 +106,7 @@ export default async function handler(
     };
     if (isCheckerWithGrade) {
       try {
-        const raw = result.content.trim().replace(/^```json?\s*|\s*```$/g, "");
-        const parsed = JSON.parse(raw) as { suggested_grade?: number; feedback?: string };
+        const parsed = parseJsonResponse<{ suggested_grade?: number; feedback?: string }>(result.content);
         if (typeof parsed.suggested_grade === "number" && typeof parsed.feedback === "string") {
           payload.suggested_grade = parsed.suggested_grade;
           payload.feedback = parsed.feedback;

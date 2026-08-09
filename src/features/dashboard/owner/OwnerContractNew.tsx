@@ -166,7 +166,6 @@ export default function OwnerContractNew() {
           taskType: "contract_generation",
           prompt,
           systemInstruction: CONTRACT_SYSTEM_INSTRUCTION,
-          model: "gpt-4o-mini",
         }),
         credentials: "include",
       });

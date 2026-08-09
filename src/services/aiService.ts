@@ -3,8 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import type { AITaskType } from '@/types/ai';
 
-// AI Provider Types - OpenAI only
-export type AIProvider = 'openai';
+// AI Provider Types - OpenCode Go (Zen) gateway
+export type AIProvider = 'opencode';
 export type { AITaskType } from '@/types/ai';
 
 type CreditContextRow = Database["public"]["Functions"]["get_credit_context"]["Returns"][number];
@@ -68,7 +68,7 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
   if (!usageCheck.can_request) {
     return {
       content: '',
-      provider: 'openai',
+      provider: 'opencode',
       model: '',
       tokens: 0,
       cost: 0,
@@ -78,7 +78,7 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
   }
 
   try {
-    // Call Next.js API route (OpenAI only)
+    // Call Next.js API route (server picks the OpenCode model for this task)
     const body: Record<string, unknown> = {
       taskType,
       prompt,
@@ -117,8 +117,8 @@ export const generateAI = async (options: AIGenerateOptions): Promise<AIGenerate
     const errorMessage = error?.message || 'Unknown error';
     return {
       content: '',
-      provider: 'openai',
-      model: model || 'gpt-4',
+      provider: 'opencode',
+      model: model || '',
       tokens: 0,
       cost: 0,
       success: false,
@@ -167,7 +167,7 @@ type RubricSourceContext = {
   sourceName?: string;
 };
 
-/** Max chars for pasted/non-PDF source so prompts stay under OpenAI context. Used for rubric, paper, worksheet, smart tutor. */
+/** Max chars for pasted/non-PDF source so prompts stay under the model context. Used for rubric, paper, worksheet, smart tutor. */
 export const AI_SOURCE_TEXT_MAX_CHARS = 18_000;
 
 /** Keep rubric prompts within context limits. */

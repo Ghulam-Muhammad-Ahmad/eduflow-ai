@@ -53,6 +53,7 @@ import {
   MessageSquare,
   FileText,
   HelpCircle,
+  Info,
   ArrowUp,
   ArrowDown,
   Clock,
@@ -70,7 +71,13 @@ import {
   Paperclip,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuizzes, Quiz, QuizQuestion, QuizAttachedDocument } from "@/hooks/useQuizzes";
+import {
+  useQuizzes,
+  Quiz,
+  QuizQuestion,
+  QuizAttachedDocument,
+  DEFAULT_RESPONSE_POINTS,
+} from "@/hooks/useQuizzes";
 import { useClassrooms } from "@/hooks/useClassrooms";
 import { useOneToOneRooms } from "@/hooks/useOneToOneRooms";
 import { useAIStudio } from "@/hooks/useAIStudio";
@@ -178,6 +185,7 @@ const TeacherQuizBuilder = () => {
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
   const [showCorrectAnswers, setShowCorrectAnswers] = useState(true);
   const [showResultsImmediately, setShowResultsImmediately] = useState(true);
+  const [responsePoints, setResponsePoints] = useState<number>(DEFAULT_RESPONSE_POINTS);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
 
@@ -199,12 +207,23 @@ const TeacherQuizBuilder = () => {
     [questions]
   );
 
+  /**
+   * No questions but at least one attached document: the document is the paper.
+   * Students answer with free text and/or a file upload, and the teacher marks
+   * it by hand — so questions are optional in this mode.
+   */
+  const isDocumentResponse = questions.length === 0 && attachedDocs.length > 0;
+
+  // Both short answers and document responses need manual marking, so results
+  // cannot be shown straight away.
+  const needsManualGrading = hasShortAnswer || isDocumentResponse;
+
   useEffect(() => {
-    if (hasShortAnswer) {
+    if (needsManualGrading) {
       setShowCorrectAnswers(false);
       setShowResultsImmediately(false);
     }
-  }, [hasShortAnswer]);
+  }, [needsManualGrading]);
 
   const loadQuiz = useCallback(async () => {
     if (!quizId) return;
@@ -227,6 +246,7 @@ const TeacherQuizBuilder = () => {
       setRandomizeQuestions(quiz.randomize_questions ?? false);
       setShowCorrectAnswers(quiz.show_correct_answers ?? true);
       setShowResultsImmediately(quiz.show_results_immediately ?? true);
+      setResponsePoints(quiz.response_points ?? DEFAULT_RESPONSE_POINTS);
       setQuestions(
         loadedQuestions.map((question) => ({
           ...question,
@@ -258,6 +278,7 @@ const TeacherQuizBuilder = () => {
       setRandomizeQuestions(false);
       setShowCorrectAnswers(true);
       setShowResultsImmediately(true);
+      setResponsePoints(DEFAULT_RESPONSE_POINTS);
       setQuestions([]);
       setAttachedDocs([]);
     } finally {
@@ -417,7 +438,14 @@ const TeacherQuizBuilder = () => {
     if (!title.trim()) return "Quiz title is required";
     if (targetType === "classroom" && !classroomId) return "Please select a classroom";
     if (targetType === "1v1" && !oneToOneRoomId) return "Please select a 1v1 room";
-    if (questions.length === 0) return "Add at least one question";
+    // Questions are optional when the teacher attaches the paper as a document —
+    // students then answer with text and/or a file upload.
+    if (questions.length === 0 && attachedDocs.length === 0) {
+      return "Add at least one question, or attach a document for students to answer";
+    }
+    if (isDocumentResponse && (!responsePoints || responsePoints <= 0)) {
+      return "Marks available must be greater than 0";
+    }
     if (availableFrom && availableUntil) {
       const fromDate = new Date(availableFrom);
       const untilDate = new Date(availableUntil);
@@ -459,8 +487,9 @@ const TeacherQuizBuilder = () => {
         passing_score: passingScore ?? undefined,
         max_attempts: maxAttempts ?? undefined,
         randomize_questions: randomizeQuestions,
-        show_correct_answers: hasShortAnswer ? false : showCorrectAnswers,
-        show_results_immediately: hasShortAnswer ? false : showResultsImmediately,
+        response_points: isDocumentResponse ? responsePoints : undefined,
+        show_correct_answers: needsManualGrading ? false : showCorrectAnswers,
+        show_results_immediately: needsManualGrading ? false : showResultsImmediately,
         status: publish ? "active" : "draft",
         published_at: publish ? new Date().toISOString() : undefined,
       };
@@ -670,10 +699,13 @@ const TeacherQuizBuilder = () => {
                   <div className="mb-4 rounded-full bg-primary/10 p-5">
                     <HelpCircle className="h-10 w-10 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold">No questions yet</h3>
+                  <h3 className="text-lg font-semibold">
+                    {isDocumentResponse ? "Answering from the document" : "No questions yet"}
+                  </h3>
                   <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                    Get started quickly by generating questions with AI, or add
-                    them manually using the buttons below.
+                    {isDocumentResponse
+                      ? "This quiz uses the attached document as the paper. Students will read it and answer by typing a response or uploading a file, and you'll mark it by hand. Adding questions here is optional."
+                      : "Get started quickly by generating questions with AI, or add them manually using the buttons below. You can also attach a document below and let students answer from it instead."}
                   </p>
                   <div className="mt-8 flex flex-col items-center gap-4">
                     <Button
@@ -1140,6 +1172,41 @@ const TeacherQuizBuilder = () => {
                   ))}
                 </ul>
               )}
+
+              {/* With documents attached and no questions, the document IS the paper. */}
+              {isDocumentResponse && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div>
+                        <p className="text-sm font-medium">Document-based quiz</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          This quiz has no questions, so students will answer straight from
+                          the attached document — by typing a response, uploading a file, or
+                          both. You mark each submission by hand.
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="response-points" className="text-xs">
+                          Marks available
+                        </Label>
+                        <Input
+                          id="response-points"
+                          type="number"
+                          min={1}
+                          max={999}
+                          value={responsePoints}
+                          onChange={(e) =>
+                            setResponsePoints(Number(e.target.value) || 0)
+                          }
+                          className="h-9 max-w-[140px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -1291,8 +1358,10 @@ const TeacherQuizBuilder = () => {
                           <div>
                             <p className="text-sm font-medium">Show correct answers</p>
                             <p className="text-xs text-muted-foreground">
-                              {hasShortAnswer
-                                ? "Disabled when quiz has short answer questions (requires manual grading)"
+                              {needsManualGrading
+                                ? isDocumentResponse
+                                  ? "Disabled for document-based quizzes (requires manual grading)"
+                                  : "Disabled when quiz has short answer questions (requires manual grading)"
                                 : "Let students see correct answers after submission"}
                             </p>
                           </div>
@@ -1300,7 +1369,7 @@ const TeacherQuizBuilder = () => {
                         <Switch
                           checked={showCorrectAnswers}
                           onCheckedChange={setShowCorrectAnswers}
-                          disabled={hasShortAnswer}
+                          disabled={needsManualGrading}
                         />
                       </div>
                       <div className="flex items-center justify-between rounded-xl border p-4 transition-colors hover:bg-muted/20">
@@ -1311,8 +1380,10 @@ const TeacherQuizBuilder = () => {
                           <div>
                             <p className="text-sm font-medium">Show results immediately</p>
                             <p className="text-xs text-muted-foreground">
-                              {hasShortAnswer
-                                ? "Disabled when quiz has short answer questions (requires manual grading)"
+                              {needsManualGrading
+                                ? isDocumentResponse
+                                  ? "Disabled for document-based quizzes (requires manual grading)"
+                                  : "Disabled when quiz has short answer questions (requires manual grading)"
                                 : "Display score right after submission"}
                             </p>
                           </div>
@@ -1320,7 +1391,7 @@ const TeacherQuizBuilder = () => {
                         <Switch
                           checked={showResultsImmediately}
                           onCheckedChange={setShowResultsImmediately}
-                          disabled={hasShortAnswer}
+                          disabled={needsManualGrading}
                         />
                       </div>
                     </div>

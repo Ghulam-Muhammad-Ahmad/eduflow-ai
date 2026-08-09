@@ -4,6 +4,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as supabaseClient } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { useToast } from '@/hooks/use-toast';
+import { DEFAULT_RESPONSE_POINTS, isDocumentResponseQuiz } from '@/lib/quiz';
+
+// Re-exported so quiz components can pull the hook and these helpers from one place.
+export { DEFAULT_RESPONSE_POINTS, isDocumentResponseQuiz };
 
 // Types
 export interface QuizQuestion {
@@ -40,6 +44,8 @@ export interface Quiz {
   passing_score?: number;
   max_attempts?: number;
   randomize_questions: boolean;
+  /** Marks available when this is a document-response quiz (no questions). */
+  response_points?: number;
   show_correct_answers: boolean;
   show_results_immediately: boolean;
   status: 'draft' | 'scheduled' | 'active' | 'closed';
@@ -80,6 +86,12 @@ export interface QuizAttempt {
   points_earned?: number;
   points_possible?: number;
   status: 'in_progress' | 'submitted' | 'graded';
+  /** Document-response quizzes only: the student's typed answer. */
+  response_text?: string | null;
+  /** Document-response quizzes only: storage path of the uploaded answer file. */
+  response_file_path?: string | null;
+  response_file_name?: string | null;
+  response_file_size?: number | null;
   auto_graded_at?: string;
   manually_graded_at?: string;
   feedback?: string;
@@ -143,7 +155,7 @@ export const useQuizzes = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('quizzes')
-        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id), quiz_questions(id)')
+        .select('*, classroom:classrooms(name, subject), one_to_one_rooms(id, name, tutor_id, student_id), quiz_questions(id), quiz_attachments(document_id, documents(id, name, file_path, file_type, file_size))')
         .eq('teacher_id', teacherId)
         .order('created_at', { ascending: false })
         .returns<QuizWithClassroomAndQuestions[]>();
@@ -804,6 +816,162 @@ export const useQuizzes = () => {
     }
   };
 
+  /** Max size for a student's uploaded answer file. */
+  const MAX_RESPONSE_FILE_MB = 20;
+
+  /**
+   * Upload a student's answer file for a document-response quiz.
+   * Path must start with the student's own id — the `submissions` bucket policy
+   * ("Students can upload submissions") keys off the first folder segment.
+   */
+  const uploadQuizResponseFile = async (
+    quizId: string,
+    studentId: string,
+    file: File
+  ): Promise<{ path: string; name: string; size: number } | null> => {
+    if (file.size > MAX_RESPONSE_FILE_MB * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: `Maximum file size is ${MAX_RESPONSE_FILE_MB} MB.`,
+        variant: 'destructive',
+      });
+      return null;
+    }
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${studentId}/quiz-${quizId}/${Date.now()}_${safeName}`;
+    const { error } = await supabase.storage.from('submissions').upload(path, file, {
+      contentType: file.type || undefined,
+    });
+    if (error) {
+      toast({
+        title: 'Upload failed',
+        description: error.message || 'Could not upload your file',
+        variant: 'destructive',
+      });
+      return null;
+    }
+    return { path, name: file.name, size: file.size };
+  };
+
+  /**
+   * Submit a document-response attempt (a quiz with no questions). Nothing is
+   * auto-graded — the attempt stays 'submitted' until the teacher marks it.
+   */
+  const submitDocumentResponse = async (
+    attemptId: string,
+    response: {
+      responseText?: string | null;
+      file?: { path: string; name: string; size: number } | null;
+    },
+    timeSpentSeconds: number,
+    pointsPossible: number
+  ): Promise<boolean> => {
+    try {
+      setLoading(true);
+
+      const { data: updatedRow, error } = await supabase
+        .from('quiz_attempts')
+        .update({
+          answers: [],
+          response_text: response.responseText?.trim() || null,
+          response_file_path: response.file?.path ?? null,
+          response_file_name: response.file?.name ?? null,
+          response_file_size: response.file?.size ?? null,
+          submitted_at: new Date().toISOString(),
+          time_spent_seconds: timeSpentSeconds,
+          status: 'submitted',
+          auto_graded_at: null,
+          points_possible: pointsPossible,
+        })
+        .eq('id', attemptId)
+        .eq('status', 'in_progress')
+        .select('id')
+        .maybeSingle();
+
+      if (error) throw error;
+
+      // Already submitted (double-click, or timer fired alongside a manual submit).
+      if (!updatedRow) {
+        toast({
+          title: 'Already Submitted',
+          description: 'Your response was already submitted. Redirecting to results.',
+        });
+        return true;
+      }
+
+      toast({
+        title: 'Response Submitted',
+        description: 'Your teacher will review and grade your response.',
+      });
+      return true;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to submit your response',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Teacher marks a document-response attempt: points out of the quiz's response_points. */
+  const gradeDocumentResponse = async (
+    attemptId: string,
+    pointsEarned: number,
+    pointsPossible: number,
+    feedback?: string
+  ): Promise<boolean> => {
+    try {
+      setLoading(true);
+      const safePossible = pointsPossible > 0 ? pointsPossible : DEFAULT_RESPONSE_POINTS;
+      const clamped = Math.min(Math.max(0, pointsEarned), safePossible);
+
+      const { error } = await supabase
+        .from('quiz_attempts')
+        .update({
+          points_earned: clamped,
+          points_possible: safePossible,
+          score: (clamped / safePossible) * 100,
+          feedback: feedback?.trim() || null,
+          status: 'graded',
+          manually_graded_at: new Date().toISOString(),
+        })
+        .eq('id', attemptId);
+
+      if (error) throw error;
+
+      toast({ title: 'Graded', description: 'The response has been graded.' });
+      return true;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to grade response',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Signed URL for downloading a student's uploaded answer file. */
+  const getQuizResponseFileUrl = async (filePath: string): Promise<string | null> => {
+    const { data, error } = await supabase.storage
+      .from('submissions')
+      .createSignedUrl(filePath, 60 * 10);
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Could not open the file',
+        variant: 'destructive',
+      });
+      return null;
+    }
+    return data?.signedUrl ?? null;
+  };
+
   // Fetch a single quiz attempt by ID
   const fetchQuizAttemptById = async (attemptId: string) => {
     try {
@@ -883,5 +1051,9 @@ export const useQuizzes = () => {
     fetchQuizAttempts,
     fetchQuizAttemptById,
     gradeShortAnswers,
+    uploadQuizResponseFile,
+    submitDocumentResponse,
+    gradeDocumentResponse,
+    getQuizResponseFileUrl,
   };
 };

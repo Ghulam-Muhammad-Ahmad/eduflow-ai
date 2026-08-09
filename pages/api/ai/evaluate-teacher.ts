@@ -1,14 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
 import { deductCreditsForRequest } from "@/lib/ai-credits-deduct";
-
-const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OpenAI API key not configured");
-  return new OpenAI({ apiKey });
-};
+import { chatComplete, parseJsonResponse } from "@/server/ai/opencode";
 
 function buildEvaluationPrompt(
   test: { subject: string; grades: string[]; curriculum: string[]; experience_years: number; questions_json: unknown },
@@ -147,7 +141,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const creditError = await deductCreditsForRequest(user.id, "teacher_evaluation");
   if (creditError) return res.status(creditError.status).json(creditError.body);
 
-  const openai = getOpenAIClient();
   const prompt = buildEvaluationPrompt(
     {
       subject: test.subject as string,
@@ -160,26 +153,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     user.id
   );
 
-  const response = await openai.responses.create({
-    model: "gpt-4o",
-    instructions: "You are an expert education evaluator. Return only valid JSON, no markdown.",
-    input: prompt,
-    temperature: 0.3,
-    truncation: "auto",
-  });
-
-  const raw =
-    (response as { output_text?: string }).output_text ??
-    (Array.isArray((response as { output?: unknown[] }).output)
-      ? (response as { output: Array<{ type?: string; text?: string }> }).output
-          .map((item) => item.text ?? "")
-          .join("")
-      : "");
+  let raw: string;
+  try {
+    const completion = await chatComplete({
+      prompt,
+      system: "You are an expert education evaluator. Return only valid JSON, no markdown.",
+      taskType: "teacher_evaluation",
+      temperature: 0.3,
+      json: true,
+    });
+    raw = completion.content;
+  } catch (error: unknown) {
+    console.error("Teacher evaluation error:", error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : "Failed to evaluate teacher",
+    });
+  }
 
   let scores: Record<string, unknown>;
   try {
-    const cleaned = raw.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
-    scores = JSON.parse(cleaned) as Record<string, unknown>;
+    scores = parseJsonResponse<Record<string, unknown>>(raw);
   } catch {
     return res.status(500).json({ error: "AI returned invalid JSON", raw: raw.slice(0, 500) });
   }
