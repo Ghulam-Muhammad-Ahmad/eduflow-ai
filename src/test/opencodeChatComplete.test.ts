@@ -155,6 +155,54 @@ describe("chatComplete", () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
+  it("retries the 503 the gateway returns when a provider is offline", async () => {
+    const { chatComplete } = await loadModule();
+    const upstream503 = Object.assign(
+      new Error("503 Error from provider (Console Go): Upstream request failed: Endpoint is unavailable."),
+      { status: 503 }
+    );
+    create
+      .mockRejectedValueOnce(upstream503)
+      .mockResolvedValueOnce(completion({ content: '{"ok":true}' }));
+
+    const result = await chatComplete({ prompt: "hi", json: true });
+
+    expect(result.content).toBe('{"ok":true}');
+    expect(create).toHaveBeenCalledTimes(2);
+    // The retry repeats the same request rather than dropping parameters.
+    expect(create.mock.calls[1][0]).toHaveProperty("response_format");
+  });
+
+  it("retries 429 and other 5xx responses", async () => {
+    const { chatComplete } = await loadModule();
+    create
+      .mockRejectedValueOnce(Object.assign(new Error("rate limited"), { status: 429 }))
+      .mockRejectedValueOnce(Object.assign(new Error("bad gateway"), { status: 502 }))
+      .mockResolvedValueOnce(completion({ content: "done" }));
+
+    await expect(chatComplete({ prompt: "hi" })).resolves.toMatchObject({ content: "done" });
+    expect(create).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries a network failure that carries no status", async () => {
+    const { chatComplete } = await loadModule();
+    create
+      .mockRejectedValueOnce(new Error("fetch failed"))
+      .mockResolvedValueOnce(completion({ content: "done" }));
+
+    await expect(chatComplete({ prompt: "hi" })).resolves.toMatchObject({ content: "done" });
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up on a persistent outage instead of retrying forever", async () => {
+    const { chatComplete } = await loadModule();
+    create.mockRejectedValue(Object.assign(new Error("Endpoint is unavailable."), { status: 503 }));
+
+    await expect(chatComplete({ prompt: "hi" })).rejects.toThrow(/Endpoint is unavailable/);
+    // Three attempts for the one variant, then the error propagates.
+    expect(create).toHaveBeenCalledTimes(3);
+  });
+
   it("does not retry an auth failure", async () => {
     const { chatComplete } = await loadModule();
     create.mockRejectedValue(Object.assign(new Error("Invalid API key"), { status: 401 }));
