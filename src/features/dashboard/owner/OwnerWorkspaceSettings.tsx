@@ -15,6 +15,7 @@ import { TOGGLEABLE_STUDENT_NAV_ITEMS } from "@/lib/studentNav";
 import { toast } from "sonner";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import OwnerAIHealthCard from "./OwnerAIHealthCard";
 
 const workspaceNameSchema = z
   .string()
@@ -448,6 +449,9 @@ export default function OwnerWorkspaceSettings() {
                 {navSaving && <p className="text-xs text-muted-foreground mt-2">Saving…</p>}
               </CardContent>
             </Card>
+
+            {/* AI connection health */}
+            <OwnerAIHealthCard />
 
             {/* Footer actions */}
             <div className="flex flex-row items-center justify-between gap-3 pt-4 border-t border-border">
