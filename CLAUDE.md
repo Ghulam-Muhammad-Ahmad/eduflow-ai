@@ -40,8 +40,8 @@ src/
   hooks/            Custom hooks — data fetching hooks (useAssignments, useClassrooms, etc.) plus useAuth
   integrations/     Supabase client setup and generated types (types.ts — 66KB, do not hand-edit)
   lib/              Utilities: withAuth, AI credit logic, PDF/DOCX generation, billing helpers
-  server/           Server-only utilities: billing, Google Calendar, storage-allocation, lecture sessions
-  services/         aiService.ts — OpenAI API integration (chat, generation, checking)
+  server/           Server-only utilities: ai/ (OpenCode provider + model routing), billing, Google Calendar, storage-allocation, lecture sessions
+  services/         aiService.ts — client-side AI helpers that call /api/ai/* (chat, generation, checking)
   types/            AppRole, AccountType enums and shared TS types
 supabase/
   migrations/       SQL migrations; basenew.sql is the canonical base schema
@@ -60,13 +60,20 @@ All API routes follow this pattern:
 2. Use the server Supabase client for DB operations (RLS is enforced).
 3. Return JSON with appropriate status codes.
 
-Key API groups: `pages/api/ai/` (OpenAI calls + credit deduction), `pages/api/billing/`, `pages/api/contracts/`, `pages/api/credits/`, `pages/api/owner/`, `pages/api/teacher/`, `pages/api/student/`.
+Key API groups: `pages/api/ai/` (OpenCode calls + credit deduction), `pages/api/billing/`, `pages/api/contracts/`, `pages/api/credits/`, `pages/api/owner/`, `pages/api/teacher/`, `pages/api/student/`.
 
 ### AI Credits
 
 - `src/lib/ai-credits.ts` — reads a user's credit balance.
 - `src/lib/ai-credits-deduct.ts` — deducts credits after AI operations.
-- Every `/api/ai/` route checks and deducts credits; never call OpenAI without this guard.
+- Every `/api/ai/` route checks and deducts credits; never call the AI gateway without this guard.
+
+### AI Provider (OpenCode Go)
+
+- All AI goes through `src/server/ai/opencode.ts` — never instantiate a provider client in a route.
+- The gateway is OpenAI-compatible **Chat Completions only** (`https://opencode.ai/zen/go/v1`), authenticated with `OPENCODE_API_KEY`. The OpenAI Responses API, Files API and `input_file` parts are not available.
+- Use `chatComplete()` for generation and `parseJsonResponse()` for JSON replies. Do not hardcode model ids in routes — pass `taskType` and let `resolveModel()` choose; defaults are overridable via `OPENCODE_MODEL_*` env vars.
+- Uploaded PDFs/DOCX must be turned into text with `extractDocumentText()` before being put in a prompt.
 
 ### Styling
 
@@ -80,6 +87,10 @@ Key API groups: `pages/api/ai/` (OpenAI calls + credit deduction), `pages/api/bi
 - Row-Level Security is the primary multi-tenant isolation mechanism — rely on it, don't bypass.
 - Generated types in `src/integrations/supabase/types.ts` are auto-generated; regenerate with `supabase gen types typescript` when schema changes.
 - Migrations are in `supabase/migrations/`; the base schema is `20260308170000_basenew.sql`.
+
+### Secrets
+
+- `next.config.js` `env` entries are inlined into the client bundle — only `NEXT_PUBLIC_*` values belong there. Server secrets are read from `process.env` inside API routes.
 
 ### Document Generation
 

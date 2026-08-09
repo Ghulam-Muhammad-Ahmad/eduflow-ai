@@ -1,14 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import OpenAI from "openai";
 import { getAuthUser } from "@/integrations/supabase/server";
 import { supabaseAdmin } from "@/integrations/supabase/admin";
 import { deductCreditsForRequest, ensureOwnerWorkspaceCreditPool } from "@/lib/ai-credits-deduct";
-
-const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OpenAI API key not configured");
-  return new OpenAI({ apiKey });
-};
+import { chatComplete, parseJsonResponse } from "@/server/ai/opencode";
 
 const QUESTION_COUNT = 20;
 
@@ -103,7 +97,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const creditError = await deductCreditsForRequest(user.id, "teacher_test_generation");
   if (creditError) return res.status(creditError.status).json(creditError.body);
 
-  const openai = getOpenAIClient();
   const prompt = buildGenerationPrompt({
     subject: test.subject as string,
     grades: (test.grades as string[]) ?? [],
@@ -112,26 +105,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     language: (test.language as string) ?? "English",
   });
 
-  const response = await openai.responses.create({
-    model: "gpt-4o",
-    instructions: "You are an expert tutor assessment designer. Always return valid JSON only, no markdown.",
-    input: prompt,
-    temperature: 0.7,
-    truncation: "auto",
-  });
-
-  const raw =
-    (response as { output_text?: string }).output_text ??
-    (Array.isArray((response as { output?: unknown[] }).output)
-      ? (response as { output: Array<{ type?: string; text?: string }> }).output
-          .map((item) => item.text ?? "")
-          .join("")
-      : "");
+  let raw: string;
+  try {
+    const completion = await chatComplete({
+      prompt,
+      system: "You are an expert tutor assessment designer. Always return valid JSON only, no markdown.",
+      taskType: "teacher_test_generation",
+      temperature: 0.7,
+      json: true,
+    });
+    raw = completion.content;
+  } catch (error: unknown) {
+    console.error("Teacher test generation error:", error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : "Failed to generate test questions",
+    });
+  }
 
   let questions_json: unknown;
   try {
-    const cleaned = raw.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
-    questions_json = JSON.parse(cleaned);
+    questions_json = parseJsonResponse<unknown>(raw);
   } catch {
     return res.status(500).json({ error: "AI returned invalid JSON", raw: raw.slice(0, 500) });
   }

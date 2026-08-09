@@ -177,6 +177,7 @@ const CheckPaperFlow = () => {
       };
       if (inputMode === "upload" && pdfFile) {
         payload.pdfBase64 = await convertPdfToBase64(pdfFile);
+        payload.fileName = pdfFile.name;
       } else {
         payload.pastedText = pastedText.trim();
       }
