@@ -4,7 +4,7 @@
 - **Teaching OS** (assignments, quizzes, documents, lesson planning, grading/checking)
 - **AI OS** (Smart Tutor, AI checker, worksheet/lesson generators, AI credits and usage tracking)
 
-…all wrapped in a multi‑role Next.js app (owner/admin, teacher, student) backed by Supabase, Paddle, and OpenAI.
+…all wrapped in a multi‑role Next.js app (owner/admin, teacher, student) backed by Supabase, Paddle, and the OpenCode Go AI gateway.
 
 ---
 
@@ -16,7 +16,7 @@
   - Next.js 14 app with role‑based dashboards at `/dashboard/owner`, `/dashboard/teacher`, `/dashboard/student`.
   - Supabase for auth, data, storage (documents, assignments, submissions, contracts, invoices, etc.).
   - Paddle for billing, subscription management, and possibly teacher payouts.
-  - OpenAI‑powered AI features: Smart Tutor, AI checker, lesson plan generation, worksheet/content generation.
+  - AI features powered by the OpenCode Go plan (MiniMax, Kimi, GLM, DeepSeek): Smart Tutor, AI checker, lesson plan generation, worksheet/content generation.
   - Strong separation of **features by role** in `src/features/dashboard/{owner,teacher,student}` and reusable UI in `src/components`.
 
 ---

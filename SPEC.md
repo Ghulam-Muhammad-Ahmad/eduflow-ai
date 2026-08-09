@@ -53,7 +53,7 @@ EduFlow AI is a **multi-tenant education management platform** designed for tuto
 - **Workspace management** — Owners create workspaces, invite tutors and students, manage billing and contracts.
 - **Classroom & 1-on-1 rooms** — Tutors organize students into group classrooms or private 1-on-1 rooms.
 - **Assignments & Quizzes** — Teachers create, publish, and grade assignments and quizzes; students submit and take them.
-- **AI Studio** — AI-powered tools for generating rubrics, exam papers, worksheets, lesson plans, study materials, quiz questions, and grading submissions (OpenAI).
+- **AI Studio** — AI-powered tools for generating rubrics, exam papers, worksheets, lesson plans, study materials, quiz questions, and grading submissions (OpenCode Go).
 - **Document Center** — File uploads, folder management, document sharing to classrooms/rooms, and storage quotas.
 - **Session Scheduling** — Calendar-based scheduling with Google Calendar sync, recurring sessions, and session financials.
 - **Billing & Finance** — Paddle subscription billing for workspaces; tutor contracts with hourly/per-session/fixed-monthly pay; student fee configs and invoicing; payment proof uploads.
@@ -85,7 +85,7 @@ EduFlow AI is a **multi-tenant education management platform** designed for tuto
 | **Forms** | react-hook-form + @hookform/resolvers | 7.61.x |
 | **Validation** | Zod | 3.25.x |
 | **Database / Auth** | Supabase (supabase-js + SSR) | 2.90.x / 0.8.x |
-| **AI** | OpenAI SDK | 6.16.x |
+| **AI** | OpenCode Go (Zen) gateway via OpenAI-compatible SDK | 6.16.x |
 | **Billing** | Paddle (checkout, webhooks, portal) | via REST API |
 | **PDF Generation** | jspdf + jspdf-autotable, pdf-lib, html2canvas | — |
 | **Document Parsing** | pdf-parse, mammoth | — |
@@ -224,7 +224,13 @@ eduflow-ai/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key | — |
+| `OPENCODE_API_KEY` | OpenCode Go subscription API key (`sk-…`) | — |
+| `OPENCODE_BASE_URL` | OpenCode Go gateway base URL | `https://opencode.ai/zen/go/v1` |
+| `OPENCODE_MODEL_GENERAL` | Model for prose generation | `kimi-k2.6` |
+| `OPENCODE_MODEL_REASONING` | Model for grading/evaluation | `deepseek-v4-pro` |
+| `OPENCODE_MODEL_STRUCTURED` | Model for JSON output | `glm-5.1` |
+| `OPENCODE_MODEL_LONG_CONTEXT` | Model for very large prompts | `minimax-m3` |
+| `OPENCODE_MODEL_FAST` | Model for short, low-stakes calls | `deepseek-v4-flash` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (bypasses RLS) | — |
 | `PADDLE_API_KEY` | Paddle server API key | — |
 | `PADDLE_WEBHOOK_SECRET` | Paddle webhook verification secret | — |
@@ -246,7 +252,7 @@ eduflow-ai/
 - `reactStrictMode: true`
 - `swcMinify: true`
 - `images.domains: []`
-- Injects `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `OPENAI_API_KEY` into `env`
+- Injects `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` into `env` (public values only — `env` entries are inlined into the client bundle, so server secrets must not be listed there)
 - `eslint.ignoreDuringBuilds: true`
 
 ### `tsconfig.json`
@@ -1012,7 +1018,7 @@ All API routes are under `pages/api/`. They use `getAuthUser(req, res)` for auth
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/ai/generate` | POST | General AI generation (all task types via OpenAI); deducts credits server-side |
+| `/api/ai/generate` | POST | General AI generation (all task types via OpenCode Go); deducts credits server-side |
 | `/api/ai/check-paper` | POST | AI paper checking with rubric/instructions |
 | `/api/ai/smart-tutor` | POST | Interactive AI concept explanation |
 | `/api/ai/lesson-plan-from-syllabus` | POST | Generate structured lesson plan from syllabus text/PDF |
@@ -1224,16 +1230,43 @@ All API routes are under `pages/api/`. They use `getAuthUser(req, res)` for auth
 
 ```
 Browser                    Server (API Route)              External
-┌──────────┐  fetch()    ┌──────────────────┐  SDK       ┌──────────┐
-│aiService │────────────►│/api/ai/generate  │──────────►│ OpenAI   │
-│.ts       │◄────────────│                  │◄──────────│ API      │
-└──────────┘  JSON       │  1. Auth check   │           └──────────┘
-                         │  2. Credit check │
-                         │  3. OpenAI call  │
-                         │  4. Deduct creds │
-                         │  5. Log interact │
+┌──────────┐  fetch()    ┌──────────────────┐            ┌──────────────┐
+│aiService │────────────►│/api/ai/generate  │───────────►│ OpenCode Go  │
+│.ts       │◄────────────│                  │◄───────────│ (Zen) gateway│
+└──────────┘  JSON       │  1. Auth check   │  OpenAI-   └──────────────┘
+                         │  2. Credit check │  compatible
+                         │  3. Model route  │  /chat/completions
+                         │  4. Gateway call │
+                         │  5. Deduct creds │
+                         │  6. Log interact │
                          └──────────────────┘
 ```
+
+### Provider: OpenCode Go (Zen)
+
+All AI calls go through `src/server/ai/opencode.ts`, which points the OpenAI SDK
+at the OpenCode Go gateway (`https://opencode.ai/zen/go/v1`) using a single
+`OPENCODE_API_KEY` subscription key. Only the OpenAI-compatible Chat Completions
+surface is used — the Responses API, Files API and `input_file` document parts
+are OpenAI-specific and are not available, so uploaded documents are extracted to
+text server-side before being inlined into the prompt.
+
+### Model Routing
+
+`resolveModel()` picks a model per task instead of hardcoding one. Each role is
+overridable via env var (see §4) so the catalog can move without a code change.
+
+| Role | Default model | Used for |
+|------|---------------|----------|
+| `general` | `kimi-k2.6` | Prose: content, papers, lesson plans, contracts, differentiation |
+| `reasoning` | `deepseek-v4-pro` | Grading (`checker`), teacher evaluation, tutor matching |
+| `structured` | `glm-5.1` | JSON output: rubrics, worksheets, quizzes, teacher tests |
+| `longContext` | `minimax-m3` | Any prompt over 60,000 characters (512K context) |
+| `fast` | `deepseek-v4-flash` | Short, low-stakes calls (study plans) |
+
+Legacy OpenAI model ids (`gpt-4`, `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`) sent
+by older clients are remapped onto the equivalent OpenCode role rather than being
+forwarded to the gateway.
 
 ### AI Task Types
 
@@ -1289,7 +1322,7 @@ type AITaskType =
 
 AI generation functions support:
 - **Text input** — Pasted or extracted text (truncated to 18,000 chars)
-- **PDF input** — Base64 PDF sent directly to OpenAI (no text extraction needed)
+- **PDF input** — Base64 PDF uploaded to the API route, extracted to text server-side with `pdf-parse` (DOCX via `mammoth`) and inlined into the prompt, capped at 180,000 chars
 - Both patterns are supported for rubrics, papers, worksheets, and lesson plans
 
 ---
@@ -1677,8 +1710,8 @@ Supabase handles auth, database, storage, and real-time. There is no separate ba
 - Next.js API routes (orchestration, external API calls)
 - Client-side hooks (data fetching, caching)
 
-### 5. OpenAI Only
-The AI system uses only OpenAI (no Gemini, Anthropic, etc.). The `provider` field in `ai_interactions` exists for future extensibility.
+### 5. Single AI Provider: OpenCode Go
+All AI runs through the OpenCode Go (Zen) gateway under one subscription key, which fronts MiniMax, Kimi, GLM, DeepSeek, Qwen and MiMo models. Model selection is centralised in `src/server/ai/opencode.ts`; no route hardcodes a model. The `provider` field in `ai_interactions` records `opencode`.
 
 ### 6. Paddle for Billing
 Subscription management is handled entirely through Paddle (checkout, webhooks, customer portal). The app does not store payment methods or process payments directly.
@@ -1769,7 +1802,8 @@ User → AI Studio form → aiService.generate*()
   → checkAIUsageLimit() [RPC: get_credit_context]
   → fetch(/api/ai/generate) [POST with prompt, taskType, userId]
   → Server: getAuthUser() → check_and_deduct_credits [RPC]
-  → OpenAI API call → record_ai_interaction [RPC]
+  → resolveModel(taskType, promptSize) → OpenCode Go /chat/completions
+  → record_ai_interaction [RPC]
   → Response: content, tokens, cost, credits_deducted
 ```
 

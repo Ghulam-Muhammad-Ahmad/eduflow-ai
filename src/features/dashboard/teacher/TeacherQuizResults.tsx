@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -27,8 +28,15 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { ArrowLeft, Download, Clock, Target, Users, TrendingUp, Check, X, Edit, Sparkles } from "lucide-react";
-import { useQuizzes, Quiz, QuizAttempt, QuizQuestion } from "@/hooks/useQuizzes";
+import { ArrowLeft, Download, Clock, Target, Users, TrendingUp, Check, X, Edit, Sparkles, FileText } from "lucide-react";
+import {
+  useQuizzes,
+  Quiz,
+  QuizAttempt,
+  QuizQuestion,
+  DEFAULT_RESPONSE_POINTS,
+  isDocumentResponseQuiz,
+} from "@/hooks/useQuizzes";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { suggestShortAnswerGrade } from "@/services/aiService";
@@ -39,10 +47,27 @@ const TeacherQuizResults = () => {
   const { quizId } = router.query;
   const { user } = useAuth();
   const { toast } = useToast();
-  const { fetchQuizWithQuestions, fetchQuizAttempts, gradeShortAnswers, loading } = useQuizzes();
+  const {
+    fetchQuizWithQuestions,
+    fetchQuizAttempts,
+    gradeShortAnswers,
+    gradeDocumentResponse,
+    getQuizResponseFileUrl,
+    loading,
+  } = useQuizzes();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  /** Document-response grading: marks awarded and written feedback. */
+  const [responseGrade, setResponseGrade] = useState<number>(0);
+  const [responseFeedback, setResponseFeedback] = useState("");
+
+  /**
+   * No questions but an attached document: students answered from the document
+   * with free text and/or a file, so grading is a single mark plus feedback.
+   */
+  const isDocumentResponse = isDocumentResponseQuiz(quiz, questions.length);
+  const responsePointsPossible = quiz?.response_points ?? DEFAULT_RESPONSE_POINTS;
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [selectedAttempt, setSelectedAttempt] = useState<QuizAttempt | null>(null);
   const [gradingDialogOpen, setGradingDialogOpen] = useState(false);
@@ -135,6 +160,8 @@ const TeacherQuizResults = () => {
   const openGradingDialog = (attempt: QuizAttempt) => {
     setSelectedAttempt(attempt);
     setGradingError(null);
+    setResponseGrade(attempt.points_earned ?? 0);
+    setResponseFeedback(attempt.feedback ?? "");
     // Initialize grading answers for short answer questions
     const shortAnswerQuestions = attempt.answers.filter((ans) => {
       const question = questions.find((q) => q.id === ans.question_id);
@@ -155,6 +182,22 @@ const TeacherQuizResults = () => {
     if (!selectedAttempt) return;
     setGradingError(null);
     try {
+      if (isDocumentResponse) {
+        const ok = await gradeDocumentResponse(
+          selectedAttempt.id,
+          responseGrade,
+          responsePointsPossible,
+          responseFeedback
+        );
+        if (!ok) {
+          setGradingError("Failed to submit the grade. Please try again.");
+          return;
+        }
+        setGradingDialogOpen(false);
+        loadAttempts(selectedAttempt.quiz_id);
+        return;
+      }
+
       const success = await gradeShortAnswers(selectedAttempt.id, gradingAnswers);
       if (!success) {
         setGradingError("Failed to submit grades. Please try again.");
@@ -456,7 +499,9 @@ const TeacherQuizResults = () => {
         <Tabs defaultValue="attempts" className="space-y-4">
           <TabsList>
             <TabsTrigger value="attempts">Student Attempts</TabsTrigger>
-            <TabsTrigger value="questions">Question Analysis</TabsTrigger>
+            {!isDocumentResponse && (
+              <TabsTrigger value="questions">Question Analysis</TabsTrigger>
+            )}
           </TabsList>
 
           {/* Student Attempts Tab */}
@@ -604,10 +649,13 @@ const TeacherQuizResults = () => {
       <Dialog open={gradingDialogOpen} onOpenChange={setGradingDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Grade Short Answer Questions</DialogTitle>
+            <DialogTitle>
+              {isDocumentResponse ? "Grade Response" : "Grade Short Answer Questions"}
+            </DialogTitle>
             <DialogDescription>
-              Review and assign points to short answer questions for{" "}
-              {selectedAttempt?.student?.display_name}
+              {isDocumentResponse
+                ? `Review the submission from ${selectedAttempt?.student?.display_name ?? "this student"} and award marks.`
+                : `Review and assign points to short answer questions for ${selectedAttempt?.student?.display_name ?? ""}`}
             </DialogDescription>
           </DialogHeader>
 
@@ -617,10 +665,74 @@ const TeacherQuizResults = () => {
                 {gradingError}
               </div>
             )}
+            {isDocumentResponse && selectedAttempt && (
+              <Card className="p-4">
+                <Label className="text-xs text-muted-foreground">Written answer</Label>
+                {selectedAttempt.response_text ? (
+                  <p className="mt-1 whitespace-pre-wrap text-sm">
+                    {selectedAttempt.response_text}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm italic text-muted-foreground">
+                    No written answer submitted.
+                  </p>
+                )}
+
+                {selectedAttempt.response_file_name && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!selectedAttempt.response_file_path) return;
+                      const url = await getQuizResponseFileUrl(
+                        selectedAttempt.response_file_path
+                      );
+                      if (url) window.open(url, "_blank", "noopener,noreferrer");
+                    }}
+                    className="mt-4 flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-accent"
+                  >
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {selectedAttempt.response_file_name}
+                    </span>
+                    <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                )}
+
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <Label htmlFor="response-grade">
+                      Marks awarded (max {responsePointsPossible})
+                    </Label>
+                    <Input
+                      id="response-grade"
+                      type="number"
+                      min="0"
+                      max={responsePointsPossible}
+                      step="0.5"
+                      value={responseGrade}
+                      onChange={(e) => setResponseGrade(parseFloat(e.target.value) || 0)}
+                      className="mt-1.5 max-w-[160px]"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="response-feedback">Feedback (optional)</Label>
+                    <Textarea
+                      id="response-feedback"
+                      value={responseFeedback}
+                      onChange={(e) => setResponseFeedback(e.target.value)}
+                      placeholder="Notes for the student..."
+                      rows={4}
+                      className="mt-1.5 resize-y"
+                    />
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {selectedAttempt?.answers
               .filter((ans) => {
                 const question = questions.find((q) => q.id === ans.question_id);
-                return question?.question_type === "short_answer";
+                return !isDocumentResponse && question?.question_type === "short_answer";
               })
               .map((answer, index) => {
                 const question = questions.find((q) => q.id === answer.question_id);
@@ -703,19 +815,27 @@ const TeacherQuizResults = () => {
               })}
 
             <div className="flex justify-between pt-4">
-              <Button
-                variant="outline"
-                onClick={handleSuggestWithAI}
-                disabled={suggestingWithAI || !user?.id}
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                {suggestingWithAI ? "Suggesting…" : "Suggest with AI"}
-              </Button>
+              {/* AI suggestion grades per short-answer question; it has nothing to
+                  work from on a document response. */}
+              {isDocumentResponse ? (
+                <span />
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={handleSuggestWithAI}
+                  disabled={suggestingWithAI || !user?.id}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {suggestingWithAI ? "Suggesting…" : "Suggest with AI"}
+                </Button>
+              )}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setGradingDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleGrade}>Save Grades</Button>
+                <Button onClick={handleGrade}>
+                  {isDocumentResponse ? "Save Grade" : "Save Grades"}
+                </Button>
               </div>
             </div>
           </div>
