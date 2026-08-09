@@ -226,9 +226,9 @@ eduflow-ai/
 |----------|-------------|---------|
 | `OPENCODE_API_KEY` | OpenCode Go subscription API key (`sk-…`) | — |
 | `OPENCODE_BASE_URL` | OpenCode Go gateway base URL | `https://opencode.ai/zen/go/v1` |
-| `OPENCODE_MODEL_GENERAL` | Model for prose generation | `kimi-k2.6` |
+| `OPENCODE_MODEL_GENERAL` | Model for prose generation | `kimi-k3` |
 | `OPENCODE_MODEL_REASONING` | Model for grading/evaluation | `deepseek-v4-pro` |
-| `OPENCODE_MODEL_STRUCTURED` | Model for JSON output | `glm-5.1` |
+| `OPENCODE_MODEL_STRUCTURED` | Model for JSON output | `glm-5.2` |
 | `OPENCODE_MODEL_LONG_CONTEXT` | Model for very large prompts | `minimax-m3` |
 | `OPENCODE_MODEL_FAST` | Model for short, low-stakes calls | `deepseek-v4-flash` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (bypasses RLS) | — |
@@ -1260,11 +1260,15 @@ overridable via env var (see §4) so the catalog can move without a code change.
 
 | Role | Default model | Used for |
 |------|---------------|----------|
-| `general` | `kimi-k2.6` | Prose: content, papers, lesson plans, contracts, differentiation |
+| `general` | `kimi-k3` | Prose: content, papers, lesson plans, contracts, differentiation |
 | `reasoning` | `deepseek-v4-pro` | Grading (`checker`), teacher evaluation, tutor matching |
-| `structured` | `glm-5.1` | JSON output: rubrics, worksheets, quizzes, teacher tests |
+| `structured` | `glm-5.2` | JSON output: rubrics, worksheets, quizzes, teacher tests |
 | `longContext` | `minimax-m3` | Any prompt over 60,000 characters (512K context) |
 | `fast` | `deepseek-v4-flash` | Short, low-stakes calls (study plans) |
+
+Every default is the newest release in its family and was confirmed present and
+responding via `POST /api/ai/test-models`. Re-run that check after changing any
+`OPENCODE_MODEL_*` value.
 
 Legacy OpenAI model ids (`gpt-4`, `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`) sent
 by older clients are remapped onto the equivalent OpenCode role rather than being

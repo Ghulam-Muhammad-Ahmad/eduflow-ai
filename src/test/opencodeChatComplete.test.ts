@@ -186,12 +186,12 @@ describe("listAvailableModels", () => {
   it("returns sorted model ids", async () => {
     const { listAvailableModels } = await loadModule();
     modelsList.mockResolvedValue({
-      data: [{ id: "kimi-k2.6" }, { id: "glm-5.1" }, { id: "minimax-m3" }],
+      data: [{ id: "kimi-k3" }, { id: "glm-5.2" }, { id: "minimax-m3" }],
     });
 
     await expect(listAvailableModels()).resolves.toEqual([
-      "glm-5.1",
-      "kimi-k2.6",
+      "glm-5.2",
+      "kimi-k3",
       "minimax-m3",
     ]);
   });
