@@ -238,7 +238,7 @@ eduflow-ai/
 | `AI_CREDITS_BUSINESS_PRO` | Monthly AI credits for Pro plan | `1200` |
 | `AI_CREDITS_BUSINESS_PLUS` | Monthly AI credits for Plus plan | `3000` |
 | `AI_CREDITS_DEFAULT` | Default credits (no subscription) | `0` |
-| `AI_CREDIT_WEIGHT_*` | Per-feature credit cost (e.g. `AI_CREDIT_WEIGHT_CHECKER`) | `1` each |
+| `AI_CREDIT_WEIGHT_*` | Per-feature credit cost (e.g. `AI_CREDIT_WEIGHT_CHECKER`, `AI_CREDIT_WEIGHT_MODEL_TEST`) | `1` each |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID (Calendar integration) | — |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | — |
 | `GOOGLE_OAUTH_REDIRECT_URI` | Google OAuth redirect URI | — |
@@ -1023,6 +1023,7 @@ All API routes are under `pages/api/`. They use `getAuthUser(req, res)` for auth
 | `/api/ai/smart-tutor` | POST | Interactive AI concept explanation |
 | `/api/ai/lesson-plan-from-syllabus` | POST | Generate structured lesson plan from syllabus text/PDF |
 | `/api/ai/diagnostics` | GET | Owner-only gateway health check: key status, reachable model catalog, role→model mapping, unknown model ids; `?probe=1` also sends a tiny test prompt. No credits deducted |
+| `/api/ai/test-models` | POST | Owner-only. Sends a real generation call to every configured model and reports which answer, with latency and rejected parameters. Costs 1 credit for the whole run (`model_test`), not one per model |
 
 ### Contracts (`/api/contracts/`)
 

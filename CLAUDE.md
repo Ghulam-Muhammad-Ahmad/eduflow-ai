@@ -76,6 +76,7 @@ Key API groups: `pages/api/ai/` (OpenCode calls + credit deduction), `pages/api/
 - Uploaded PDFs/DOCX must be turned into text with `extractDocumentText()` before being put in a prompt.
 - `chatComplete()` retries without `response_format`, then without `temperature`, and treats an empty reply as a failure — never return the gateway's empty string to a caller as success.
 - `GET /api/ai/diagnostics` (owner-only) lists reachable models and flags configured ids the plan does not expose; add `?probe=1` for a live test call.
+- `POST /api/ai/test-models` (owner-only, 1 credit per run) calls every configured model for real. Surfaced as the "AI connection" card on the owner Workspace page (`OwnerAIHealthCard`).
 
 ### Styling
 
