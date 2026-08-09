@@ -74,6 +74,8 @@ Key API groups: `pages/api/ai/` (OpenCode calls + credit deduction), `pages/api/
 - The gateway is OpenAI-compatible **Chat Completions only** (`https://opencode.ai/zen/go/v1`), authenticated with `OPENCODE_API_KEY`. The OpenAI Responses API, Files API and `input_file` parts are not available.
 - Use `chatComplete()` for generation and `parseJsonResponse()` for JSON replies. Do not hardcode model ids in routes — pass `taskType` and let `resolveModel()` choose; defaults are overridable via `OPENCODE_MODEL_*` env vars.
 - Uploaded PDFs/DOCX must be turned into text with `extractDocumentText()` before being put in a prompt.
+- `chatComplete()` retries without `response_format`, then without `temperature`, and treats an empty reply as a failure — never return the gateway's empty string to a caller as success.
+- `GET /api/ai/diagnostics` (owner-only) lists reachable models and flags configured ids the plan does not expose; add `?probe=1` for a live test call.
 
 ### Styling
 

@@ -164,8 +164,86 @@ export interface ChatCompleteResult {
 const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
 
 /**
+ * Pull the assistant text out of a completion.
+ *
+ * The gateway fronts several model families, and they do not all put the answer
+ * in `message.content`:
+ *  - reasoning models (DeepSeek-style) can leave `content` empty and put the
+ *    text in `reasoning_content` / `reasoning`;
+ *  - some OpenAI-compatible servers return `content` as an array of parts.
+ * Anything we can read as text is better than reporting an empty response.
+ */
+function extractMessageText(completion: OpenAI.Chat.ChatCompletion): {
+  text: string;
+  finishReason: string | null;
+  refusal: string | null;
+} {
+  const choice = completion.choices?.[0];
+  const message = choice?.message as
+    | (OpenAI.Chat.ChatCompletionMessage & {
+        reasoning_content?: unknown;
+        reasoning?: unknown;
+      })
+    | undefined;
+
+  const asText = (value: unknown): string => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      return value
+        .map((part) =>
+          typeof part === "string"
+            ? part
+            : typeof (part as { text?: unknown })?.text === "string"
+              ? (part as { text: string }).text
+              : ""
+        )
+        .join("");
+    }
+    return "";
+  };
+
+  const text =
+    asText(message?.content) ||
+    asText(message?.reasoning_content) ||
+    asText(message?.reasoning) ||
+    "";
+
+  return {
+    text,
+    finishReason: choice?.finish_reason ?? null,
+    refusal: typeof message?.refusal === "string" ? message.refusal : null,
+  };
+}
+
+/** Describe an empty completion well enough to act on it without server logs. */
+function describeEmptyCompletion(
+  completion: OpenAI.Chat.ChatCompletion,
+  requestedModel: string,
+  finishReason: string | null,
+  refusal: string | null
+): string {
+  const parts = [
+    `model=${completion.model || requestedModel}`,
+    `finish_reason=${finishReason ?? "none"}`,
+    `choices=${completion.choices?.length ?? 0}`,
+  ];
+  if (refusal) parts.push(`refusal=${refusal}`);
+  if (completion.usage) {
+    parts.push(`completion_tokens=${completion.usage.completion_tokens ?? 0}`);
+  }
+  return parts.join(", ");
+}
+
+/**
  * Single entry point for text generation. Returns the raw assistant message
  * plus token usage (estimated when the gateway omits it).
+ *
+ * The gateway is an aggregator, and not every model behind it accepts every
+ * OpenAI parameter — some reject `response_format`/`temperature` outright,
+ * others accept them and then return nothing. So the request is retried down a
+ * ladder that drops the optional parameters, and an empty result is treated as
+ * a failure to retry rather than a successful empty answer. Callers used to
+ * receive `""` here and report it as invalid JSON, which hid the real cause.
  */
 export async function chatComplete({
   prompt,
@@ -188,47 +266,108 @@ export async function chatComplete({
   if (system?.trim()) messages.push({ role: "system", content: system });
   messages.push({ role: "user", content: prompt });
 
-  const request: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
-    model: selectedModel,
-    messages,
-    temperature,
+  const buildRequest = (opts: {
+    withJson: boolean;
+    withTemperature: boolean;
+  }): OpenAI.Chat.ChatCompletionCreateParamsNonStreaming => {
+    const request: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
+      model: selectedModel,
+      messages,
+    };
+    if (opts.withTemperature) request.temperature = temperature;
+    if (opts.withJson) request.response_format = { type: "json_object" };
+    return request;
   };
-  if (json) request.response_format = { type: "json_object" };
 
-  let completion: OpenAI.Chat.ChatCompletion;
-  try {
-    completion = await client.chat.completions.create(request);
-  } catch (error: unknown) {
-    // Not every model on the gateway advertises JSON mode; retry as plain text.
-    // The prompts already instruct the model to return raw JSON.
-    if (json && isUnsupportedParamError(error)) {
-      delete request.response_format;
-      completion = await client.chat.completions.create(request);
-    } else {
-      throw error;
+  // Progressively drop the optional parameters. Each variant is tried once.
+  const variants: Array<{ withJson: boolean; withTemperature: boolean }> = [
+    { withJson: json, withTemperature: true },
+  ];
+  if (json) variants.push({ withJson: false, withTemperature: true });
+  variants.push({ withJson: false, withTemperature: false });
+
+  let lastDiagnostic = "";
+  let lastError: unknown = null;
+
+  for (let i = 0; i < variants.length; i += 1) {
+    const isLast = i === variants.length - 1;
+    try {
+      const completion = await client.chat.completions.create(buildRequest(variants[i]));
+      const { text, finishReason, refusal } = extractMessageText(completion);
+
+      if (text.trim()) {
+        const usage = completion.usage;
+        return {
+          content: text,
+          model: completion.model || selectedModel,
+          inputTokens: usage?.prompt_tokens ?? estimateTokens((system ?? "") + prompt),
+          outputTokens: usage?.completion_tokens ?? estimateTokens(text),
+        };
+      }
+
+      lastDiagnostic = describeEmptyCompletion(
+        completion,
+        selectedModel,
+        finishReason,
+        refusal
+      );
+      if (refusal) {
+        // A refusal is a real answer, not a transport problem — retrying with
+        // fewer parameters will not change it.
+        throw new Error(`The AI model declined to answer: ${refusal}`);
+      }
+      console.error(
+        `[opencode] empty completion (attempt ${i + 1}/${variants.length}): ${lastDiagnostic}`
+      );
+    } catch (error: unknown) {
+      lastError = error;
+      const retryable = isUnsupportedParamError(error);
+      console.error(
+        `[opencode] chat completion failed (attempt ${i + 1}/${variants.length}, model=${selectedModel}):`,
+        error instanceof Error ? error.message : error
+      );
+      if (isLast || !retryable) throw error;
     }
   }
 
-  const content = completion.choices[0]?.message?.content ?? "";
-  const usage = completion.usage;
-  return {
-    content,
-    model: completion.model || selectedModel,
-    inputTokens: usage?.prompt_tokens ?? estimateTokens((system ?? "") + prompt),
-    outputTokens: usage?.completion_tokens ?? estimateTokens(content),
-  };
+  // Every variant came back empty.
+  const hint =
+    `The AI gateway accepted the request but returned no content (${lastDiagnostic}). ` +
+    `Check that "${selectedModel}" is a model your OpenCode Go plan exposes — ` +
+    `GET ${process.env.OPENCODE_BASE_URL?.trim() || DEFAULT_BASE_URL}/models lists them. ` +
+    `Override it with the matching OPENCODE_MODEL_* env var if not.`;
+  throw lastError instanceof Error ? new Error(`${hint} Last error: ${lastError.message}`) : new Error(hint);
 }
 
+/**
+ * True when the gateway rejected the request because of an optional parameter
+ * we can simply drop (JSON mode, temperature), rather than something retrying
+ * cannot fix — a bad key, a missing model, or a rate limit.
+ */
 function isUnsupportedParamError(error: unknown): boolean {
   const status = (error as { status?: number })?.status;
-  if (status !== 400 && status !== 404 && status !== 422) return false;
+  if (status !== 400 && status !== 422) return false;
   const message = String((error as { message?: string })?.message ?? "").toLowerCase();
   return (
     message.includes("response_format") ||
     message.includes("json_object") ||
+    message.includes("json mode") ||
+    message.includes("temperature") ||
     message.includes("unsupported") ||
-    message.includes("not supported")
+    message.includes("not supported") ||
+    message.includes("unknown parameter") ||
+    message.includes("unrecognized")
   );
+}
+
+/**
+ * Models the configured key can actually reach. Used by the diagnostics route
+ * so a bad model id can be identified without reading server logs.
+ */
+export async function listAvailableModels(): Promise<string[]> {
+  const client = getOpenCodeClient();
+  const response = await client.models.list();
+  return response.data.map((m) => m.id).sort();
 }
 
 /** Strip a leading/trailing markdown code fence before JSON.parse. */
